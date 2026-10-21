@@ -1,54 +1,89 @@
-import { ActivityIndicator, Pressable, StyleSheet } from 'react-native';
+import type { ReactNode } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/Text';
-import { colors, radius } from '@/theme/tokens';
+import { colors, fonts, radius, touch } from '@/theme/tokens';
+
+type Variant = 'primary' | 'secondary' | 'danger' | 'dark' | 'ghost' | 'link';
 
 type Props = {
   label: string;
-  onPress: () => void;
-  variant?: 'primary' | 'secondary' | 'ghost';
+  onPress?: () => void;
+  variant?: Variant;
   disabled?: boolean;
   loading?: boolean;
+  icon?: ReactNode;
+  size?: 'lg' | 'md';
+  style?: ViewStyle;
+  accessibilityHint?: string;
 };
 
-export function Button({ label, onPress, variant = 'primary', disabled, loading }: Props) {
+const palette: Record<Variant, { bg: string; fg: string; border?: string }> = {
+  primary: { bg: colors.lime, fg: colors.limeInk },
+  secondary: { bg: colors.inkRaised, fg: colors.paper, border: colors.inkBorder },
+  danger: { bg: colors.pink, fg: colors.paper },
+  dark: { bg: colors.limeInk, fg: colors.paper },
+  ghost: { bg: 'transparent', fg: colors.paper },
+  link: { bg: 'transparent', fg: colors.paperMuted },
+};
+
+// Botão padrão: 56 de altura, cantos 24. Uma ação principal por tela.
+export function Button({
+  label,
+  onPress,
+  variant = 'primary',
+  disabled,
+  loading,
+  icon,
+  size = 'lg',
+  style,
+  accessibilityHint,
+}: Props) {
   const inactive = disabled || loading;
+  const p = palette[variant];
+  const height = variant === 'link' ? touch : size === 'lg' ? 56 : 48;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityState={{ disabled: !!inactive }}
+      accessibilityLabel={label}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       onPress={onPress}
       disabled={inactive}
       style={({ pressed }) => [
         styles.base,
-        styles[variant],
+        {
+          minHeight: height,
+          backgroundColor: p.bg,
+          borderRadius: size === 'lg' ? radius.xl : radius.lg,
+        },
+        p.border ? { borderWidth: 1, borderColor: p.border } : null,
         inactive && styles.inactive,
         pressed && styles.pressed,
+        style,
       ]}>
       {loading ? (
-        <ActivityIndicator color={variant === 'primary' ? colors.limeInk : colors.paper} />
+        <ActivityIndicator color={p.fg} />
       ) : (
-        <Text
-          variant="strong"
-          style={{ color: variant === 'primary' ? colors.limeInk : colors.paper }}>
-          {label}
-        </Text>
+        <View style={styles.row}>
+          {icon}
+          <Text
+            style={{
+              color: p.fg,
+              fontFamily: fonts.bodyStrong,
+              fontSize: variant === 'link' || size === 'md' ? 15 : 16,
+            }}>
+            {label}
+          </Text>
+        </View>
       )}
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  base: {
-    minHeight: 56,
-    borderRadius: radius.lg,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-  },
-  primary: { backgroundColor: colors.lime },
-  secondary: { backgroundColor: colors.inkRaised, borderWidth: 1, borderColor: colors.inkBorder },
-  ghost: { backgroundColor: 'transparent' },
-  inactive: { opacity: 0.45 },
-  pressed: { transform: [{ scale: 0.98 }] },
+  base: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  inactive: { opacity: 0.4 },
+  pressed: { transform: [{ scale: 0.98 }], opacity: 0.92 },
 });

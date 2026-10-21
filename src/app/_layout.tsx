@@ -2,7 +2,7 @@ import {
   BricolageGrotesque_700Bold,
   BricolageGrotesque_800ExtraBold,
 } from '@expo-google-fonts/bricolage-grotesque';
-import { Inter_400Regular, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { useConvexAuth, useQuery } from 'convex/react';
 import { useFonts } from 'expo-font';
@@ -23,6 +23,7 @@ export default function RootLayout() {
     BricolageGrotesque_700Bold,
     BricolageGrotesque_800ExtraBold,
     Inter_400Regular,
+    Inter_500Medium,
     Inter_600SemiBold,
   });
 
