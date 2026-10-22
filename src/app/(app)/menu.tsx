@@ -13,7 +13,8 @@ type Speed = '1' | '5' | '20';
 
 // 7.3 Menu da partida. No treino com bots aparecem os controles extras.
 export default function Menu() {
-  const { treino } = useLocalSearchParams<{ treino?: string }>();
+  const { treino, id } = useLocalSearchParams<{ treino?: string; id?: string }>();
+  const leave = () => router.replace({ pathname: '/sair', params: id ? { id } : {} });
   const [speed, setSpeed] = useState<Speed>('1');
   const training = treino === '1';
 
@@ -22,7 +23,7 @@ export default function Menu() {
       <Pressable accessibilityLabel="Fechar" style={StyleSheet.absoluteFill} onPress={() => router.back()} />
       <Sheet>
         <Text style={{ fontFamily: fonts.display, fontSize: 22, marginTop: 14 }}>Menu da partida</Text>
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/sair')} style={styles.leave}>
+        <Pressable accessibilityRole="button" onPress={leave} style={styles.leave}>
           <View style={styles.leaveIcon}>
             <LogOut size={18} color={colors.paper} />
           </View>
@@ -57,7 +58,7 @@ export default function Menu() {
           </>
         ) : null}
 
-        <Button variant="danger" label="Sair da partida" style={{ marginTop: 18 }} onPress={() => router.replace('/sair')} />
+        <Button variant="danger" label="Sair da partida" style={{ marginTop: 18 }} onPress={leave} />
       </Sheet>
     </View>
   );

@@ -1,5 +1,5 @@
 import * as Clipboard from 'expo-clipboard';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Sun, X } from 'lucide-react-native';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
@@ -8,11 +8,14 @@ import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { Text } from '@/components/Text';
 import { match } from '@/lib/demo';
+import { useLobby } from '@/lib/game';
 import { colors, fonts } from '@/theme/tokens';
 
 // 5.4 QR da partida: quem está do lado escaneia na tela Entrar.
 export default function QRLobby() {
-  const link = `https://pique.app/p/${match.code}`;
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const code = useLobby(id)?.code ?? match.code;
+  const link = `https://pique.app/p/${code}`;
   return (
     <View style={{ flex: 1 }}>
       <Pressable accessibilityLabel="Fechar" style={StyleSheet.absoluteFill} onPress={() => router.back()} />
@@ -27,11 +30,11 @@ export default function QRLobby() {
           Quem estiver do seu lado escaneia na tela <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14 }}>Entrar</Text>.
         </Text>
 
-        <View style={styles.qr} accessible accessibilityRole="image" accessibilityLabel={`QR code da partida ${match.code}`}>
+        <View style={styles.qr} accessible accessibilityRole="image" accessibilityLabel={`QR code da partida ${code}`}>
           <QRCode value={link} size={220} color={colors.ink} backgroundColor={colors.paper} ecl="M" />
         </View>
         <Text variant="label" style={{ marginTop: 16 }}>ou digite o código</Text>
-        <Text style={{ fontFamily: fonts.display, fontSize: 44, lineHeight: 48, letterSpacing: 0.9 }}>{match.code}</Text>
+        <Text style={{ fontFamily: fonts.display, fontSize: 44, lineHeight: 48, letterSpacing: 0.9 }}>{code}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 }}>
           <Sun size={14} color={colors.paperMuted} />
           <Text variant="label">Brilho no máximo enquanto o QR estiver aberto</Text>
@@ -40,7 +43,7 @@ export default function QRLobby() {
         <View style={{ flex: 1 }} />
         <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'stretch' }}>
           <Button label="Mandar link" style={{ flex: 1 }} onPress={() => Share.share({ message: `Bora jogar Pique? ${link}` })} />
-          <Button variant="secondary" label="Copiar código" style={{ flex: 1, backgroundColor: colors.ink }} onPress={() => Clipboard.setStringAsync(match.code)} />
+          <Button variant="secondary" label="Copiar código" style={{ flex: 1, backgroundColor: colors.ink }} onPress={() => Clipboard.setStringAsync(code)} />
         </View>
       </Sheet>
     </View>

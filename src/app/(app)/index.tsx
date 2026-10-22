@@ -41,19 +41,22 @@ export default function Home() {
       </Text>
       <Text style={styles.sub}>Crie uma partida ou pegue o código de um amigo.</Text>
 
-      {/* Prova social real: só aparece quando um amigo está mesmo num lobby. */}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel="Leo está num lobby agora. Entrar na partida TACO42"
-        onPress={() => router.push('/convite/TACO42')}
-        style={styles.friend}>
-        <AvatarStack sources={[photos.leo, photos.priya, photos.sasha]} size={28} ring={colors.inkRaised} />
-        <View style={{ flex: 1 }}>
-          <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14 }}>Leo está num lobby agora</Text>
-          <Text variant="small">TACO42 · 3 amigos lá dentro</Text>
-        </View>
-        <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 14 }}>Entrar</Text>
-      </Pressable>
+      {/* Prova social real: só aparece quando um amigo está mesmo num lobby.
+          Ainda não existe lista de amigos, então só no modo demonstração. */}
+      {demo ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Leo está num lobby agora. Entrar na partida TACO42"
+          onPress={() => router.push('/convite/TACO42')}
+          style={styles.friend}>
+          <AvatarStack sources={[photos.leo, photos.priya, photos.sasha]} size={28} ring={colors.inkRaised} />
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14 }}>Leo está num lobby agora</Text>
+            <Text variant="small">TACO42 · 3 amigos lá dentro</Text>
+          </View>
+          <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 14 }}>Entrar</Text>
+        </Pressable>
+      ) : null}
 
       <View style={{ gap: 10, marginTop: 12 }}>
         <Button label="Criar partida" loading={create.busy} onPress={() => (demo ? router.push('/lobby') : create.run())} />

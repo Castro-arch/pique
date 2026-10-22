@@ -1,16 +1,30 @@
+import { useMutation } from 'convex/react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LogOut } from 'lucide-react-native';
+import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { Text } from '@/components/Text';
+import type { GameId } from '@/lib/game';
 import { colors, fonts } from '@/theme/tokens';
+import { api } from '../../../convex/_generated/api';
 
 // 7.4 Confirmar saída (do jogo ou do lobby).
 export default function Sair() {
-  const { de } = useLocalSearchParams<{ de?: string }>();
+  const { de, id } = useLocalSearchParams<{ de?: string; id?: string }>();
   const lobby = de === 'lobby';
+  const leaveGame = useMutation(api.games.leave);
+  const [busy, setBusy] = useState(false);
+  const leave = async () => {
+    if (id) {
+      setBusy(true);
+      await leaveGame({ gameId: id as GameId }).catch(() => {});
+    }
+    if (router.canDismiss()) router.dismissAll();
+    router.replace(lobby ? '/' : '/saiu');
+  };
   const points = lobby
     ? ['A crew continua no lobby.', 'Se você era o anfitrião, quem está há mais tempo assume.', 'Dá para voltar pelo mesmo código.']
     : ['Sua localização para de ser enviada na hora.', 'A crew recebe um aviso de que você saiu.', 'Sem penalidade. Suas estatísticas não contam esta rodada.'];
@@ -33,7 +47,7 @@ export default function Sair() {
             ))}
           </View>
         </View>
-        <Button variant="danger" label={lobby ? 'Sair do lobby' : 'Sair da partida'} style={{ marginTop: 22 }} onPress={() => router.replace(lobby ? '/' : '/saiu')} />
+        <Button variant="danger" label={lobby ? 'Sair do lobby' : 'Sair da partida'} style={{ marginTop: 22 }} loading={busy} onPress={leave} />
         <Button
           variant="secondary"
           label={lobby ? 'Ficar no lobby' : 'Continuar jogando'}

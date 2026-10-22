@@ -9,6 +9,7 @@ import { Illustration } from '@/components/Illustration';
 import { Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { illustrations, match } from '@/lib/demo';
+import { useView } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 // 8.4 a 8.6 Fim de rodada para quem venceu.
@@ -17,6 +18,91 @@ import { colors, fonts, radius } from '@/theme/tokens';
 // até lá fica o espaço reservado no mesmo tamanho.
 // ?lado=cacador&estilo=simples: versão sem ilustração, só números.
 export default function Fim() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  return id ? <FimReal id={id} /> : <FimDemo />;
+}
+
+const km = (m: number) => (m >= 1000 ? `${(m / 1000).toFixed(1).replace('.', ',')} km` : `${m} m`);
+const clock = (ms: number) => {
+  const s = Math.max(0, Math.round(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+};
+
+// Fim da partida real: o resultado do ponto de vista de quem está olhando.
+function FimReal({ id }: { id: string }) {
+  const insets = useSafeAreaInsets();
+  const view = useView(id);
+  if (!view) return <View style={styles.root} />;
+
+  const g = view.game;
+  const me = view.me;
+  const hunter = me.role === 'hunter';
+  const won = g.winner === me.role;
+  const accent = hunter ? colors.pink : colors.lime;
+  const total = g.endedAt && g.startedAt ? clock(g.endedAt - g.startedAt) : '–';
+  const hidden = g.startedAt ? clock((me.caughtAt ?? g.endedAt ?? g.startedAt) - g.startedAt) : '–';
+
+  const title = hunter ? (won ? 'Limpou\ngeral' : 'Escaparam') : won ? 'Ninguém\nte achou' : 'Te\nacharam';
+  const body = hunter
+    ? won
+      ? `Todos os corredores foram achados. Você pegou ${me.catches}.`
+      : `${view.runners.free} ${view.runners.free === 1 ? 'corredor escapou' : 'corredores escaparam'} até o fim.`
+    : won
+      ? 'Você ficou escondido até o fim da rodada.'
+      : `Você segurou ${hidden} antes de ser achado.`;
+  const stats = hunter
+    ? [
+        ['Você pegou', String(me.catches)],
+        ['Distância', km(me.distanceM)],
+        ['Rodada', total],
+      ]
+    : [
+        ['Escondido', hidden],
+        ['Distância', km(me.distanceM)],
+        ['Rodada', total],
+      ];
+
+  return (
+    <View style={[styles.root, { paddingBottom: Math.max(insets.bottom, 34), paddingTop: Math.max(insets.top, 56) }]}>
+      {won && !hunter ? (
+        <Illustration source={illustrations.sobreviveu} label="Ilustração: a crew comemorando que ninguém foi achado" />
+      ) : null}
+      <View style={styles.body}>
+        <Chip
+          label={`${g.winner === 'hunter' ? 'Caçadores venceram' : 'Corredores venceram'} · ${total}`}
+          tone={g.winner === 'hunter' ? 'hunter' : 'runner'}
+          dot={g.winner === 'hunter' ? colors.pink : colors.lime}
+          style={{ alignSelf: 'flex-start', marginBottom: 14, marginTop: won && !hunter ? 0 : 40 }}
+        />
+        <Headline variant="display" dot={won ? accent : colors.paperMuted} style={{ fontSize: 64, lineHeight: 60 }}>
+          {title}
+        </Headline>
+        <Text variant="muted" style={{ marginTop: 12, fontSize: 16 }}>{body}</Text>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 18 }}>
+          {stats.map(([l, v], i) => (
+            <View key={l} style={styles.stat}>
+              <Text style={{ fontSize: 11, color: colors.paperMuted }}>{l}</Text>
+              <Text style={{ fontFamily: fonts.display, fontSize: 22, color: i === 0 ? accent : colors.paper }}>{v}</Text>
+            </View>
+          ))}
+        </View>
+        <Spacer />
+        {won ? (
+          <Button variant={hunter ? 'danger' : 'primary'} label="Compartilhar a vitória" onPress={() => router.push({ pathname: '/post', params: { lado: hunter ? 'cacador' : 'corredor' } })} />
+        ) : null}
+        <Button
+          variant={won ? 'link' : 'primary'}
+          label="Revanche com a mesma crew"
+          style={{ marginTop: 6 }}
+          onPress={() => router.replace({ pathname: '/aguardando', params: { id } })}
+        />
+        <Button variant="link" label="Voltar ao início" onPress={() => router.replace('/')} />
+      </View>
+    </View>
+  );
+}
+
+function FimDemo() {
   const { lado = 'corredor', estilo } = useLocalSearchParams<{ lado?: string; estilo?: string }>();
   const insets = useSafeAreaInsets();
   const hunter = lado === 'cacador';

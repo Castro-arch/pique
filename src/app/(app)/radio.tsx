@@ -1,41 +1,75 @@
+import { useMutation, useQuery } from 'convex/react';
 import * as Haptics from 'expo-haptics';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Mic, Play } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
-import { GameTabs } from '@/components/Game';
+import { GameTabs, mmss } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
+import { errorInfo, secondsUntil, useNow, useView, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../convex/_generated/api';
 
 type Msg =
   | { kind: 'system'; at: string; text: string }
-  | { kind: 'text'; from: 'leo' | 'me'; text: string }
-  | { kind: 'audio'; from: 'leo' | 'me'; seconds: number };
+  | { kind: 'text'; name: string; mine: boolean; text: string; playerId?: string }
+  | { kind: 'audio'; name: string; mine: boolean; seconds: number; playerId?: string };
 
 // Respostas prontas: sem texto livre no Radio (decisão de produto).
-const quick = ['Achei um!', 'Cubram o canal', 'Onde você está?', 'Tô indo', 'Perdi de vista'];
+const demoQuick = ['Achei um!', 'Cubram o canal', 'Onde você está?', 'Tô indo', 'Perdi de vista'];
 
 const initial: Msg[] = [
   { kind: 'system', at: '33:00', text: 'Os corredores têm 3 min de vantagem. Segurem firme.' },
-  { kind: 'audio', from: 'leo', seconds: 6 },
-  { kind: 'text', from: 'leo', text: 'Vou pegar o campinho, você pega a rua Figueira.' },
-  { kind: 'text', from: 'me', text: 'Fechado' },
+  { kind: 'audio', name: 'Leo', mine: false, seconds: 6 },
+  { kind: 'text', name: 'Leo', mine: false, text: 'Vou pegar o campinho, você pega a rua Figueira.' },
+  { kind: 'text', name: 'Você', mine: true, text: 'Fechado' },
   { kind: 'system', at: '29:56', text: 'Os corredores se espalharam. Vão atrás.' },
 ];
 
 // 7.2 Radio do time: respostas prontas + áudio de segurar para falar.
 // Os áudios ficam no armazenamento do Convex e são apagados no fim da partida.
 export default function Radio() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
-  const [msgs, setMsgs] = useState<Msg[]>(initial);
+  const live = useQuery(api.radio.list, id ? { gameId: id as GameId } : 'skip');
+  const view = useView(id);
+  const now = useNow();
+  const sendQuick = useMutation(api.radio.sendQuick);
+  const [demoMsgs, setDemoMsgs] = useState<Msg[]>(initial);
   const [talking, setTalking] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const send = (m: Msg) => setMsgs((x) => [...x, m]);
+  const endsAt = view?.game.status === 'headstart' ? view.game.headStartEndsAt : view?.game.endsAt;
+  const clock = id ? mmss(secondsUntil(endsAt, now)) : '30:45';
+  const channel = id ? (live?.team === 'hunter' ? 'Canal dos caçadores' : 'Canal dos corredores') : 'Canal dos caçadores · 2 no ar';
+  const quick: readonly string[] = live?.quick ?? demoQuick;
+
+  // Mensagens do servidor no mesmo formato dos balões da demonstração.
+  const msgs: Msg[] = id
+    ? (live?.messages ?? []).map((m) => {
+        if (m.kind === 'system' || !m.from) {
+          const left = endsAt ? Math.max(0, Math.round((endsAt - m.at) / 1000)) : 0;
+          return { kind: 'system', at: mmss(left), text: m.text ?? '' };
+        }
+        const base = { name: m.from.name, mine: m.from.isMe, playerId: m.from.id };
+        return m.kind === 'audio' ? { kind: 'audio', ...base, seconds: m.seconds ?? 0 } : { kind: 'text', ...base, text: m.text ?? '' };
+      })
+    : demoMsgs;
+
+  const send = async (text: string) => {
+    if (!id) return setDemoMsgs((x) => [...x, { kind: 'text', name: 'Você', mine: true, text }]);
+    setError(null);
+    try {
+      await sendQuick({ gameId: id as GameId, text });
+    } catch (e) {
+      setError(errorInfo(e).message);
+    }
+  };
   const holdStart = () => {
     setTalking(true);
     setStartedAt(Date.now());
@@ -44,8 +78,9 @@ export default function Radio() {
   const holdEnd = () => {
     if (!talking) return;
     setTalking(false);
+    if (id) return setError('O áudio chega junto com a versão do celular. Por enquanto, use as respostas prontas.');
     const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
-    send({ kind: 'audio', from: 'me', seconds });
+    setDemoMsgs((x) => [...x, { kind: 'audio', name: 'Você', mine: true, seconds }]);
   };
 
   return (
@@ -53,9 +88,9 @@ export default function Radio() {
       <View style={styles.head}>
         <View>
           <Text variant="h2" accessibilityRole="header">Radio</Text>
-          <Text variant="small" style={{ marginTop: 2 }}>Canal dos caçadores · 2 no ar</Text>
+          <Text variant="small" style={{ marginTop: 2 }}>{channel}</Text>
         </View>
-        <Text style={{ fontFamily: fonts.display, fontSize: 22 }}>30:45</Text>
+        <Text style={{ fontFamily: fonts.display, fontSize: 22 }}>{clock}</Text>
       </View>
 
       <ScrollView style={{ flex: 1, marginTop: 12 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 12 }}>
@@ -66,9 +101,10 @@ export default function Radio() {
       </ScrollView>
 
       <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 34) + 72 }}>
+        {error ? <Text variant="error" style={{ marginBottom: 8 }}>{error}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {quick.map((q) => (
-            <Pressable key={q} accessibilityRole="button" onPress={() => send({ kind: 'text', from: 'me', text: q })} style={styles.quick}>
+            <Pressable key={q} accessibilityRole="button" onPress={() => send(q)} style={styles.quick}>
               <Text style={{ fontSize: 14, fontFamily: fonts.bodyStrong }}>{q}</Text>
             </Pressable>
           ))}
@@ -101,7 +137,6 @@ function Bubble({ m }: { m: Msg }) {
       </View>
     );
   }
-  const mine = m.from === 'me';
   const body =
     m.kind === 'text' ? (
       <Text style={{ fontSize: 15, lineHeight: 20 }}>{m.text}</Text>
@@ -119,14 +154,14 @@ function Bubble({ m }: { m: Msg }) {
       </View>
     );
   return (
-    <View style={{ flexDirection: 'row', gap: 8, alignSelf: mine ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
-      {!mine ? <Avatar source={photos.leo} size={32} state="hunter" /> : null}
+    <View style={{ flexDirection: 'row', gap: 8, alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
+      {!m.mine ? <Avatar source={m.playerId ? undefined : photos.leo} name={m.name} size={32} state="hunter" /> : null}
       <Pressable
         accessibilityRole="text"
         delayLongPress={400}
-        onLongPress={() => !mine && router.push({ pathname: '/denunciar', params: { id: 'leo' } })}
-        style={[styles.bubble, mine ? styles.mine : styles.theirs]}>
-        {!mine ? <Text style={{ fontSize: 12, color: colors.paperMuted, marginBottom: 2 }}>Leo</Text> : null}
+        onLongPress={() => !m.mine && !m.playerId && router.push({ pathname: '/denunciar', params: { id: 'leo' } })}
+        style={[styles.bubble, m.mine ? styles.mine : styles.theirs]}>
+        {!m.mine ? <Text style={{ fontSize: 12, color: colors.paperMuted, marginBottom: 2 }}>{m.name}</Text> : null}
         {body}
       </Pressable>
     </View>

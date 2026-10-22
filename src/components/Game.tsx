@@ -116,9 +116,14 @@ export const marks = {
 // Cartão de baixo: última mensagem do Radio e a ação do momento.
 export function RadioCard({ from, fromRole, text, children }: { from: string; fromRole?: 'hunter' | 'radio'; text: string; children?: ReactNode }) {
   const hunter = fromRole === 'hunter';
+  const { id } = useLocalSearchParams<{ id?: string }>();
   return (
     <View style={styles.radio}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${from}: ${text}. Abrir Radio`} onPress={() => router.push('/radio')} style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`${from}: ${text}. Abrir Radio`}
+        onPress={() => router.push({ pathname: '/radio', params: id ? { id } : {} })}
+        style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={[styles.radioIcon, hunter ? { borderWidth: 3, borderColor: colors.pink, backgroundColor: colors.ink } : { borderWidth: 1.5, borderColor: colors.lime }]}>
           <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: hunter ? colors.pink : colors.lime }}>{from[0]}</Text>
         </View>
@@ -152,14 +157,21 @@ export function CardAction({ label, hint, tone = 'dark', onPress }: { label: str
 // Abas Mapa / Radio e o botão de mais opções, presos na base.
 export function GameTabs({ unread, tab = 'mapa', bottom = 34 }: { unread?: number; tab?: 'mapa' | 'radio'; bottom?: number }) {
   // No treino com bots (?treino=1) o menu ganha os controles extras.
-  const { treino } = useLocalSearchParams<{ treino?: string }>();
+  // Na partida real (?id=) Radio e menu levam o id junto.
+  const { treino, id } = useLocalSearchParams<{ treino?: string; id?: string }>();
+  const extra = id ? { id } : treino === '1' ? { treino } : {};
   return (
     <View style={[styles.tabsRow, { bottom }]}>
       <View accessibilityRole="tablist" style={styles.tabs}>
         <Tab label="Mapa" on={tab === 'mapa'} onPress={() => tab !== 'mapa' && router.back()} />
-        <Tab label="Radio" on={tab === 'radio'} unread={unread} onPress={() => tab !== 'radio' && router.push('/radio')} />
+        <Tab
+          label="Radio"
+          on={tab === 'radio'}
+          unread={unread}
+          onPress={() => tab !== 'radio' && router.push({ pathname: '/radio', params: id ? { id } : {} })}
+        />
       </View>
-      <Pressable accessibilityRole="button" accessibilityLabel="Mais opções" onPress={() => router.push({ pathname: '/menu', params: treino === '1' ? { treino } : {} })} style={styles.more}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Mais opções" onPress={() => router.push({ pathname: '/menu', params: extra })} style={styles.more}>
         <Ellipsis size={22} color={colors.paper} />
       </Pressable>
     </View>

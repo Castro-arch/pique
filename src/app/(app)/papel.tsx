@@ -1,4 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
+
+import { useLobby } from '@/lib/game';
 import { StyleSheet, View } from 'react-native';
 
 import { AvatarStack } from '@/components/Avatar';
@@ -12,18 +14,29 @@ import { colors, fonts } from '@/theme/tokens';
 
 // 5.9 e 5.10 Revelação do papel: tela inteira na cor do lado.
 export default function Papel() {
-  const { papel = 'runner' } = useLocalSearchParams<{ papel?: 'runner' | 'hunter' }>();
+  const params = useLocalSearchParams<{ id?: string; papel?: 'runner' | 'hunter' }>();
+  const { id } = params;
+  const lobby = useLobby(id);
+  const papel = lobby?.me.role ?? params.papel ?? 'runner';
   const hunter = papel === 'hunter';
   const bg = hunter ? colors.pink : colors.lime;
   const ink = hunter ? colors.pinkInk : colors.limeInk;
-  const { durationMin, headStartMin, pingEveryMin } = match.rules;
+  const { durationMin, headStartMin, pingEveryMin } = lobby?.rules ?? match.rules;
+  const code = lobby?.code ?? match.code;
+  const round = lobby?.round ?? match.round;
+
+  // Time: no lobby real só aparece o papel de quem é do mesmo lado.
+  const mates = lobby ? lobby.players.filter((p) => !p.isMe && p.role === papel).map((p) => p.name) : hunter ? ['Leo'] : ['Jonah', 'Priya', 'Teo', 'Sasha'];
+  const runnersCount = lobby ? lobby.players.length - lobby.players.filter((p) => p.role === 'hunter').length : 4;
+  const names = mates.length > 1 ? `${mates.slice(0, -1).join(', ')} e ${mates[mates.length - 1]}` : (mates[0] ?? '');
+  const team = mates.length === 0 ? (hunter ? 'Você caça sozinho' : 'Você corre sozinho') : hunter ? `Você caça com ${names}` : `Você corre com ${names}`;
 
   return (
     <Screen background={bg} scroll>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Logo size={22} color={ink} dot={ink} />
         <View style={[styles.pill, { backgroundColor: ink }]}>
-          <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong }}>{`${match.code} · Rodada ${match.round}`}</Text>
+          <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong }}>{`${code} · Rodada ${round}`}</Text>
         </View>
       </View>
       <View style={styles.role}>
@@ -32,7 +45,11 @@ export default function Papel() {
       </View>
 
       <Spacer />
-      <Text accessibilityRole="header" style={[styles.hero, { color: ink, fontSize: hunter ? 132 : 150, lineHeight: hunter ? 116 : 136 }]}>
+      <Text
+        accessibilityRole="header"
+        numberOfLines={hunter ? 2 : 1}
+        adjustsFontSizeToFit
+        style={[styles.hero, { color: ink, fontSize: hunter ? 132 : 128, lineHeight: hunter ? 116 : 120 }]}>
         {hunter ? 'Você\npega' : 'Corra'}
         <Text style={{ color: colors.paper }}>.</Text>
       </Text>
@@ -40,19 +57,17 @@ export default function Papel() {
 
       <Text style={[styles.brief, { color: ink }]}>
         {hunter
-          ? `Encontre e pegue os 4 corredores em ${durationMin} min. Eles têm ${headStartMin} min de vantagem.`
+          ? runnersCount === 1
+            ? `Encontre e pegue o corredor em ${durationMin} min. Ele tem ${headStartMin} min de vantagem.`
+            : `Encontre e pegue os ${runnersCount} corredores em ${durationMin} min. Eles têm ${headStartMin} min de vantagem.`
           : `Fique escondido por ${durationMin} min. Você tem ${headStartMin} min de vantagem. Depois, os caçadores recebem um ping a cada ${pingEveryMin} min.`}
       </Text>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 }}>
-        <AvatarStack
-          sources={hunter ? [photos.leo] : [photos.jonah, photos.priya, photos.teo, photos.sasha]}
-          size={30}
-          ring={ink}
-        />
-        <Text style={{ flex: 1, fontSize: 14, fontFamily: fonts.bodyStrong, color: ink }}>
-          {hunter ? 'Você caça com o Leo' : 'Você corre com Jonah, Priya, Teo e Sasha'}
-        </Text>
+        {lobby ? null : (
+          <AvatarStack sources={hunter ? [photos.leo] : [photos.jonah, photos.priya, photos.teo, photos.sasha]} size={30} ring={ink} />
+        )}
+        <Text style={{ flex: 1, fontSize: 14, fontFamily: fonts.bodyStrong, color: ink }}>{team}</Text>
       </View>
       <View style={[styles.tip, { backgroundColor: hunter ? 'rgba(42,6,16,0.12)' : 'rgba(22,32,10,0.12)' }]}>
         <Text style={{ fontSize: 13, lineHeight: 18, fontFamily: fonts.bodyStrong, color: ink }}>
@@ -69,7 +84,9 @@ export default function Papel() {
         variant="dark"
         label="Bora"
         style={{ marginTop: 18, backgroundColor: ink }}
-        onPress={() => router.replace({ pathname: '/jogo', params: { estado: hunter ? 'cacador-espera' : 'corredor-vantagem' } })}
+        onPress={() =>
+          router.replace({ pathname: '/jogo', params: id ? { id } : { estado: hunter ? 'cacador-espera' : 'corredor-vantagem' } })
+        }
       />
     </Screen>
   );

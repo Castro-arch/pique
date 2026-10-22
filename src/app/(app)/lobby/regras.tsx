@@ -1,5 +1,6 @@
-import { router } from 'expo-router';
-import { useState } from 'react';
+import { useMutation } from 'convex/react';
+import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';
@@ -7,7 +8,9 @@ import { Stepper, Toggle } from '@/components/Controls';
 import { Sheet } from '@/components/Sheet';
 import { Text } from '@/components/Text';
 import { match } from '@/lib/demo';
+import { useLobby, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../../convex/_generated/api';
 
 type Rules = { durationMin: number; headStartMin: number; pingEveryMin: number; zoneMeters: number; shrinkEveryMin: number; hunters: number; shrink: boolean; spectatorsHelp: boolean };
 const defaults: Rules = { ...match.rules, shrink: true, spectatorsHelp: false };
@@ -15,9 +18,27 @@ const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(mi
 
 // 5.3 Regras da casa (folha por cima do lobby)
 export default function Regras() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const lobby = useLobby(id);
+  const save = useMutation(api.games.setRules);
   const [r, setR] = useState(defaults);
+  const [loaded, setLoaded] = useState(false);
+  // Com partida real, começa pelas regras salvas no servidor.
+  useEffect(() => {
+    if (lobby && !loaded) {
+      setR((x) => ({ ...x, ...lobby.rules }));
+      setLoaded(true);
+    }
+  }, [lobby, loaded]);
   const set = (patch: Partial<typeof r>) => setR((x) => ({ ...x, ...patch }));
-  const total = 6;
+  const total = lobby?.players.length ?? 6;
+  const submit = async () => {
+    if (id) {
+      const { zoneMeters: _z, ...rules } = r;
+      await save({ gameId: id as GameId, rules });
+    }
+    router.back();
+  };
   const runners = total - r.hunters;
   // Quantas vezes cada corredor aparece no mapa depois da vantagem.
   const pings = Math.floor((r.durationMin - r.headStartMin) / r.pingEveryMin);
@@ -62,7 +83,7 @@ export default function Regras() {
         </View>
 
         <View style={{ flex: 1 }} />
-        <Button label="Salvar regras" onPress={() => router.back()} />
+        <Button label="Salvar regras" onPress={submit} />
       </Sheet>
     </View>
   );

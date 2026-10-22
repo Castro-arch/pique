@@ -16,6 +16,7 @@ import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../../convex/_generated/api';
 
 const roleWord = { runner: 'corredor', hunter: 'caçador', draw: 'sorteio' } as const;
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // 5.1 Lobby do anfitrião. Com ?id= usa a partida real; sem, a demonstração.
 export default function Lobby() {
@@ -110,7 +111,9 @@ export default function Lobby() {
           onPress={() => router.push(withId('/zona'))}
           style={[styles.rule, zoneMeters ? { backgroundColor: colors.limeTint, borderColor: colors.lime } : { borderColor: colors.amber }]}>
           <Text style={{ fontSize: 11, color: zoneMeters ? colors.lime : colors.amber }}>Zona de jogo</Text>
-          <Text style={[styles.ruleValue, { color: zoneMeters ? colors.lime : colors.amber }]}>{zoneMeters ? 'Ligada' : 'Marcar'}</Text>
+          <Text style={[styles.ruleValue, { color: zoneMeters ? colors.lime : colors.amber }]} numberOfLines={1} adjustsFontSizeToFit>
+            {zoneMeters ? 'Ligada' : 'Marcar'}
+          </Text>
         </Pressable>
       </View>
       <Text variant="label" style={{ marginTop: 8 }}>
@@ -123,7 +126,7 @@ export default function Lobby() {
       <Pressable accessibilityRole="button" accessibilityLabel="Ver jogadores" onPress={() => router.push(withId('/lobby/jogadores'))}>
         <View style={[styles.label, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }]}>
           <Text variant="small">Jogadores</Text>
-          <Text variant="label">{`${count('hunter')} caçadores · ${count('runner')} corredores · ${count('draw')} sorteio`}</Text>
+          <Text variant="label">{`${plural(count('hunter'), 'caçador', 'caçadores')} · ${plural(count('runner'), 'corredor', 'corredores')} · ${count('draw')} sorteio`}</Text>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {people.map((p) => (

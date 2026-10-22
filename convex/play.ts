@@ -117,6 +117,9 @@ export const view = query({
         pingEveryMin: game.rules.pingEveryMin,
         winner: game.winner ?? null,
         endedReason: game.endedReason ?? null,
+        startedAt: game.startedAt ?? null,
+        headStartMin: game.rules.headStartMin,
+        endedAt: game.endedAt ?? null,
       },
       me: {
         id: me._id,
@@ -125,13 +128,17 @@ export const view = query({
         outOfZoneSince: me.outOfZoneSince ?? null,
         exposed: !!me.exposed,
         distanceM: Math.round(me.distanceM ?? 0),
+        caughtAt: me.caughtAt ?? null,
+        catches: players.filter((p) => p.caughtBy === me._id).length,
       },
       runners: { total: runners.length, free: runners.filter((p) => p.state === 'active').length },
       people: seen,
       capture: pending
         ? { id: pending._id, expiresAt: pending.expiresAt, other: (await ctx.db.get(me.role === 'runner' ? pending.hunterId : pending.runnerId))?.name ?? '' }
         : null,
-      disputed: lastDisputed ? { id: lastDisputed._id, distanceM: lastDisputed.distanceM ?? null } : null,
+      disputed: lastDisputed
+        ? { id: lastDisputed._id, distanceM: lastDisputed.distanceM ?? null, other: (await ctx.db.get(lastDisputed.runnerId))?.name ?? '' }
+        : null,
     };
   },
 });

@@ -21,6 +21,7 @@ import {
   useCountdown,
 } from '@/components/Game';
 import { Avatar } from '@/components/Avatar';
+import { LiveGame } from '@/components/LiveGame';
 import { MapBackdrop } from '@/components/MapBackdrop';
 import { Text } from '@/components/Text';
 import { match, photos } from '@/lib/demo';
@@ -42,9 +43,12 @@ const ZONE = { cx: 195, cy: 440, r: 190 };
 // ?estado=. Quando o jogo existir no servidor, o estado vem da query de
 // visibilidade do Convex em vez da URL.
 export default function Jogo() {
-  const { estado = 'corredor-vantagem' } = useLocalSearchParams<{ estado?: Estado; treino?: string }>();
+  const { estado = 'corredor-vantagem', id } = useLocalSearchParams<{ estado?: Estado; treino?: string; id?: string }>();
   const insets = useSafeAreaInsets();
   const bottom = Math.max(insets.bottom, 34);
+
+  // Partida real: o estado vem do servidor.
+  if (id) return <LiveGame id={id} />;
 
   const screens: Record<Estado, () => React.ReactNode> = {
     'cacador-espera': () => <CacadorEspera />,

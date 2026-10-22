@@ -51,18 +51,18 @@ export default function Lado() {
           title="Corra"
           body="Suma dentro da zona. Você só aparece nos pings."
           win="Vence se alguém estiver livre no fim"
-          faces={[photos.priya, photos.sasha, photos.teo]}
+          faces={lobby ? [] : [photos.priya, photos.sasha, photos.teo]}
         />
         <BigCard
           on={side === 'hunter'}
           onPress={() => setSide('hunter')}
           role="hunter"
           kicker="Caçador"
-          tag="falta 1 para equilibrar"
+          tag={lobby ? undefined : 'falta 1 para equilibrar'}
           title="Você pega"
           body={`Sem rastreio ao vivo: um ping a cada ${match.rules.pingEveryMin} min.`}
           win="Vence pegando todos antes do tempo"
-          faces={[photos.leo, photos.jonah]}
+          faces={lobby ? [] : [photos.leo, photos.jonah]}
         />
         <Pressable
           accessibilityRole="radio"
@@ -141,7 +141,7 @@ function BigCard(p: {
       <Text style={{ fontSize: 14, lineHeight: 20, marginTop: 6, color: sub, maxWidth: 270 }}>{p.body}</Text>
       <View style={[styles.cardFoot, { borderTopColor: p.on ? 'rgba(22,32,10,0.25)' : colors.inkBorder }]}>
         <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: sub }}>{p.win}</Text>
-        <AvatarStack sources={p.faces} size={26} ring={accent} />
+        {p.faces.length ? <AvatarStack sources={p.faces} size={26} ring={accent} /> : null}
       </View>
     </Pressable>
   );

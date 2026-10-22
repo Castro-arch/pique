@@ -3,6 +3,7 @@ import { ConvexError } from 'convex/values';
 import * as Location from 'expo-location';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { Platform } from 'react-native';
 
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -78,23 +79,38 @@ export function useSendPosition(id: string | undefined, active: boolean) {
   const [denied, setDenied] = useState(false);
   useEffect(() => {
     if (!id || !active) return;
-    let sub: Location.LocationSubscription | null = null;
+    let sub: { remove: () => void } | null = null;
     let cancelled = false;
+    const push = (lat: number, lng: number, accuracy: number | null, mocked = false) => {
+      if (cancelled) return;
+      send({ gameId: id as GameId, lat, lng, accuracy: accuracy ?? 99, mocked }).catch(() => {});
+    };
+
+    // No navegador o watchPositionAsync do expo-location não entrega as
+    // atualizações (ele troca o id da inscrição pelo id do navegador),
+    // então na web usamos a geolocalização do navegador direto.
+    if (Platform.OS === 'web') {
+      if (!('geolocation' in navigator)) {
+        setDenied(true);
+        return;
+      }
+      const watchId = navigator.geolocation.watchPosition(
+        (p) => push(p.coords.latitude, p.coords.longitude, p.coords.accuracy),
+        (err) => err.code === err.PERMISSION_DENIED && setDenied(true),
+        { enableHighAccuracy: true, maximumAge: 2000 },
+      );
+      return () => {
+        cancelled = true;
+        navigator.geolocation.clearWatch(watchId);
+      };
+    }
+
     (async () => {
       const { granted } = await Location.requestForegroundPermissionsAsync();
       if (!granted) return setDenied(true);
       sub = await Location.watchPositionAsync(
         { accuracy: Location.Accuracy.High, distanceInterval: 5, timeInterval: 3000 },
-        (loc) => {
-          if (cancelled) return;
-          send({
-            gameId: id as GameId,
-            lat: loc.coords.latitude,
-            lng: loc.coords.longitude,
-            accuracy: loc.coords.accuracy ?? 99,
-            mocked: loc.mocked ?? false,
-          }).catch(() => {});
-        },
+        (loc) => push(loc.coords.latitude, loc.coords.longitude, loc.coords.accuracy, loc.mocked ?? false),
       );
     })();
     return () => {

@@ -3,7 +3,7 @@ import { Bell, Check } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { AvatarStack } from '@/components/Avatar';
+import { Avatar, AvatarStack } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { Illustration } from '@/components/Illustration';
@@ -35,6 +35,11 @@ export default function Aguardando() {
   const total = lobby?.players.length ?? 6;
   const readyCount = lobby ? lobby.players.filter((p) => p.ready).length : ready ? 6 : 5;
   const waiting = lobby?.players.find((p) => !p.ready && !p.isMe)?.name ?? (lobby ? null : 'Teo');
+  const status = waiting
+    ? `${waiting} está se preparando${'.'.repeat(dots)}`
+    : !ready
+      ? 'Só falta você.'
+      : 'Todo mundo pronto.';
   const toggleReady = (v: boolean) => (id ? setReadyOnServer({ gameId: id as GameId, ready: v }) : setLocalReady(v));
 
   useEffect(() => {
@@ -56,23 +61,37 @@ export default function Aguardando() {
         />
       </View>
       <View style={styles.body}>
-        <Chip label={`${lobby?.code ?? 'TACO42'} · lobby do ${host}`} dot={colors.lime} style={{ alignSelf: 'flex-start', marginBottom: 14 }} />
+        <Chip label={`${lobby?.code ?? 'TACO42'} · lobby de ${host}`} dot={colors.lime} style={{ alignSelf: 'flex-start', marginBottom: 14 }} />
         <Headline variant="display" style={{ fontSize: 48, lineHeight: 46 }}>Você tá dentro</Headline>
         <Text variant="muted" style={{ marginTop: 12, fontSize: 16 }}>
-          Agora é esperar {lobby?.isHost ? 'você mesmo' : `o ${host}`} começar. Você vai como{' '}
+          Agora é esperar {lobby?.isHost ? 'você mesmo' : host} começar. Você vai como{' '}
           <Text style={{ color, fontFamily: fonts.bodyStrong, fontSize: 16 }}>{sideName[lado] ?? 'corredor'}</Text>. Aproveita para se alongar.
         </Text>
 
         <View style={styles.card}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-            <AvatarStack sources={[photos.leo, photos.castro, photos.priya, photos.sasha, photos.jonah]} size={32} extra={0} />
+            {lobby ? (
+              <View style={{ flexDirection: 'row' }}>
+                {lobby.players.slice(0, 6).map((p, i) => (
+                  <Avatar
+                    key={p.id}
+                    name={p.name}
+                    size={32}
+                    state={p.ready ? 'runner' : 'draw'}
+                    style={{ marginLeft: i === 0 ? 0 : -8 }}
+                  />
+                ))}
+              </View>
+            ) : (
+              <AvatarStack sources={[photos.leo, photos.castro, photos.priya, photos.sasha, photos.jonah]} size={32} extra={0} />
+            )}
             <Text style={{ fontFamily: fonts.display, fontSize: 18 }}>
               {readyCount}
               <Text style={{ color: colors.paperMuted, fontSize: 14 }}> de {total} prontos</Text>
             </Text>
           </View>
           <Text variant="small" style={{ marginTop: 10 }} accessibilityLiveRegion="polite">
-            {waiting ? `${waiting} está se preparando${'.'.repeat(dots)}` : 'Todo mundo pronto.'}
+            {status}
           </Text>
         </View>
 
