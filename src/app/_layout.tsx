@@ -14,6 +14,7 @@ import { useEffect } from 'react';
 import { SetupMissing } from '@/components/SetupMissing';
 import { api } from '../../convex/_generated/api';
 import { convex, tokenStorage } from '@/lib/convex';
+import { useDemoMode } from '@/lib/demoMode';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
@@ -42,25 +43,35 @@ export default function RootLayout() {
   );
 }
 
+// Três estados de acesso:
+// - sem sessão: grupo (entrada) — boas-vindas, e-mail e código
+// - logado sem usuário: tela "nome" (cadastro)
+// - logado com usuário: grupo (app) — todo o resto
+// Em desenvolvimento, a Galeria de telas liga o modo demonstração, que abre o app sem login.
 function Routes() {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.users.me, isAuthenticated ? {} : 'skip');
+  const demo = useDemoMode();
 
   // Espera saber se há sessão e, logado, se o perfil já carregou.
-  if (isLoading || (isAuthenticated && me === undefined)) return null;
+  if (!demo && (isLoading || (isAuthenticated && me === undefined))) return null;
 
-  const needsProfile = isAuthenticated && !!me && !me.username;
+  const needsProfile = !demo && isAuthenticated && !!me && !me.username;
+  const inside = demo || (isAuthenticated && !needsProfile);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
-      <Stack.Protected guard={!isAuthenticated}>
-        <Stack.Screen name="login" />
+      <Stack.Protected guard={!isAuthenticated && !demo}>
+        <Stack.Screen name="(entrada)" />
       </Stack.Protected>
       <Stack.Protected guard={needsProfile}>
-        <Stack.Screen name="profile" />
+        <Stack.Screen name="nome" />
       </Stack.Protected>
-      <Stack.Protected guard={isAuthenticated && !needsProfile}>
-        <Stack.Screen name="index" />
+      <Stack.Protected guard={inside}>
+        <Stack.Screen name="(app)" />
+      </Stack.Protected>
+      <Stack.Protected guard={__DEV__}>
+        <Stack.Screen name="galeria" />
       </Stack.Protected>
     </Stack>
   );
