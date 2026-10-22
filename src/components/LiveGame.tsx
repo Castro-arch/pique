@@ -6,35 +6,17 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Bar, CardAction, GameTabs, Hud, HudClock, HudFoot, HudRunners, Legend, marks, mmss, RadioCard } from '@/components/Game';
-import { MapBackdrop, MapPin } from '@/components/MapBackdrop';
+import { GameMap } from '@/components/GameMap';
+import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
 import { errorInfo, secondsUntil, useNow, useSendPosition, useView, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 
-// Centro da zona no desenho (espaço 390 x 844) e quanto o raio ocupa na tela.
-const CX = 195;
-const CY = 440;
-const R_PX = 190;
-const M_PER_DEG = 111_320;
-
-// Converte lat/lng em coordenadas do desenho, com a zona sempre no meio.
-// Vale até o mapa satélite de verdade (react-native-maps) entrar no celular.
-function project(p: { lat: number; lng: number }, zone: { lat: number; lng: number; radius: number }) {
-  const s = R_PX / zone.radius;
-  const dx = (p.lng - zone.lng) * M_PER_DEG * Math.cos((zone.lat * Math.PI) / 180);
-  const dy = (p.lat - zone.lat) * M_PER_DEG;
-  return { x: CX + dx * s, y: CY - dy * s };
-}
-
-const ago = (at: number, now: number) => {
-  const s = Math.max(0, Math.round((now - at) / 1000));
-  return s < 60 ? `${s} s` : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
-};
-
 // O mapa da partida real. Tudo que aparece aqui vem da query play.view,
-// que já aplicou a regra de quem pode ver quem.
+// que já aplicou a regra de quem pode ver quem. O mapa em si é o GameMap:
+// satélite no celular, desenhado no navegador.
 export function LiveGame({ id }: { id: string }) {
   const view = useView(id);
   const radio = useQuery(api.radio.list, { gameId: id as GameId });
@@ -92,32 +74,15 @@ export function LiveGame({ id }: { id: string }) {
 
   return (
     <View style={styles.root}>
-      <MapBackdrop
-        zone={zone ? { cx: CX, cy: CY, r: R_PX } : undefined}
-        shrinkTo={zone && g.nextZoneRadius ? (g.nextZoneRadius / zone.radius) * R_PX : undefined}
+      <GameMap
+        zone={zone}
+        nextZoneRadius={g.nextZoneRadius}
+        people={view.people}
+        now={now}
+        hunter={hunter}
+        outOfZone={!!me.outOfZoneSince}
         dim={headstart && !hunter ? 0.18 : 0}
       />
-
-      {zone
-        ? view.people.map((p) => {
-            const { x, y } = project(p, zone);
-            const size = p.isMe ? 46 : 36;
-            const state = p.state === 'caught' ? 'out' : p.isMe && me.outOfZoneSince ? 'warning' : p.role;
-            const tag = p.isMe ? 'Você' : p.kind === 'ping' ? `${p.name} · ${ago(p.at, now)}` : p.state === 'caught' ? `${p.name} · pego` : `${p.name} · ao vivo`;
-            return (
-              <MapPin key={p.id} x={x - size / 2} y={y - size / 2}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Avatar name={p.name} size={size} state={state} glow={p.isMe} />
-                  <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }]}>
-                    <Text style={{ fontSize: p.isMe ? 12 : 11, fontFamily: fonts.bodyStrong, color: p.isMe ? (hunter ? colors.pinkInk : colors.limeInk) : colors.paper }}>
-                      {tag}
-                    </Text>
-                  </View>
-                </View>
-              </MapPin>
-            );
-          })
-        : null}
 
       {outFor !== null && !caught ? (
         <View accessibilityRole="alert" style={[styles.hud, styles.amber]}>

@@ -13,6 +13,7 @@ import { useEffect } from 'react';
 
 import { SetupMissing } from '@/components/SetupMissing';
 import { api } from '../../convex/_generated/api';
+import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
 import { colors } from '@/theme/tokens';

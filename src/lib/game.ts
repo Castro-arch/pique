@@ -5,6 +5,7 @@ import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Platform } from 'react-native';
 
+import { startBackgroundTracking, stopBackgroundTracking } from './backgroundLocation';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
 
@@ -105,7 +106,11 @@ export function useSendPosition(id: string | undefined, active: boolean) {
       };
     }
 
+    // No celular: primeiro tenta o envio com a tela bloqueada; se a pessoa não
+    // liberar "o tempo todo", envia só enquanto o app está aberto.
     (async () => {
+      if (await startBackgroundTracking(id)) return;
+      if (cancelled) return;
       const { granted } = await Location.requestForegroundPermissionsAsync();
       if (!granted) return setDenied(true);
       sub = await Location.watchPositionAsync(
@@ -116,6 +121,7 @@ export function useSendPosition(id: string | undefined, active: boolean) {
     return () => {
       cancelled = true;
       sub?.remove();
+      stopBackgroundTracking();
     };
   }, [id, active, send]);
   return { denied };
