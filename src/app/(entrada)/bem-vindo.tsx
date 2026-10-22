@@ -38,8 +38,8 @@ export default function BemVindo() {
         <Text variant="muted" style={{ marginTop: 14, fontSize: 16 }}>
           Uns se escondem, outros caçam. O celular cuida do tempo, dos pings e de quem ganhou.
         </Text>
-        <Button label="Começar" style={{ marginTop: 24 }} onPress={() => router.push('/email')} />
-        <Button label="Já tenho conta" variant="ghost" size="md" onPress={() => router.push('/email')} />
+        <Button label="Começar" style={{ marginTop: 24 }} onPress={() => router.push('/como-entrar')} />
+        <Button label="Já tenho conta" variant="ghost" size="md" onPress={() => router.push('/como-entrar')} />
         <Text variant="small" style={{ textAlign: 'center', fontSize: 11, marginTop: 6 }}>
           Ao continuar, você aceita os Termos e a Política de privacidade.
         </Text>

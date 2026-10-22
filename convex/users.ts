@@ -2,6 +2,7 @@ import { getAuthUserId } from '@convex-dev/auth/server';
 import { ConvexError, v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
+import { loginProviders } from './auth';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -47,4 +48,10 @@ export const setProfile = mutation({
 
     await ctx.db.patch(userId, { name, username });
   },
+});
+
+// Quais formas de entrar estão ligadas no servidor (o e-mail sempre está).
+export const loginOptions = query({
+  args: {},
+  handler: async () => ({ email: true, ...loginProviders }),
 });
