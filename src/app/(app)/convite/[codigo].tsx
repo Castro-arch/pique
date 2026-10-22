@@ -1,4 +1,6 @@
+import { useQuery } from 'convex/react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { Avatar, AvatarStack } from '@/components/Avatar';
@@ -7,13 +9,38 @@ import { CloseButton, Logo } from '@/components/Nav';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { match, photos, player } from '@/lib/demo';
+import { useDemoMode } from '@/lib/demoMode';
+import { useJoinGame } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../../convex/_generated/api';
 
 // 4.1 Convite pelo link (pique.app/p/TACO42 abre aqui)
 export default function Convite() {
   const { codigo = match.code } = useLocalSearchParams<{ codigo?: string }>();
-  const host = player('leo');
-  const { durationMin, pingEveryMin, zoneMeters } = match.rules;
+  const demo = useDemoMode();
+  const real = useQuery(api.games.preview, demo ? 'skip' : { code: codigo });
+  const join = useJoinGame();
+  const [busy, setBusy] = useState(false);
+  const host = demo ? player('leo') : { name: real?.hostName ?? '…', photo: photos.leo };
+  const rules = demo ? match.rules : real?.rules;
+  const durationMin = rules?.durationMin ?? 0;
+  const pingEveryMin = rules?.pingEveryMin ?? 0;
+  const zoneMeters = demo ? match.rules.zoneMeters : (real?.zoneMeters ?? '–');
+  const count = demo ? 5 : (real?.players ?? 0);
+
+  // Código que não existe volta para a tela de código com o aviso.
+  useEffect(() => {
+    if (!demo && real === null) router.replace({ pathname: '/entrar', params: { codigo } });
+  }, [demo, real, codigo]);
+
+  async function enter() {
+    if (demo) return router.replace('/lado');
+    setBusy(true);
+    const r = await join(codigo);
+    setBusy(false);
+    if (r.ok) router.replace({ pathname: '/lado', params: { id: r.gameId } });
+    else router.replace({ pathname: '/indisponivel', params: { codigo } });
+  }
 
   return (
     <Screen>
@@ -35,7 +62,7 @@ export default function Convite() {
           </View>
           <AvatarStack sources={[photos.priya, photos.sasha, photos.teo]} size={32} extra={2} />
         </View>
-        <Text variant="small" style={{ marginTop: 6 }}>5 pessoas no lobby · começa quando o {host.name} quiser</Text>
+        <Text variant="small" style={{ marginTop: 6 }}>{count} {count === 1 ? 'pessoa' : 'pessoas'} no lobby · começa quando o {host.name} quiser</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
           <Rule label="Rodada" value={durationMin} unit="min" />
           <Rule label="Ping a cada" value={pingEveryMin} unit="min" />
@@ -47,7 +74,7 @@ export default function Convite() {
       <Text variant="label" style={{ textAlign: 'center', marginBottom: 10 }}>
         Entrar é grátis. Sua localização só é usada quando a rodada começar.
       </Text>
-      <Button label="Entrar na partida" onPress={() => router.replace('/lado')} />
+      <Button label="Entrar na partida" loading={busy} disabled={!demo && !real} onPress={enter} />
       <Button variant="link" label="Agora não" style={{ marginTop: 6 }} onPress={() => router.replace('/')} />
     </Screen>
   );

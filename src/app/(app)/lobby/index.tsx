@@ -1,7 +1,8 @@
+import { useMutation } from 'convex/react';
 import * as Clipboard from 'expo-clipboard';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { ChevronLeft, QrCode } from 'lucide-react-native';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
@@ -9,29 +10,68 @@ import { Button } from '@/components/Button';
 import { SidePicker, type Side } from '@/components/RoleTag';
 import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
-import { match, players } from '@/lib/demo';
+import { match, players as demoPlayers } from '@/lib/demo';
+import { errorInfo, useFollowRound, useLobby, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../../convex/_generated/api';
 
 const roleWord = { runner: 'corredor', hunter: 'caçador', draw: 'sorteio' } as const;
 
-// 5.1 Lobby do anfitrião
+// 5.1 Lobby do anfitrião. Com ?id= usa a partida real; sem, a demonstração.
 export default function Lobby() {
-  const [side, setSide] = useState<Side>('runner');
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const lobby = useLobby(id);
+  const saveSide = useMutation(api.games.setSide);
+  const start = useMutation(api.rounds.start);
+  const [demoSide, setDemoSide] = useState<Side>('runner');
   const [copied, setCopied] = useState(false);
-  const r = match.rules;
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useFollowRound(id, lobby?.status);
 
-  const share = () =>
-    Share.share({ message: `Bora jogar Pique? Entra com o código ${match.code} ou pelo link https://pique.app/p/${match.code}` });
+  // Quem não é o anfitrião espera na outra tela.
+  useEffect(() => {
+    if (id && lobby && !lobby.isHost) router.replace({ pathname: '/aguardando', params: { id } });
+  }, [id, lobby]);
+
+  const code = lobby?.code ?? match.code;
+  const rules = lobby?.rules ?? match.rules;
+  const zoneMeters = lobby ? (lobby.zone ? lobby.zone.radius * 2 : null) : match.rules.zoneMeters;
+  const side = lobby?.me.side ?? demoSide;
+  const setSide = (s: Side) => (id ? saveSide({ gameId: id as GameId, side: s }) : setDemoSide(s));
+  const withId = (pathname: string): Href => (id ? ({ pathname, params: { id } } as Href) : (pathname as Href));
+
+  const people = lobby
+    ? lobby.players.map((p) => ({ key: p.id, name: p.isMe ? 'Você' : p.name, fullName: p.name, side: p.side, photo: undefined }))
+    : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.id === 'castro' ? demoSide : p.role, photo: p.photo }));
+  const count = (s: Side) => people.filter((p) => p.side === s).length;
+
+  const share = () => Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link https://pique.app/p/${code}` });
   const copy = async () => {
-    await Clipboard.setStringAsync(match.code);
+    await Clipboard.setStringAsync(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
+  };
+  const begin = async () => {
+    if (!id) return router.push('/sorteio');
+    setError(null);
+    setStarting(true);
+    try {
+      await start({ gameId: id as GameId });
+    } catch (e) {
+      setError(errorInfo(e).message);
+    } finally {
+      setStarting(false);
+    }
   };
 
   return (
     <Screen scroll>
       <View style={styles.head}>
-        <Pressable accessibilityRole="button" onPress={() => router.push('/sair?de=lobby')} style={styles.back}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/sair', params: id ? { de: 'lobby', id } : { de: 'lobby' } })}
+          style={styles.back}>
           <ChevronLeft size={20} color={colors.lime} strokeWidth={2.4} />
           <Text style={{ color: colors.lime, fontFamily: fonts.bodyMedium, fontSize: 15 }}>Sair</Text>
         </Pressable>
@@ -41,12 +81,12 @@ export default function Lobby() {
       <View style={styles.code}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, letterSpacing: 0.5, color: colors.limeInk }}>CÓDIGO DA PARTIDA</Text>
-          <Pressable accessibilityRole="button" accessibilityLabel="Mostrar QR" onPress={() => router.push('/lobby/qr')} hitSlop={10} style={styles.qrBtn}>
+          <Pressable accessibilityRole="button" accessibilityLabel="Mostrar QR" onPress={() => router.push(withId('/lobby/qr'))} hitSlop={10} style={styles.qrBtn}>
             <QrCode size={16} color={colors.limeInk} />
             <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, color: colors.limeInk }}>Mostrar QR</Text>
           </Pressable>
         </View>
-        <Text style={styles.codeText}>{match.code}</Text>
+        <Text style={styles.codeText}>{code}</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
           <Pressable accessibilityRole="button" onPress={share} style={[styles.pill, { flex: 1, backgroundColor: colors.limeInk }]}>
             <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 14 }}>Compartilhar</Text>
@@ -59,55 +99,61 @@ export default function Lobby() {
 
       <Text variant="small" style={styles.label}>Regras da casa · começam no padrão mais jogado</Text>
       <View style={styles.grid}>
-        <Rule label="Rodada" value={r.durationMin} unit="min" />
-        <Rule label="Ping a cada" value={r.pingEveryMin} unit="min" />
-        <Rule label="Vantagem" value={r.headStartMin} unit="min" />
-        <Rule label="Zona" value={r.zoneMeters} unit="m" />
-        <Rule label="Encolhe a cada" value={r.shrinkEveryMin} unit="min" />
+        <Rule href={withId('/lobby/regras')} label="Rodada" value={rules.durationMin} unit="min" />
+        <Rule href={withId('/lobby/regras')} label="Ping a cada" value={rules.pingEveryMin} unit="min" />
+        <Rule href={withId('/lobby/regras')} label="Vantagem" value={rules.headStartMin} unit="min" />
+        <Rule href={withId('/zona')} label="Zona" value={zoneMeters ?? '–'} unit={zoneMeters ? 'm' : ''} />
+        <Rule href={withId('/lobby/regras')} label="Encolhe a cada" value={rules.shrinkEveryMin} unit="min" />
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Zona de jogo ligada. Editar no mapa"
-          onPress={() => router.push('/zona')}
-          style={[styles.rule, { backgroundColor: colors.limeTint, borderColor: colors.lime }]}>
-          <Text style={{ fontSize: 11, color: colors.lime }}>Zona de jogo</Text>
-          <Text style={[styles.ruleValue, { color: colors.lime }]}>Ligada</Text>
+          accessibilityLabel={zoneMeters ? 'Zona de jogo marcada. Editar no mapa' : 'Marcar a zona de jogo no mapa'}
+          onPress={() => router.push(withId('/zona'))}
+          style={[styles.rule, zoneMeters ? { backgroundColor: colors.limeTint, borderColor: colors.lime } : { borderColor: colors.amber }]}>
+          <Text style={{ fontSize: 11, color: zoneMeters ? colors.lime : colors.amber }}>Zona de jogo</Text>
+          <Text style={[styles.ruleValue, { color: zoneMeters ? colors.lime : colors.amber }]}>{zoneMeters ? 'Ligada' : 'Marcar'}</Text>
         </Pressable>
       </View>
-      <Text variant="label" style={{ marginTop: 8 }}>A zona encolhe de {r.zoneMeters} m para 150 m depois da vantagem.</Text>
+      <Text variant="label" style={{ marginTop: 8 }}>
+        {zoneMeters ? `A zona encolhe de ${zoneMeters} m para 150 m depois da vantagem.` : 'Marque a zona no mapa antes de começar.'}
+      </Text>
 
       <Text variant="small" style={styles.label}>Você joga como</Text>
       <SidePicker value={side} onChange={setSide} />
 
-      <Pressable accessibilityRole="button" accessibilityLabel="Ver jogadores" onPress={() => router.push('/lobby/jogadores')}>
+      <Pressable accessibilityRole="button" accessibilityLabel="Ver jogadores" onPress={() => router.push(withId('/lobby/jogadores'))}>
         <View style={[styles.label, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }]}>
           <Text variant="small">Jogadores</Text>
-          <Text variant="label">2 caçadores · 3 corredores · 1 sorteio</Text>
+          <Text variant="label">{`${count('hunter')} caçadores · ${count('runner')} corredores · ${count('draw')} sorteio`}</Text>
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          {players.map((p) => {
-            const s = p.id === 'castro' ? side : p.role;
-            return (
-              <View key={p.id} style={{ alignItems: 'center', width: 52 }}>
-                <Avatar source={p.photo} size={42} state={s === 'draw' ? 'draw' : s} />
-                <Text style={{ fontSize: 11, marginTop: 4 }}>{p.id === 'castro' ? 'Você' : p.name}</Text>
-                <Text style={{ fontSize: 10, color: s === 'runner' ? colors.lime : s === 'hunter' ? colors.pink : colors.paperMuted }}>
-                  {roleWord[s]}
-                </Text>
-              </View>
-            );
-          })}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+          {people.map((p) => (
+            <View key={p.key} style={{ alignItems: 'center', width: 52 }}>
+              <Avatar source={p.photo} name={p.fullName} size={42} state={p.side === 'draw' ? 'draw' : p.side} />
+              <Text style={{ fontSize: 11, marginTop: 4 }} numberOfLines={1}>{p.name}</Text>
+              <Text style={{ fontSize: 10, color: p.side === 'runner' ? colors.lime : p.side === 'hunter' ? colors.pink : colors.paperMuted }}>
+                {roleWord[p.side]}
+              </Text>
+            </View>
+          ))}
         </View>
       </Pressable>
 
       <Spacer />
-      <Button label="Começar partida" style={{ marginTop: 20 }} onPress={() => router.push('/sorteio')} />
+      {error ? <Text variant="error" style={{ marginTop: 16 }}>{error}</Text> : null}
+      <Button
+        label={lobby && people.length < 2 ? 'Esperando a crew entrar…' : 'Começar partida'}
+        disabled={!!lobby && people.length < 2}
+        loading={starting}
+        style={{ marginTop: 20 }}
+        onPress={begin}
+      />
     </Screen>
   );
 }
 
-function Rule({ label, value, unit }: { label: string; value: number; unit: string }) {
+function Rule({ href, label, value, unit }: { href: Href; label: string; value: number | string; unit: string }) {
   return (
-    <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${value} ${unit}. Editar regras`} onPress={() => router.push('/lobby/regras')} style={styles.rule}>
+    <Pressable accessibilityRole="button" accessibilityLabel={`${label} ${value} ${unit}. Editar`} onPress={() => router.push(href)} style={styles.rule}>
       <Text style={{ fontSize: 11, color: colors.paperMuted }}>{label}</Text>
       <Text style={styles.ruleValue}>
         {value}

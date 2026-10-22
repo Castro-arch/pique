@@ -1,4 +1,5 @@
-import { router } from 'expo-router';
+import { useMutation } from 'convex/react';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Check, Shuffle } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -10,22 +11,36 @@ import { BackButton } from '@/components/Nav';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { match, photos } from '@/lib/demo';
+import { useLobby, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../convex/_generated/api';
 
 type Side = 'runner' | 'hunter' | 'draw';
 const confirmLabel: Record<Side, string> = { runner: 'corredor', hunter: 'caçador', draw: 'sorteio' };
 
 // 4.6 Escolher lado
 export default function Lado() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  const lobby = useLobby(id);
+  const save = useMutation(api.games.setSide);
   const [side, setSide] = useState<Side>('runner');
+  const code = lobby?.code ?? match.code;
+  const count = (s: Side) => lobby?.players.filter((p) => p.side === s).length ?? 0;
+  const summary = lobby
+    ? `${lobby.players.length} na partida · ${count('hunter')} caçadores · ${count('runner')} corredores · ${count('draw')} sorteio`
+    : '6 na partida · 2 caçadores · 3 corredores · 1 sorteio';
+  const confirm = async () => {
+    if (id) await save({ gameId: id as GameId, side });
+    router.replace({ pathname: '/aguardando', params: id ? { id, lado: side } : { lado: side } });
+  };
   return (
     <Screen>
       <View style={styles.head}>
-        <BackButton label="Lobby" onPress={() => router.replace('/lobby')} />
-        <Chip label={match.code} />
+        <BackButton label="Lobby" onPress={() => router.replace(id ? { pathname: '/aguardando', params: { id } } : '/lobby')} />
+        <Chip label={code} />
       </View>
       <Headline mark="?" style={{ marginTop: 14, fontSize: 34, lineHeight: 34 }}>De que lado você joga</Headline>
-      <Text variant="small" style={{ marginTop: 8 }}>6 na partida · 2 caçadores · 3 corredores · 1 sorteio</Text>
+      <Text variant="small" style={{ marginTop: 8 }}>{summary}</Text>
 
       <View accessibilityRole="radiogroup" accessibilityLabel="Seu lado" style={{ gap: 10, marginTop: 16 }}>
         <BigCard
@@ -66,7 +81,7 @@ export default function Lado() {
       </View>
 
       <Spacer />
-      <Button label={`Confirmar: ${confirmLabel[side]}`} onPress={() => router.replace({ pathname: '/aguardando', params: { lado: side } })} />
+      <Button label={`Confirmar: ${confirmLabel[side]}`} onPress={confirm} />
       <Text variant="label" style={{ textAlign: 'center', marginTop: 8 }}>Dá para trocar no lobby até a partida começar.</Text>
     </Screen>
   );

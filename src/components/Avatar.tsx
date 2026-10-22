@@ -15,17 +15,19 @@ const ring: Record<State, string> = {
   neutral: colors.ink,
 };
 
-// Foto do jogador com anel na cor do papel.
+// Foto do jogador com anel na cor do papel. Sem foto, mostra a inicial do nome.
 // "out" = pego (cinza e tracejado); "draw" = no sorteio (tracejado).
 export function Avatar({
   source,
+  name,
   size = 36,
   state = 'neutral',
   glow,
   label,
   style,
 }: {
-  source: number;
+  source?: number;
+  name?: string;
   size?: number;
   state?: State;
   glow?: boolean;
@@ -59,11 +61,19 @@ export function Avatar({
         },
         style,
       ]}>
-      <Image
-        source={source}
-        style={[StyleSheet.absoluteFill, state === 'out' && { opacity: 0.6 }]}
-        contentFit="cover"
-      />
+      {source !== undefined ? (
+        <Image
+          source={source}
+          style={[StyleSheet.absoluteFill, state === 'out' && { opacity: 0.6 }]}
+          contentFit="cover"
+        />
+      ) : (
+        <View style={[StyleSheet.absoluteFill, { alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inkRaised }]}>
+          <Text style={{ fontFamily: fonts.bodyStrong, fontSize: size * 0.4, color: ring[state] === colors.ink ? colors.paper : ring[state] }}>
+            {(name ?? '?').trim().charAt(0).toUpperCase()}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

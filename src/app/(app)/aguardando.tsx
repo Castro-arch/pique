@@ -10,17 +10,32 @@ import { Illustration } from '@/components/Illustration';
 import { Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { illustrations, photos } from '@/lib/demo';
+import { useFollowRound, useLobby, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { useMutation } from 'convex/react';
+import { api } from '../../../convex/_generated/api';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const sideName = { runner: 'corredor', hunter: 'caçador', draw: 'sorteio' } as const;
 
 // 4.7 Aguardando a partida (com a ilustração da crew no poste)
 export default function Aguardando() {
-  const { lado = 'runner' } = useLocalSearchParams<{ lado?: keyof typeof sideName }>();
+  const params = useLocalSearchParams<{ id?: string; lado?: keyof typeof sideName }>();
+  const { id } = params;
   const insets = useSafeAreaInsets();
-  const [ready, setReady] = useState(false);
+  const lobby = useLobby(id);
+  const setReadyOnServer = useMutation(api.games.setReady);
+  const [localReady, setLocalReady] = useState(false);
   const [dots, setDots] = useState(1);
+  useFollowRound(id, lobby?.status);
+
+  const lado = lobby?.me.side ?? params.lado ?? 'runner';
+  const ready = lobby ? lobby.me.ready : localReady;
+  const host = lobby?.players.find((p) => p.isHost)?.name ?? 'Leo';
+  const total = lobby?.players.length ?? 6;
+  const readyCount = lobby ? lobby.players.filter((p) => p.ready).length : ready ? 6 : 5;
+  const waiting = lobby?.players.find((p) => !p.ready && !p.isMe)?.name ?? (lobby ? null : 'Teo');
+  const toggleReady = (v: boolean) => (id ? setReadyOnServer({ gameId: id as GameId, ready: v }) : setLocalReady(v));
 
   useEffect(() => {
     const t = setInterval(() => setDots((d) => (d % 3) + 1), 500);
@@ -41,10 +56,10 @@ export default function Aguardando() {
         />
       </View>
       <View style={styles.body}>
-        <Chip label="TACO42 · lobby do Leo" dot={colors.lime} style={{ alignSelf: 'flex-start', marginBottom: 14 }} />
+        <Chip label={`${lobby?.code ?? 'TACO42'} · lobby do ${host}`} dot={colors.lime} style={{ alignSelf: 'flex-start', marginBottom: 14 }} />
         <Headline variant="display" style={{ fontSize: 48, lineHeight: 46 }}>Você tá dentro</Headline>
         <Text variant="muted" style={{ marginTop: 12, fontSize: 16 }}>
-          Agora é esperar o Leo começar. Você vai como{' '}
+          Agora é esperar {lobby?.isHost ? 'você mesmo' : `o ${host}`} começar. Você vai como{' '}
           <Text style={{ color, fontFamily: fonts.bodyStrong, fontSize: 16 }}>{sideName[lado] ?? 'corredor'}</Text>. Aproveita para se alongar.
         </Text>
 
@@ -52,12 +67,12 @@ export default function Aguardando() {
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <AvatarStack sources={[photos.leo, photos.castro, photos.priya, photos.sasha, photos.jonah]} size={32} extra={0} />
             <Text style={{ fontFamily: fonts.display, fontSize: 18 }}>
-              {ready ? 6 : 5}
-              <Text style={{ color: colors.paperMuted, fontSize: 14 }}> de 6 prontos</Text>
+              {readyCount}
+              <Text style={{ color: colors.paperMuted, fontSize: 14 }}> de {total} prontos</Text>
             </Text>
           </View>
           <Text variant="small" style={{ marginTop: 10 }} accessibilityLiveRegion="polite">
-            Teo está entrando{'.'.repeat(dots)}
+            {waiting ? `${waiting} está se preparando${'.'.repeat(dots)}` : 'Todo mundo pronto.'}
           </Text>
         </View>
 
@@ -66,12 +81,23 @@ export default function Aguardando() {
           <Bell size={16} color={colors.paperMuted} />
           <Text variant="label">Pode bloquear o celular. A gente vibra quando começar.</Text>
         </View>
-        {ready ? (
-          <Button variant="secondary" label="Pronto · esperando o Leo" onPress={() => router.push('/sorteio')} />
+        {lobby?.isHost ? (
+          <Button label="Ir para o lobby" onPress={() => router.replace({ pathname: '/lobby', params: { id: id! } })} />
+        ) : ready ? (
+          <Button
+            variant="secondary"
+            label={`Pronto · esperando o ${host}`}
+            onPress={() => (id ? toggleReady(false) : router.push('/sorteio'))}
+          />
         ) : (
-          <Button label="Estou pronto" icon={<Check size={18} color={colors.limeInk} strokeWidth={3} />} onPress={() => setReady(true)} />
+          <Button label="Estou pronto" icon={<Check size={18} color={colors.limeInk} strokeWidth={3} />} onPress={() => toggleReady(true)} />
         )}
-        <Button variant="link" label="Trocar de lado" style={{ marginTop: 6 }} onPress={() => router.replace('/lado')} />
+        <Button
+          variant="link"
+          label="Trocar de lado"
+          style={{ marginTop: 6 }}
+          onPress={() => router.replace(id ? { pathname: '/lado', params: { id } } : '/lado')}
+        />
       </View>
     </View>
   );

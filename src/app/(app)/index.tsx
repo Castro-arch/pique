@@ -8,12 +8,16 @@ import { Logo } from '@/components/Nav';
 import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
+import { useDemoMode } from '@/lib/demoMode';
+import { useCreateGame } from '@/lib/game';
 import { useMe } from '@/lib/useMe';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 // 3.1 Home
 export default function Home() {
   const me = useMe();
+  const demo = useDemoMode();
+  const create = useCreateGame();
   return (
     <Screen>
       <View style={styles.top}>
@@ -52,7 +56,8 @@ export default function Home() {
       </Pressable>
 
       <View style={{ gap: 10, marginTop: 12 }}>
-        <Button label="Criar partida" onPress={() => router.push('/lobby')} />
+        <Button label="Criar partida" loading={create.busy} onPress={() => (demo ? router.push('/lobby') : create.run())} />
+        {create.error ? <Text variant="error">{create.error}</Text> : null}
         <Button label="Entrar com código" variant="secondary" onPress={() => router.push('/entrar')} />
         <Button label="Rodada de treino com bots" variant="link" onPress={() => router.push('/treino')} />
       </View>

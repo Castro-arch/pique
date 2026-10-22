@@ -10,14 +10,19 @@ import { BackButton } from '@/components/Nav';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { match } from '@/lib/demo';
+import { useDemoMode } from '@/lib/demoMode';
+import { useJoinGame } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 const CODE = /^[A-Z0-9]{6}$/;
 
 // 4.2 Entrar com código e 4.3 Código errado.
-// Por enquanto só TACO42 existe (demonstração); BOLA77 simula partida em andamento.
+// No modo demonstração só TACO42 existe e BOLA77 simula partida em andamento.
 export default function Entrar() {
   const params = useLocalSearchParams<{ codigo?: string }>();
+  const demo = useDemoMode();
+  const join = useJoinGame();
+  const [busy, setBusy] = useState(false);
   const [code, setCode] = useState(params.codigo ?? '');
   const [wrong, setWrong] = useState<string | null>(params.codigo && params.codigo !== match.code ? params.codigo : null);
   const [clip, setClip] = useState<string | null>(null);
@@ -27,12 +32,20 @@ export default function Entrar() {
     Clipboard.getStringAsync()
       .then((t) => {
         const c = t.trim().toUpperCase();
-        setClip(CODE.test(c) ? c : match.code);
+        setClip(CODE.test(c) ? c : demo ? match.code : null);
       })
-      .catch(() => setClip(match.code));
-  }, []);
+      .catch(() => setClip(demo ? match.code : null));
+  }, [demo]);
 
-  function submit(c = code) {
+  async function submit(c = code) {
+    if (!demo) {
+      setBusy(true);
+      const r = await join(c);
+      setBusy(false);
+      if (r.ok) return router.replace({ pathname: '/lado', params: { id: r.gameId } });
+      if (r.code === 'IN_PROGRESS' || r.code === 'FULL') return router.replace({ pathname: '/indisponivel', params: { codigo: c } });
+      return setWrong(c);
+    }
     if (c === match.code) return router.replace({ pathname: '/convite/[codigo]', params: { codigo: c } });
     if (c === 'BOLA77') return router.replace('/indisponivel');
     setWrong(c);
@@ -98,6 +111,7 @@ export default function Entrar() {
           <Button
             label={missing > 0 ? `Entrar · faltam ${missing}` : 'Entrar'}
             disabled={missing > 0}
+            loading={busy}
             style={{ marginTop: 14 }}
             onPress={() => submit()}
           />
