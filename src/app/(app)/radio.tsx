@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from 'convex/react';
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Mic, Play } from 'lucide-react-native';
+import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
+import { Mic, Pause, Play } from 'lucide-react-native';
 import { useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,13 +12,14 @@ import { GameTabs, mmss } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
 import { errorInfo, secondsUntil, useNow, useView, type GameId } from '@/lib/game';
+import { useTalk } from '@/lib/radioAudio';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
 
 type Msg =
   | { kind: 'system'; at: string; text: string }
   | { kind: 'text'; name: string; mine: boolean; text: string; playerId?: string }
-  | { kind: 'audio'; name: string; mine: boolean; seconds: number; playerId?: string };
+  | { kind: 'audio'; name: string; mine: boolean; seconds: number; playerId?: string; url?: string | null };
 
 // Respostas prontas: sem texto livre no Radio (decisão de produto).
 const demoQuick = ['Achei um!', 'Cubram o canal', 'Onde você está?', 'Tô indo', 'Perdi de vista'];
@@ -39,6 +41,7 @@ export default function Radio() {
   const view = useView(id);
   const now = useNow();
   const sendQuick = useMutation(api.radio.sendQuick);
+  const talk = useTalk(id);
   const [demoMsgs, setDemoMsgs] = useState<Msg[]>(initial);
   const [talking, setTalking] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
@@ -57,7 +60,9 @@ export default function Radio() {
           return { kind: 'system', at: mmss(left), text: m.text ?? '' };
         }
         const base = { name: m.from.name, mine: m.from.isMe, playerId: m.from.id };
-        return m.kind === 'audio' ? { kind: 'audio', ...base, seconds: m.seconds ?? 0 } : { kind: 'text', ...base, text: m.text ?? '' };
+        return m.kind === 'audio'
+          ? { kind: 'audio', ...base, seconds: m.seconds ?? 0, url: m.audioUrl }
+          : { kind: 'text', ...base, text: m.text ?? '' };
       })
     : demoMsgs;
 
@@ -71,17 +76,19 @@ export default function Radio() {
     }
   };
   const holdStart = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    if (id) return void talk.start();
     setTalking(true);
     setStartedAt(Date.now());
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
   };
   const holdEnd = () => {
+    if (id) return void talk.stop();
     if (!talking) return;
     setTalking(false);
-    if (id) return setError('O áudio chega junto com a versão do celular. Por enquanto, use as respostas prontas.');
     const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     setDemoMsgs((x) => [...x, { kind: 'audio', name: 'Você', mine: true, seconds }]);
   };
+  const isTalking = id ? talk.recording : talking;
 
   return (
     <View style={[styles.root, { paddingTop: Math.max(insets.top, 56) }]}>
@@ -101,7 +108,7 @@ export default function Radio() {
       </ScrollView>
 
       <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 34) + 72 }}>
-        {error ? <Text variant="error" style={{ marginBottom: 8 }}>{error}</Text> : null}
+        {error || talk.error ? <Text variant="error" style={{ marginBottom: 8 }}>{error ?? talk.error}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {quick.map((q) => (
             <Pressable key={q} accessibilityRole="button" onPress={() => send(q)} style={styles.quick}>
@@ -114,10 +121,10 @@ export default function Radio() {
           accessibilityLabel="Segure para falar com o time"
           onPressIn={holdStart}
           onPressOut={holdEnd}
-          style={[styles.talk, talking && { backgroundColor: colors.pink }]}>
-          <Mic size={20} color={talking ? colors.paper : colors.limeInk} />
-          <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong, color: talking ? colors.paper : colors.limeInk }}>
-            {talking ? 'Gravando… solte para enviar' : 'Segure para falar'}
+          style={[styles.talk, isTalking && { backgroundColor: colors.pink }]}>
+          <Mic size={20} color={isTalking ? colors.paper : colors.limeInk} />
+          <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong, color: isTalking ? colors.paper : colors.limeInk }}>
+            {isTalking ? 'Gravando… solte para enviar' : talk.sending ? 'Enviando…' : 'Segure para falar'}
           </Text>
         </Pressable>
       </View>
@@ -140,6 +147,8 @@ function Bubble({ m }: { m: Msg }) {
   const body =
     m.kind === 'text' ? (
       <Text style={{ fontSize: 15, lineHeight: 20 }}>{m.text}</Text>
+    ) : m.url ? (
+      <AudioBody url={m.url} seconds={m.seconds} />
     ) : (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <View style={styles.play}>
@@ -165,6 +174,38 @@ function Bubble({ m }: { m: Msg }) {
         {body}
       </Pressable>
     </View>
+  );
+}
+
+// Áudio de verdade do Radio: toque para ouvir, a onda acende conforme toca.
+function AudioBody({ url, seconds }: { url: string; seconds: number }) {
+  const player = useAudioPlayer(url);
+  const status = useAudioPlayerStatus(player);
+  const progress = status.duration ? status.currentTime / status.duration : 0;
+  const toggle = () => {
+    if (status.playing) return player.pause();
+    if (status.didJustFinish || progress >= 0.99) player.seekTo(0);
+    player.play();
+  };
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={status.playing ? 'Pausar áudio' : `Ouvir áudio de ${seconds} segundos`}
+      onPress={toggle}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <View style={[styles.play, status.playing && { backgroundColor: colors.lime }]}>
+        {status.playing ? <Pause size={14} color={colors.limeInk} fill={colors.limeInk} /> : <Play size={14} color={colors.paper} fill={colors.paper} />}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+        {Array.from({ length: 18 }, (_, i) => (
+          <View
+            key={i}
+            style={{ width: 3, borderRadius: 2, height: 6 + ((i * 7) % 16), backgroundColor: i / 18 < progress ? colors.lime : colors.paperMuted }}
+          />
+        ))}
+      </View>
+      <Text variant="label">0:{String(seconds).padStart(2, '0')}</Text>
+    </Pressable>
   );
 }
 

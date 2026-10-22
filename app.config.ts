@@ -20,6 +20,12 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     [
+      'expo-audio',
+      {
+        microphonePermission: 'O Pique usa o microfone só enquanto você segura o botão de falar no Radio.',
+      },
+    ],
+    [
       'react-native-maps',
       {
         androidGoogleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
