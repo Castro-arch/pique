@@ -16,9 +16,11 @@ import { api } from '../../convex/_generated/api';
 import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
+import { setupWebHead } from '@/lib/webHead';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
+setupWebHead();
 
 export default function RootLayout() {
   const [fontsLoaded] = useFonts({

@@ -1,0 +1,12 @@
+{
+  "name": "Pique",
+  "short_name": "Pique",
+  "description": "Pique-esconde pela cidade.",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#101418",
+  "theme_color": "#101418",
+  "lang": "pt-BR",
+  "icons": [{ "src": "/icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }]
+}
