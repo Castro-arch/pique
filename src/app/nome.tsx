@@ -10,7 +10,6 @@ import { StepBars } from '@/components/Controls';
 import { Field } from '@/components/Field';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
-import { photos } from '@/lib/demo';
 import { colors, fonts } from '@/theme/tokens';
 import { api } from '../../convex/_generated/api';
 
@@ -46,8 +45,8 @@ export default function Nome() {
       </Text>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: 24 }}>
-        {/* Foto: por enquanto a de demonstração; o envio de foto vem com o perfil completo. */}
-        <Avatar source={photos.castro} size={84} state="runner" label="Sua foto" />
+        {/* Sem foto ainda: mostra a inicial do nome. O envio de foto vem com o perfil completo. */}
+        <Avatar name={name || '?'} size={84} state="runner" label="Sua foto" />
         <Text variant="small" style={{ flex: 1 }}>
           Uma foto ajuda a crew a te reconhecer no mapa. Dá para trocar depois.
         </Text>

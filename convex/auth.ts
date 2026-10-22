@@ -1,5 +1,6 @@
 import Apple from '@auth/core/providers/apple';
 import Google from '@auth/core/providers/google';
+import { Anonymous } from '@convex-dev/auth/providers/Anonymous';
 import { convexAuth } from '@convex-dev/auth/server';
 
 import { EmailOtp } from './emailOtp';
@@ -17,7 +18,13 @@ export const loginProviders = {
 const ALLOWED_REDIRECTS = [/^pique:\/\//, /^exp(\+pique)?:\/\//, /^https?:\/\/localhost(:\d+)?\//, /^https?:\/\/127\.0\.0\.1(:\d+)?\//];
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
-  providers: [EmailOtp, ...(loginProviders.google ? [Google] : []), ...(loginProviders.apple ? [Apple] : [])],
+  providers: [
+    EmailOtp,
+    // Beta com amigos: conta anônima presa ao celular, sem login (só o nome).
+    Anonymous,
+    ...(loginProviders.google ? [Google] : []),
+    ...(loginProviders.apple ? [Apple] : []),
+  ],
   callbacks: {
     async redirect({ redirectTo }) {
       const site = process.env.SITE_URL;

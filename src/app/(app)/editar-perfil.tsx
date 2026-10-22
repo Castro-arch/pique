@@ -49,7 +49,7 @@ export default function EditarPerfil() {
         title="Editar perfil"
       />
       <View style={{ alignItems: 'center', marginTop: 20 }}>
-        <Avatar source={me.photo} size={112} state="runner" label="Sua foto" />
+        <Avatar source={me.photo} name={me.name} size={112} state="runner" label="Sua foto" />
         <Pressable accessibilityRole="button" style={{ height: 36, justifyContent: 'center', marginTop: 10 }}>
           <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 14 }}>Trocar foto</Text>
         </Pressable>
