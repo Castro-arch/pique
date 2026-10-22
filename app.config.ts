@@ -6,6 +6,15 @@ import type { ConfigContext, ExpoConfig } from 'expo/config';
 // No iPhone o mapa é o Apple Maps e não precisa de chave.
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...(config as ExpoConfig),
+  ios: {
+    ...config.ios,
+    infoPlist: {
+      ...config.ios?.infoPlist,
+      // O Pique só usa a criptografia padrão do sistema (HTTPS). Declarar isso
+      // aqui evita a pergunta de exportação a cada build no TestFlight.
+      ITSAppUsesNonExemptEncryption: false,
+    },
+  },
   plugins: [
     ...(config.plugins ?? []),
     [
