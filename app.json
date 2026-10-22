@@ -41,6 +41,17 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "backgroundColor": "#101418"
+    "backgroundColor": "#101418",
+    "extra": {
+      "router": {
+        "asyncRoutes": {
+          "web": true
+        }
+      },
+      "eas": {
+        "projectId": "07b1037f-4997-4a70-ac5a-017a8b4fe453"
+      }
+    },
+    "owner": "castrooo"
   }
 }
