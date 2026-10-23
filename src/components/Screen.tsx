@@ -20,7 +20,11 @@ type Props = {
 };
 
 // Moldura das telas: fundo, área segura e o ritmo 20 / 56 / 34 do design.
-export function Screen({ children, background = colors.ink, scroll, padded = true, style }: Props) {
+// Toda tela rola quando o conteúdo não cabe (celular pequeno, barra do
+// navegador ocupando espaço). Quando cabe, o Spacer continua empurrando
+// os botões para a base, porque o conteúdo cresce até a altura da tela.
+// `scroll` fica por compatibilidade: hoje toda tela rola.
+export function Screen({ children, background = colors.ink, scroll: _scroll, padded = true, style }: Props) {
   const insets = useSafeAreaInsets();
   const pad: ViewStyle = padded
     ? {
@@ -30,7 +34,7 @@ export function Screen({ children, background = colors.ink, scroll, padded = tru
       }
     : {};
 
-  const body = scroll ? (
+  const body = (
     <ScrollView
       style={styles.flex}
       contentContainerStyle={[styles.grow, pad, style]}
@@ -38,8 +42,6 @@ export function Screen({ children, background = colors.ink, scroll, padded = tru
       showsVerticalScrollIndicator={false}>
       {children}
     </ScrollView>
-  ) : (
-    <View style={[styles.flex, pad, style]}>{children}</View>
   );
 
   return (

@@ -22,4 +22,23 @@ export function setupWebHead() {
   add('meta', { name: 'theme-color', content: '#101418' });
   document.documentElement.lang = 'pt-BR';
   document.title = 'Pique';
+
+  // Correções do navegador que o app não controla sozinho:
+  // - fundo da página escuro: sem a faixa branca ao puxar além do fim
+  // - sem o "puxão" elástico da página (quem rola é a tela do app)
+  // - sem o contorno azul de foco do Safari nos campos; o app já mostra
+  //   o foco com a borda verde do Field
+  // - sem o flash cinza ao tocar em botões no celular
+  if (!document.getElementById('pique-web-fixes')) {
+    const style = document.createElement('style');
+    style.id = 'pique-web-fixes';
+    style.textContent = `
+      html, body, #root { background-color: #101418; }
+      html, body { overscroll-behavior: none; }
+      input, textarea, select { outline: none !important; box-shadow: none !important; -webkit-appearance: none; appearance: none; }
+      input:focus, textarea:focus, input:focus-visible, textarea:focus-visible { outline: none !important; }
+      * { -webkit-tap-highlight-color: transparent; }
+    `;
+    document.head.appendChild(style);
+  }
 }
