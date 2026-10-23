@@ -4,6 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import MapView, { Circle, Marker } from 'react-native-maps';
 
 import { Avatar } from '@/components/Avatar';
+import { BoostPin } from '@/components/Boosts';
 import { Text } from '@/components/Text';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -12,7 +13,7 @@ import { personState, personTag, type GameMapProps } from './gameMapTypes';
 // Mapa da partida no celular: satélite de verdade.
 // Android usa Google Maps (precisa da GOOGLE_MAPS_API_KEY no build);
 // iPhone usa Apple Maps, sem chave. Decisão do documento de arquitetura.
-export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0 }: GameMapProps) {
+export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps) {
   const map = useRef<MapView>(null);
 
   // Enquadra a zona inteira, com folga para o placar em cima e o Radio embaixo.
@@ -62,6 +63,11 @@ export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, 
             lineDashPattern={[10, 6]}
           />
         ) : null}
+        {boosts.map((b) => (
+          <Marker key={b.id} coordinate={{ latitude: b.lat, longitude: b.lng }} anchor={{ x: 0.5, y: 0.3 }}>
+            <BoostPin kind={b.kind} />
+          </Marker>
+        ))}
         {people.map((p) => (
           <Marker
             key={p.id}

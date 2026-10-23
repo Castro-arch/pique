@@ -16,6 +16,8 @@ export const rules = v.object({
   spectatorsHelp: v.boolean(),
 });
 
+export const boostKind = v.union(v.literal('despiste'), v.literal('sombra'), v.literal('escudo'));
+
 export const zone = v.object({ lat: v.number(), lng: v.number(), radius: v.number() });
 
 export default defineSchema({
@@ -79,6 +81,11 @@ export default defineSchema({
     flags: v.optional(v.array(v.string())), // anti-cheat: "mock", "speed", "jump"
     shoutsLeft: v.optional(v.number()), // caçador: gritos que ainda tem na rodada
     shoutedAt: v.optional(v.number()), // corredor: quando o celular dele gritou
+    // Boosts: o preço de pegar (visível ao vivo por alguns segundos) e os efeitos ativos.
+    revealed: v.optional(v.boolean()),
+    revealUntil: v.optional(v.number()),
+    nextPing: v.optional(v.union(v.literal('sombra'), v.literal('despiste'))),
+    shieldUntil: v.optional(v.number()),
   })
     .index('by_game', ['gameId'])
     .index('by_game_user', ['gameId', 'userId'])
@@ -109,6 +116,20 @@ export default defineSchema({
     .index('by_game', ['gameId'])
     .index('by_runner', ['runnerId', 'status'])
     .index('by_hunter', ['hunterId', 'status']),
+
+  // Boosts espalhados pela zona. O corredor pega passando perto e guarda até 2.
+  boosts: defineTable({
+    gameId: v.id('games'),
+    round: v.number(),
+    kind: boostKind,
+    lat: v.number(),
+    lng: v.number(),
+    state: v.union(v.literal('map'), v.literal('held'), v.literal('used')),
+    ownerId: v.optional(v.id('players')),
+    takenAt: v.optional(v.number()),
+  })
+    .index('by_game', ['gameId', 'state'])
+    .index('by_owner', ['ownerId', 'state']),
 
   // Radio por time: respostas prontas ou áudio (apagado no fim da partida).
   messages: defineTable({

@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
+import { distanceM as distanceBetween } from './lib';
 import { assignRoles } from './rounds';
 import schema from './schema';
 
@@ -294,6 +295,68 @@ describe('rodada', () => {
     await s.leo.mutation(api.play.shout, { gameId });
     await s.leo.mutation(api.play.shout, { gameId });
     await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/acabaram/);
+  });
+
+  test('boosts: aparecem, pegar revela, guarda até 2 e cada um tem seu efeito', async () => {
+    const s = await lobbyWith4();
+    const { gameId, t } = s;
+    await startWithLeoHunting(s);
+    await advance(t, 3 * MIN); // fim da vantagem
+    await advance(t, MIN); // 1 min de caça: primeira onda
+    expect((await s.priya.query(api.play.view, { gameId })).boosts).toHaveLength(3);
+    const hunterView = await s.leo.query(api.play.view, { gameId });
+    expect(hunterView.boosts).toHaveLength(0); // caçador não vê onde estão
+    expect(hunterView.boostsOnMap).toBe(3);
+
+    // Troca a onda sorteada por boosts em lugares conhecidos.
+    await t.run(async (ctx) => {
+      const game = (await ctx.db.get(gameId))!;
+      for (const b of await ctx.db.query('boosts').collect()) await ctx.db.delete(b._id);
+      for (const [kind, m] of [['sombra', 100], ['despiste', 120], ['escudo', 140]] as const) {
+        await ctx.db.insert('boosts', { gameId, round: game.round, kind, ...north(m), state: 'map' });
+      }
+    });
+    const step = async (m: number) => {
+      vi.advanceTimersByTime(2_500);
+      await move(s.priya, gameId, north(m));
+    };
+    const priyaSeen = async () => (await s.leo.query(api.play.view, { gameId })).people.find((p) => p.name === 'Priya');
+
+    await step(100);
+    let v = await s.priya.query(api.play.view, { gameId });
+    expect(v.me.boosts.map((b) => b.kind)).toEqual(['sombra']);
+    expect(v.me.revealUntil).not.toBeNull();
+    expect((await priyaSeen())?.kind).toBe('live'); // o preço: 5 s ao vivo
+    await advance(t, 5_000);
+    expect((await priyaSeen())?.kind).not.toBe('live');
+
+    await step(120);
+    await advance(t, 2_000);
+    await step(140); // já tem 2: o Escudo fica travado
+    v = await s.priya.query(api.play.view, { gameId });
+    expect(v.me.boosts.map((b) => b.kind)).toEqual(['sombra', 'despiste']);
+    expect(v.me.blockedBoost).toBe('Escudo');
+
+    // Sombra: some do próximo ping (aos 5 min).
+    await s.priya.mutation(api.play.useBoost, { boostId: v.me.boosts[0].id });
+    await advance(t, 50_000);
+    expect(await priyaSeen()).toBeUndefined();
+
+    // Despiste: o ping seguinte sai a 60 m de onde ela está.
+    await s.priya.mutation(api.play.useBoost, { boostId: v.me.boosts[1].id });
+    await advance(t, 2 * MIN);
+    const ping = await priyaSeen();
+    expect(Math.round(distanceBetween(ping!, north(140)))).toBe(60);
+
+    // Abriu espaço: pega o Escudo e fica protegida da pega.
+    await step(141);
+    await advance(t, 9_000);
+    v = await s.priya.query(api.play.view, { gameId });
+    expect(v.me.boosts.map((b) => b.kind)).toEqual(['escudo']);
+    await s.priya.mutation(api.play.useBoost, { boostId: v.me.boosts[0].id });
+    const ids = Object.fromEntries((await s.leo.query(api.games.lobby, { gameId })).players.map((p) => [p.name, p.id]));
+    await expect(s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya })).rejects.toThrow(/Escudo/);
+    await expect(s.priya.mutation(api.play.useBoost, { boostId: v.me.boosts[0].id })).rejects.toThrow();
   });
 
   test('tempo acaba com corredor livre: corredores vencem', async () => {

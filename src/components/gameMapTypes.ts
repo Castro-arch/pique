@@ -14,6 +14,8 @@ export type MapPerson = {
 
 export type MapZone = { lat: number; lng: number; radius: number };
 
+export type MapBoost = { id: string; kind: 'despiste' | 'sombra' | 'escudo'; lat: number; lng: number };
+
 export type GameMapProps = {
   zone: MapZone | null;
   nextZoneRadius: number | null;
@@ -22,6 +24,7 @@ export type GameMapProps = {
   hunter: boolean;
   outOfZone: boolean;
   dim?: number;
+  boosts?: MapBoost[]; // só o corredor recebe
 };
 
 export const ago = (at: number, now: number) => {

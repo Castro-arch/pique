@@ -1,6 +1,7 @@
 import { View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { BoostPin } from '@/components/Boosts';
 import { MapBackdrop, MapPin } from '@/components/MapBackdrop';
 import { Text } from '@/components/Text';
 import { colors, fonts } from '@/theme/tokens';
@@ -24,12 +25,24 @@ function project(p: { lat: number; lng: number }, zone: MapZone) {
   return { x: CX + dx * s, y: CY - dy * s };
 }
 
-export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0 }: GameMapProps) {
+export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps) {
   return (
     <MapBackdrop
       zone={zone ? { cx: CX, cy: CY, r: R_PX } : undefined}
       shrinkTo={zone && nextZoneRadius ? (nextZoneRadius / zone.radius) * R_PX : undefined}
       dim={dim}>
+      {zone
+        ? boosts.map((b) => {
+            const { x, y } = project(b, zone);
+            return (
+              <MapPin key={b.id} x={x - 40} y={y - 22}>
+                <View style={{ width: 80 }}>
+                  <BoostPin kind={b.kind} />
+                </View>
+              </MapPin>
+            );
+          })
+        : null}
       {zone
         ? people.map((p) => {
             const { x, y } = project(p, zone);

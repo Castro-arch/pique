@@ -3,7 +3,23 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
-import { CAPTURE_CONFIRM_MS, distanceM, FRESH_POSITION_MS, gamePlayers, HEARTBEAT_M, lastPosition, requireMember, SHOUT_M, SHOUTS_PER_ROUND, systemMessage } from './lib';
+import {
+  BOOST_NAME,
+  BOOST_PICK_M,
+  BOOST_REVEAL_S,
+  BOOST_SLOTS,
+  CAPTURE_CONFIRM_MS,
+  distanceM,
+  FRESH_POSITION_MS,
+  gamePlayers,
+  HEARTBEAT_M,
+  lastPosition,
+  requireMember,
+  SHIELD_MS,
+  SHOUT_M,
+  SHOUTS_PER_ROUND,
+  systemMessage,
+} from './lib';
 import { markOutOfZone } from './rounds';
 
 const MAX_ACCURACY_M = 30; // leitura pior que isso é descartada
@@ -48,7 +64,61 @@ export const sendPosition = mutation({
       if (out && !me.outOfZoneSince) await markOutOfZone(ctx, me, now);
       if (!out && me.outOfZoneSince) await ctx.db.patch(me._id, { outOfZoneSince: undefined, exposed: undefined });
     }
+    if (me.role === 'runner' && game.status === 'hunt') await pickUpBoost(ctx, game, me, { lat, lng });
     return { accepted: true as const };
+  },
+});
+
+// ── Boosts ─────────────────────────────────────────────────────────────
+
+const heldBoosts = (ctx: QueryCtx, playerId: Id<'players'>) =>
+  ctx.db.query('boosts').withIndex('by_owner', (q) => q.eq('ownerId', playerId).eq('state', 'held')).collect();
+
+async function nearestMapBoost(ctx: QueryCtx, game: Doc<'games'>, at: { lat: number; lng: number }) {
+  let best: { boost: Doc<'boosts'>; d: number } | null = null;
+  for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', game._id).eq('state', 'map')).collect()) {
+    if (b.round !== game.round) continue;
+    const d = distanceM(b, at);
+    if (d <= BOOST_PICK_M && (!best || d < best.d)) best = { boost: b, d };
+  }
+  return best?.boost ?? null;
+}
+
+// Passou perto de um boost com espaço livre: pega. O preço é ficar visível
+// ao vivo para os caçadores por alguns segundos.
+async function pickUpBoost(ctx: MutationCtx, game: Doc<'games'>, me: Doc<'players'>, at: { lat: number; lng: number }) {
+  const boost = await nearestMapBoost(ctx, game, at);
+  if (!boost || (await heldBoosts(ctx, me._id)).length >= BOOST_SLOTS) return;
+  const now = Date.now();
+  const seconds = BOOST_REVEAL_S[boost.kind];
+  const until = now + seconds * 1000;
+  await ctx.db.patch(boost._id, { state: 'held', ownerId: me._id, takenAt: now });
+  await ctx.db.patch(me._id, { revealed: true, revealUntil: Math.max(until, me.revealUntil ?? 0) });
+  await ctx.scheduler.runAt(until, internal.play.hideAfterBoost, { playerId: me._id, until });
+  await systemMessage(ctx, game._id, `${me.name} pegou um boost. Aparece ao vivo por ${seconds} s.`, 'hunter');
+}
+
+export const hideAfterBoost = internalMutation({
+  args: { playerId: v.id('players'), until: v.number() },
+  handler: async (ctx, { playerId, until }) => {
+    const p = await ctx.db.get(playerId);
+    if (p?.revealUntil === until) await ctx.db.patch(playerId, { revealed: undefined, revealUntil: undefined });
+  },
+});
+
+// Corredor usa um boost guardado.
+export const useBoost = mutation({
+  args: { boostId: v.id('boosts') },
+  handler: async (ctx, { boostId }) => {
+    const boost = await ctx.db.get(boostId);
+    if (!boost) throw new ConvexError('Esse boost não existe mais.');
+    const { game, me } = await requireMember(ctx, boost.gameId);
+    if (boost.ownerId !== me._id || boost.state !== 'held') throw new ConvexError('Esse boost não é seu.');
+    if (game.status !== 'hunt' || me.state !== 'active') throw new ConvexError('Só dá para usar boost durante a caça.');
+    await ctx.db.patch(boostId, { state: 'used' });
+    if (boost.kind === 'escudo') await ctx.db.patch(me._id, { shieldUntil: Date.now() + SHIELD_MS });
+    else await ctx.db.patch(me._id, { nextPing: boost.kind });
+    return { kind: boost.kind };
   },
 });
 
@@ -82,7 +152,7 @@ export const view = query({
       // Corredor e espectador nunca veem caçadores.
       if (!isMe && !iHunt && role === 'hunter') continue;
       // Caçador vê corredor no último ping, a não ser que ele esteja exposto.
-      if (!isMe && iHunt && role === 'runner' && !(p.exposed && p.state === 'active')) {
+      if (!isMe && iHunt && role === 'runner' && !((p.exposed || p.revealed) && p.state === 'active')) {
         if (p.ping) seen.push({ ...base, kind: 'ping', ...p.ping });
         continue;
       }
@@ -95,6 +165,15 @@ export const view = query({
     const heartbeat = game.status === 'hunt' && me.role === 'runner' && me.state === 'active'
       ? await hunterWithin(ctx, players, me._id, HEARTBEAT_M)
       : false;
+    // Boosts: o corredor vê os do mapa e os que guardou; o caçador só sabe quantos tem.
+    const runner = me.role === 'runner';
+    const mapBoosts = (await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'map')).collect()).filter(
+      (b) => b.round === game.round,
+    );
+    const held = runner ? await heldBoosts(ctx, me._id) : [];
+    const myPos = runner && game.status === 'hunt' && held.length >= BOOST_SLOTS ? await lastPosition(ctx, me._id) : null;
+    const blocked = myPos ? await nearestMapBoost(ctx, game, myPos) : null;
+
     const pending = await ctx.db
       .query('captures')
       .withIndex(me.role === 'runner' ? 'by_runner' : 'by_hunter', (q) =>
@@ -137,7 +216,14 @@ export const view = query({
         heartbeat,
         shoutsLeft: me.role === 'hunter' ? (me.shoutsLeft ?? SHOUTS_PER_ROUND) : null,
         shoutedAt: me.role === 'runner' ? (me.shoutedAt ?? null) : null,
+        revealUntil: me.revealed ? (me.revealUntil ?? null) : null,
+        shieldUntil: me.shieldUntil ?? null,
+        nextPing: me.nextPing ?? null,
+        boosts: held.sort((a, b) => (a.takenAt ?? 0) - (b.takenAt ?? 0)).map((b) => ({ id: b._id, kind: b.kind })),
+        blockedBoost: blocked ? BOOST_NAME[blocked.kind] : null,
       },
+      boosts: runner ? mapBoosts.map((b) => ({ id: b._id, kind: b.kind, lat: b.lat, lng: b.lng })) : [],
+      boostsOnMap: mapBoosts.length,
       runners: { total: runners.length, free: runners.filter((p) => p.state === 'active').length },
       people: seen,
       capture: pending
@@ -221,6 +307,9 @@ export const markCapture = mutation({
     const runner = await ctx.db.get(runnerId);
     if (!runner || runner.gameId !== gameId || runner.role !== 'runner' || runner.state !== 'active') {
       throw new ConvexError('Esse corredor não está mais no jogo.');
+    }
+    if (runner.shieldUntil && runner.shieldUntil > Date.now()) {
+      throw new ConvexError(`${runner.name} está com Escudo. Tente de novo em ${Math.ceil((runner.shieldUntil - Date.now()) / 1000)} s.`);
     }
     const open = await ctx.db.query('captures').withIndex('by_runner', (q) => q.eq('runnerId', runnerId).eq('status', 'pending')).first();
     if (open) return open._id;

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Boosts';
 import { Bar, CardAction, GameTabs, Hud, HudClock, HudFoot, HudRunners, Legend, marks, mmss, RadioCard } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
@@ -31,6 +32,8 @@ export function LiveGame({ id }: { id: string }) {
   const shout = useMutation(api.play.shout);
   const [shouting, setShouting] = useState(false);
   const [shoutNote, setShoutNote] = useState<string | null>(null);
+  const spendBoost = useMutation(api.play.useBoost);
+  const [using, setUsing] = useState<{ id: string; kind: BoostKind } | null>(null);
 
   // 10.4 Coração acelerado: caçador a menos de 30 m. Vibra no ritmo tum-tum.
   const beating = !!view && view.game.status === 'hunt' && view.me.role === 'runner' && view.me.state === 'active' && view.me.heartbeat;
@@ -92,6 +95,31 @@ export function LiveGame({ id }: { id: string }) {
     }
   };
 
+  const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart);
+  const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
+  const shield = me.shieldUntil && me.shieldUntil > now ? secondsUntil(me.shieldUntil, now) : 0;
+  // O que o Radio mostra para o corredor quando um boost dele está em jogo.
+  const boostLine = me.blockedBoost
+    ? `Seus 2 boosts estão cheios. Use um para pegar o ${me.blockedBoost}.`
+    : shield
+      ? `Escudo ativo: ninguém te marca por ${mmss(shield)}.`
+      : me.nextPing === 'sombra'
+        ? 'Sombra ativa: você some do próximo ping.'
+        : me.nextPing === 'despiste'
+          ? 'Despiste ativo: seu próximo ping sai no lugar errado.'
+          : null;
+
+  const confirmBoost = async () => {
+    if (!using) return;
+    setError(null);
+    try {
+      await spendBoost({ boostId: using.id as Id<'boosts'> });
+      setUsing(null);
+    } catch (e) {
+      setError(errorInfo(e).message);
+    }
+  };
+
   const markRunner = async (runnerId: Id<'players'>) => {
     setError(null);
     try {
@@ -113,6 +141,7 @@ export function LiveGame({ id }: { id: string }) {
         hunter={hunter}
         outOfZone={!!me.outOfZoneSince}
         dim={headstart && !hunter ? 0.18 : 0}
+        boosts={view.boosts}
       />
       {beating ? <HeartbeatVignette pulse={pulse} /> : null}
 
@@ -134,6 +163,8 @@ export function LiveGame({ id }: { id: string }) {
             </>
           )}
         </View>
+      ) : revealed && !caught ? (
+        <RevealAlert key={revealed} until={revealed} now={now} />
       ) : beating ? (
         <HeartbeatCard pulse={pulse} />
       ) : (
@@ -160,6 +191,15 @@ export function LiveGame({ id }: { id: string }) {
       <Legend
         items={hunter ? [{ label: 'Corredor (ping)', mark: marks.runner }, { label: 'Caçador', mark: marks.hunter }] : [{ label: 'Corredor', mark: marks.runner }, { label: 'Pego', mark: marks.out }]}
       />
+      {runnerPlaying ? (
+        <BoostSlots
+          boosts={me.boosts}
+          onPress={(b) => {
+            setError(null);
+            setUsing(b);
+          }}
+        />
+      ) : null}
 
       {picking ? (
         <View style={styles.picker}>
@@ -204,6 +244,30 @@ export function LiveGame({ id }: { id: string }) {
           )}
           <CardAction label="Agora não" onPress={() => setShouting(false)} style={{ marginTop: 6, borderWidth: 0, backgroundColor: 'transparent' }} />
         </View>
+      ) : using ? (
+        <View style={styles.picker}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            {(() => {
+              const b = BOOSTS[using.kind];
+              return (
+                <View style={[styles.boostIcon, { borderColor: b.color, backgroundColor: b.tint }]}>
+                  <b.Icon size={22} color={b.color} strokeWidth={2.2} />
+                </View>
+              );
+            })()}
+            <Text style={{ flex: 1, fontFamily: fonts.display, fontSize: 24 }}>
+              Usar {BOOSTS[using.kind].name}
+              <Text style={{ fontFamily: fonts.display, fontSize: 24, color: BOOSTS[using.kind].color }}>?</Text>
+            </Text>
+          </View>
+          <Text variant="muted" style={{ marginTop: 8 }}>{BOOSTS[using.kind].effect}</Text>
+          {g.status !== 'hunt' ? <Text variant="label" style={{ marginTop: 8 }}>Dá para usar quando a caça começar.</Text> : null}
+          {error ? <Text variant="error" style={{ marginTop: 8 }}>{error}</Text> : null}
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <CardAction label="Agora não" onPress={() => setUsing(null)} style={{ flex: 1 }} />
+            {g.status === 'hunt' ? <CardAction tone="lime" label="Usar agora" onPress={confirmBoost} style={{ flex: 1 }} /> : null}
+          </View>
+        </View>
       ) : beating ? (
         <View style={styles.picker}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Fique parado ou saia devagar</Text>
@@ -211,7 +275,10 @@ export function LiveGame({ id }: { id: string }) {
           <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
         </View>
       ) : (
-        <RadioCard from={last?.from?.name ?? 'Radio'} fromRole={last?.from && hunter ? 'hunter' : 'radio'} text={last?.text ?? (last?.kind === 'audio' ? 'Mandou um áudio.' : 'Tudo quieto por enquanto.')}>
+        <RadioCard
+          from={boostLine ? 'Radio' : (last?.from?.name ?? 'Radio')}
+          fromRole={!boostLine && last?.from && hunter ? 'hunter' : 'radio'}
+          text={boostLine ?? last?.text ?? (last?.kind === 'audio' ? 'Mandou um áudio.' : 'Tudo quieto por enquanto.')}>
           {denied ? (
             <Text variant="error" style={{ marginTop: 10 }}>Libere a localização para jogar.</Text>
           ) : caught ? (
@@ -276,6 +343,7 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   dot: { width: 12, height: 12, borderRadius: 6 },
+  boostIcon: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   note: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 14, backgroundColor: colors.ink, borderRadius: radius.md, padding: 12 },
   shoutBtn: {
     marginTop: 12,

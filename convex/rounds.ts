@@ -3,7 +3,21 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
-import { distanceM, gamePlayers, lastPosition, MIN, MIN_ZONE_RADIUS, requireHost, requireMember, SHOUTS_PER_ROUND, systemMessage } from './lib';
+import {
+  BOOST_EVERY_MIN,
+  BOOSTS_PER_WAVE,
+  DESPISTE_M,
+  distanceM,
+  gamePlayers,
+  lastPosition,
+  MIN,
+  MIN_ZONE_RADIUS,
+  offsetM,
+  requireHost,
+  requireMember,
+  SHOUTS_PER_ROUND,
+  systemMessage,
+} from './lib';
 
 // Cada evento agendado leva o número da rodada: se a rodada mudou
 // (revanche) ou acabou, o evento velho é ignorado.
@@ -57,8 +71,13 @@ export const start = mutation({
         distanceM: 0,
         shoutsLeft: role === 'hunter' ? SHOUTS_PER_ROUND : undefined,
         shoutedAt: undefined,
+        revealed: undefined,
+        revealUntil: undefined,
+        nextPing: undefined,
+        shieldUntil: undefined,
       });
     }
+    await clearBoosts(ctx, gameId);
 
     const now = Date.now();
     const r = game.rules;
@@ -99,6 +118,7 @@ export const headStartOver = internalMutation({
     if (!game || game.status !== 'headstart') return;
     await ctx.db.patch(gameId, { status: 'hunt' });
     await systemMessage(ctx, gameId, 'Acabou a vantagem. Os caçadores foram liberados.');
+    await ctx.scheduler.runAfter(MIN, internal.rounds.spawnBoosts, { gameId, round });
   },
 });
 
@@ -114,7 +134,13 @@ export const ping = internalMutation({
       if (p.role !== 'runner' || p.state !== 'active') continue;
       const pos = await lastPosition(ctx, p._id);
       if (!pos) continue;
-      await ctx.db.patch(p._id, { ping: { lat: pos.lat, lng: pos.lng, at: now } });
+      // Sombra: some deste ping. Despiste: o ping sai a 60 m do lugar certo.
+      if (p.nextPing === 'sombra') {
+        await ctx.db.patch(p._id, { ping: undefined, nextPing: undefined });
+        continue;
+      }
+      const at = p.nextPing === 'despiste' ? offsetM(pos, DESPISTE_M, Math.random() * 2 * Math.PI) : pos;
+      await ctx.db.patch(p._id, { ping: { lat: at.lat, lng: at.lng, at: now }, nextPing: undefined });
       lit++;
     }
     const next = now + game.rules.pingEveryMin * MIN;
@@ -123,6 +149,47 @@ export const ping = internalMutation({
     if (hasNext) await ctx.scheduler.runAt(next, internal.rounds.ping, { gameId, round });
     await systemMessage(ctx, gameId, `Ping! ${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`, 'hunter');
     await systemMessage(ctx, gameId, 'Ping! Sua posição foi enviada. Se mexa.', 'runner');
+  },
+});
+
+// ── Boosts ─────────────────────────────────────────────────────────────
+
+const KINDS = [
+  ['despiste', 0.45],
+  ['sombra', 0.35],
+  ['escudo', 0.2],
+] as const;
+function randomKind() {
+  let r = Math.random();
+  for (const [kind, w] of KINDS) if ((r -= w) < 0) return kind;
+  return 'despiste' as const;
+}
+
+async function clearBoosts(ctx: MutationCtx, gameId: Id<'games'>) {
+  for (const state of ['map', 'held'] as const) {
+    for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', state)).collect()) {
+      await ctx.db.delete(b._id);
+    }
+  }
+}
+
+// Uma onda: some o que ninguém pegou e aparecem 3 boosts novos dentro da zona.
+export const spawnBoosts = internalMutation({
+  args: roundArgs,
+  handler: async (ctx, { gameId, round }) => {
+    const game = await liveGame(ctx, gameId, round);
+    if (!game || game.status !== 'hunt' || !game.zone) return;
+    for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'map')).collect()) {
+      await ctx.db.delete(b._id);
+    }
+    for (let i = 0; i < BOOSTS_PER_WAVE; i++) {
+      // sqrt espalha por igual na área, e não amontoado no centro.
+      const at = offsetM(game.zone, game.zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
+      await ctx.db.insert('boosts', { gameId, round, kind: randomKind(), ...at, state: 'map' });
+    }
+    await systemMessage(ctx, gameId, `${BOOSTS_PER_WAVE} boosts apareceram. Você guarda até 2; quanto mais forte, mais tempo fica visível ao pegar.`, 'runner');
+    const next = Date.now() + BOOST_EVERY_MIN * MIN;
+    if (next < (game.endsAt ?? 0)) await ctx.scheduler.runAt(next, internal.rounds.spawnBoosts, { gameId, round });
   },
 });
 
@@ -235,6 +302,10 @@ export const cleanup = internalMutation({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
     await deleteAudio(ctx, gameId);
+    await clearBoosts(ctx, gameId);
+    for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'used')).collect()) {
+      await ctx.db.delete(b._id);
+    }
     for (const table of ['messages', 'captures', 'positions', 'players'] as const) {
       const rows = await ctx.db
         .query(table)

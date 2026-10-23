@@ -34,6 +34,14 @@ export const MIN = 60_000;
 export const HEARTBEAT_M = 30; // corredor sente o coração acelerar com caçador a menos disso
 export const SHOUT_M = 60; // alcance do grito
 export const SHOUTS_PER_ROUND = 3;
+export const BOOST_EVERY_MIN = 4; // uma onda de boosts a cada 4 min de caça
+export const BOOSTS_PER_WAVE = 3;
+export const BOOST_PICK_M = 15; // passa a menos disso e pega
+export const BOOST_SLOTS = 2; // guarda no máximo 2
+export const BOOST_REVEAL_S = { despiste: 2, sombra: 5, escudo: 8 } as const; // quanto mais forte, mais tempo visível
+export const SHIELD_MS = 2 * 60_000;
+export const DESPISTE_M = 60;
+export const BOOST_NAME = { despiste: 'Despiste', sombra: 'Sombra', escudo: 'Escudo' } as const;
 export const FRESH_POSITION_MS = 60_000; // posição mais velha que isso não conta para coração e grito
 
 // Sem letras que confundem (0/O, 1/I/L).
@@ -77,6 +85,13 @@ export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng
   const dLng = toRad(b.lng - a.lng);
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
   return 2 * R * Math.asin(Math.sqrt(h));
+}
+
+// Ponto a `m` metros de `p` na direção `angle` (radianos, 0 = leste).
+export function offsetM(p: { lat: number; lng: number }, m: number, angle: number) {
+  const dLat = (m * Math.sin(angle)) / 111_320;
+  const dLng = (m * Math.cos(angle)) / (111_320 * Math.cos((p.lat * Math.PI) / 180));
+  return { lat: p.lat + dLat, lng: p.lng + dLng };
 }
 
 export async function gamePlayers(ctx: Ctx, gameId: Id<'games'>) {
