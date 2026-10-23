@@ -250,6 +250,52 @@ describe('rodada', () => {
     await expect(s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya })).rejects.toThrow(/150 m/);
   });
 
+  test('coração acelera só para o corredor com caçador a menos de 30 m', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(20));
+    expect((await s.priya.query(api.play.view, { gameId })).me.heartbeat).toBe(false); // ainda na vantagem
+
+    await advance(s.t, 3 * MIN);
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(20));
+    await move(s.teo, gameId, north(45));
+    expect((await s.priya.query(api.play.view, { gameId })).me.heartbeat).toBe(true);
+    expect((await s.teo.query(api.play.view, { gameId })).me.heartbeat).toBe(false);
+    expect((await s.leo.query(api.play.view, { gameId })).me.heartbeat).toBe(false); // caçador não sabe
+
+    // Posição do caçador velha não conta.
+    vi.advanceTimersByTime(61_000);
+    await move(s.priya, gameId, north(21));
+    expect((await s.priya.query(api.play.view, { gameId })).me.heartbeat).toBe(false);
+  });
+
+  test('grito: acerta o corredor mais perto, só gasta se acertar, 3 por rodada', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/vantagem/);
+    await advance(s.t, 3 * MIN);
+    await expect(s.priya.mutation(api.play.shout, { gameId })).rejects.toThrow(/caçadores/);
+
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(100));
+    expect(await s.leo.mutation(api.play.shout, { gameId })).toEqual({ hit: false, left: 3 });
+
+    await move(s.teo, gameId, north(50));
+    await move(s.host, gameId, north(40));
+    expect(await s.leo.mutation(api.play.shout, { gameId })).toEqual({ hit: true, left: 2 });
+    expect((await s.host.query(api.play.view, { gameId })).me.shoutedAt).not.toBeNull();
+    expect((await s.teo.query(api.play.view, { gameId })).me.shoutedAt).toBeNull();
+    expect((await s.leo.query(api.play.view, { gameId })).me.shoutsLeft).toBe(2);
+
+    await s.leo.mutation(api.play.shout, { gameId });
+    await s.leo.mutation(api.play.shout, { gameId });
+    await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/acabaram/);
+  });
+
   test('tempo acaba com corredor livre: corredores vencem', async () => {
     const s = await lobbyWith4();
     await startWithLeoHunting(s);

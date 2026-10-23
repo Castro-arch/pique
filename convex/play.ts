@@ -2,8 +2,8 @@ import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
-import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
-import { CAPTURE_CONFIRM_MS, distanceM, gamePlayers, lastPosition, requireMember, systemMessage } from './lib';
+import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
+import { CAPTURE_CONFIRM_MS, distanceM, FRESH_POSITION_MS, gamePlayers, HEARTBEAT_M, lastPosition, requireMember, SHOUT_M, SHOUTS_PER_ROUND, systemMessage } from './lib';
 import { markOutOfZone } from './rounds';
 
 const MAX_ACCURACY_M = 30; // leitura pior que isso é descartada
@@ -92,6 +92,9 @@ export const view = query({
     }
 
     const runners = players.filter((p) => p.role === 'runner');
+    const heartbeat = game.status === 'hunt' && me.role === 'runner' && me.state === 'active'
+      ? await hunterWithin(ctx, players, me._id, HEARTBEAT_M)
+      : false;
     const pending = await ctx.db
       .query('captures')
       .withIndex(me.role === 'runner' ? 'by_runner' : 'by_hunter', (q) =>
@@ -130,6 +133,10 @@ export const view = query({
         distanceM: Math.round(me.distanceM ?? 0),
         caughtAt: me.caughtAt ?? null,
         catches: players.filter((p) => p.caughtBy === me._id).length,
+        // Só o corredor sabe que tem caçador perto, e não de que lado.
+        heartbeat,
+        shoutsLeft: me.role === 'hunter' ? (me.shoutsLeft ?? SHOUTS_PER_ROUND) : null,
+        shoutedAt: me.role === 'runner' ? (me.shoutedAt ?? null) : null,
       },
       runners: { total: runners.length, free: runners.filter((p) => p.state === 'active').length },
       people: seen,
@@ -140,6 +147,48 @@ export const view = query({
         ? { id: lastDisputed._id, distanceM: lastDisputed.distanceM ?? null, other: (await ctx.db.get(lastDisputed.runnerId))?.name ?? '' }
         : null,
     };
+  },
+});
+
+// ── Coração acelerado e grito ──────────────────────────────────────────
+
+// Algum caçador ativo, com posição recente, a até `m` metros do jogador?
+async function hunterWithin(ctx: QueryCtx, players: Doc<'players'>[], runnerId: Id<'players'>, m: number) {
+  const mine = await lastPosition(ctx, runnerId);
+  if (!mine || Date.now() - mine.at > FRESH_POSITION_MS) return false;
+  for (const h of players) {
+    if (h.role !== 'hunter' || h.state !== 'active') continue;
+    const pos = await lastPosition(ctx, h._id);
+    if (pos && Date.now() - pos.at <= FRESH_POSITION_MS && distanceM(pos, mine) <= m) return true;
+  }
+  return false;
+}
+
+// Caçador grita: o celular do corredor mais perto, a até 60 m, toca por 2 s.
+// Se ninguém estiver no alcance, o grito não gasta.
+export const shout = mutation({
+  args: { gameId: v.id('games') },
+  handler: async (ctx, { gameId }) => {
+    const { game, me } = await requireMember(ctx, gameId);
+    if (game.status !== 'hunt') throw new ConvexError('Só dá para gritar depois da vantagem.');
+    if (me.role !== 'hunter' || me.state !== 'active') throw new ConvexError('Só caçadores gritam.');
+    const left = me.shoutsLeft ?? SHOUTS_PER_ROUND;
+    if (left <= 0) throw new ConvexError('Seus gritos acabaram nesta rodada.');
+    const mine = await lastPosition(ctx, me._id);
+    if (!mine || Date.now() - mine.at > FRESH_POSITION_MS) throw new ConvexError('Esperando o GPS achar você.');
+
+    let target: { id: Id<'players'>; d: number } | null = null;
+    for (const p of await gamePlayers(ctx, gameId)) {
+      if (p.role !== 'runner' || p.state !== 'active') continue;
+      const pos = await lastPosition(ctx, p._id);
+      if (!pos || Date.now() - pos.at > FRESH_POSITION_MS) continue;
+      const d = distanceM(pos, mine);
+      if (d <= SHOUT_M && (!target || d < target.d)) target = { id: p._id, d };
+    }
+    if (!target) return { hit: false as const, left };
+    await ctx.db.patch(target.id, { shoutedAt: Date.now() });
+    await ctx.db.patch(me._id, { shoutsLeft: left - 1 });
+    return { hit: true as const, left: left - 1 };
   },
 });
 

@@ -137,15 +137,27 @@ export function RadioCard({ from, fromRole, text, children }: { from: string; fr
 }
 
 // Botão largo dentro do cartão de baixo ("Fui pego", "Marquei um corredor").
-export function CardAction({ label, hint, tone = 'dark', onPress }: { label: string; hint?: string; tone?: 'dark' | 'lime' | 'amber'; onPress?: () => void }) {
-  const bg = tone === 'lime' ? colors.lime : tone === 'amber' ? colors.amber : colors.ink;
+export function CardAction({
+  label,
+  hint,
+  tone = 'dark',
+  onPress,
+  style,
+}: {
+  label: string;
+  hint?: string;
+  tone?: 'dark' | 'lime' | 'amber' | 'pink';
+  onPress?: () => void;
+  style?: ViewStyle;
+}) {
+  const bg = tone === 'lime' ? colors.lime : tone === 'amber' ? colors.amber : tone === 'pink' ? colors.pink : colors.ink;
   const fg = tone === 'lime' ? colors.limeInk : tone === 'amber' ? colors.amberInk : colors.paper;
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={hint ? `${label}, ${hint}` : label}
       onPress={onPress}
-      style={({ pressed }) => [styles.action, { backgroundColor: bg }, tone === 'dark' && { borderWidth: 1, borderColor: colors.inkBorder }, pressed && { opacity: 0.85 }]}>
+      style={({ pressed }) => [styles.action, { backgroundColor: bg }, tone === 'dark' && { borderWidth: 1, borderColor: colors.inkBorder }, style, pressed && { opacity: 0.85 }]}>
       <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong, color: fg }}>
         {label}
         {hint ? <Text style={{ fontSize: 15, color: tone === 'dark' ? colors.paperMuted : fg }}> · {hint}</Text> : null}

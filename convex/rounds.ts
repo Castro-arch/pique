@@ -3,7 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
-import { distanceM, gamePlayers, lastPosition, MIN, MIN_ZONE_RADIUS, requireHost, requireMember, systemMessage } from './lib';
+import { distanceM, gamePlayers, lastPosition, MIN, MIN_ZONE_RADIUS, requireHost, requireMember, SHOUTS_PER_ROUND, systemMessage } from './lib';
 
 // Cada evento agendado leva o número da rodada: se a rodada mudou
 // (revanche) ou acabou, o evento velho é ignorado.
@@ -55,6 +55,8 @@ export const start = mutation({
         caughtAt: undefined,
         caughtBy: undefined,
         distanceM: 0,
+        shoutsLeft: role === 'hunter' ? SHOUTS_PER_ROUND : undefined,
+        shoutedAt: undefined,
       });
     }
 

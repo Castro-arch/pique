@@ -9,7 +9,7 @@ export default function AppLayout() {
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
       {/* Folhas e diálogos sobem por cima da tela anterior */}
-      {['lobby/regras', 'lobby/qr', 'jogador/[id]', 'anfitriao', 'sair', 'denunciar', 'pego', 'confirmando', 'contestado', 'menu'].map(
+      {['lobby/regras', 'lobby/qr', 'jogador/[id]', 'anfitriao', 'sair', 'denunciar', 'pego', 'confirmando', 'contestado', 'menu', 'grito'].map(
         (name) => (
           <Stack.Screen key={name} name={name} options={{ presentation: 'transparentModal', animation: 'fade' }} />
         ),

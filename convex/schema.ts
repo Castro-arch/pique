@@ -77,6 +77,8 @@ export default defineSchema({
     exposed: v.optional(v.boolean()), // fora da zona há mais de 30 s: visível ao vivo
     distanceM: v.optional(v.number()),
     flags: v.optional(v.array(v.string())), // anti-cheat: "mock", "speed", "jump"
+    shoutsLeft: v.optional(v.number()), // caçador: gritos que ainda tem na rodada
+    shoutedAt: v.optional(v.number()), // corredor: quando o celular dele gritou
   })
     .index('by_game', ['gameId'])
     .index('by_game_user', ['gameId', 'userId'])

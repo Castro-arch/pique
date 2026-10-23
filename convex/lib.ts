@@ -31,6 +31,10 @@ export const MIN_ZONE_RADIUS = 75; // a zona encolhe até aqui (150 m de diâmet
 export const OUT_OF_ZONE_GRACE_MS = 30_000;
 export const CAPTURE_CONFIRM_MS = 60_000;
 export const MIN = 60_000;
+export const HEARTBEAT_M = 30; // corredor sente o coração acelerar com caçador a menos disso
+export const SHOUT_M = 60; // alcance do grito
+export const SHOUTS_PER_ROUND = 3;
+export const FRESH_POSITION_MS = 60_000; // posição mais velha que isso não conta para coração e grito
 
 // Sem letras que confundem (0/O, 1/I/L).
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';

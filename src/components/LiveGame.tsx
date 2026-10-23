@@ -1,15 +1,17 @@
 import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
-import { EyeOff, TriangleAlert } from 'lucide-react-native';
-import { useEffect, useState } from 'react';
+import { EyeOff, Megaphone, TriangleAlert } from 'lucide-react-native';
+import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Bar, CardAction, GameTabs, Hud, HudClock, HudFoot, HudRunners, Legend, marks, mmss, RadioCard } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
+import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
 import { errorInfo, secondsUntil, useNow, useSendPosition, useView, type GameId } from '@/lib/game';
+import { useHeartbeat } from '@/lib/heartbeat';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
@@ -26,6 +28,23 @@ export function LiveGame({ id }: { id: string }) {
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mark = useMutation(api.play.markCapture);
+  const shout = useMutation(api.play.shout);
+  const [shouting, setShouting] = useState(false);
+  const [shoutNote, setShoutNote] = useState<string | null>(null);
+
+  // 10.4 Coração acelerado: caçador a menos de 30 m. Vibra no ritmo tum-tum.
+  const beating = !!view && view.game.status === 'hunt' && view.me.role === 'runner' && view.me.state === 'active' && view.me.heartbeat;
+  const pulse = useHeartbeat(beating);
+
+  // 10.6 Um caçador gritou perto de mim: abre a tela que toca o som.
+  // Só vale grito recente (quem abre o app depois não ouve grito velho).
+  const heardShout = useRef<number | null>(null);
+  useEffect(() => {
+    const at = view?.me.shoutedAt;
+    if (!at || at === heardShout.current || view.game.status !== 'hunt') return;
+    heardShout.current = at;
+    if (Date.now() - at < 20_000) router.push({ pathname: '/grito', params: { id } });
+  }, [id, view?.me.shoutedAt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pedido de pega: o corredor recebe a pergunta na hora.
   useEffect(() => {
@@ -61,6 +80,18 @@ export function LiveGame({ id }: { id: string }) {
   const last = radio?.messages[radio.messages.length - 1];
   const runnersToMark = view.people.filter((p) => p.role === 'runner' && p.state === 'active');
 
+  const shoutsLeft = me.shoutsLeft ?? 0;
+  const doShout = async () => {
+    setShoutNote(null);
+    try {
+      const r = await shout({ gameId: id as GameId });
+      setShoutNote(r.hit ? 'Gritou! Escute de onde vem o som.' : 'Ninguém a 60 m de você. O grito não gastou.');
+      if (r.hit) setShouting(false);
+    } catch (e) {
+      setShoutNote(errorInfo(e).message);
+    }
+  };
+
   const markRunner = async (runnerId: Id<'players'>) => {
     setError(null);
     try {
@@ -83,6 +114,7 @@ export function LiveGame({ id }: { id: string }) {
         outOfZone={!!me.outOfZoneSince}
         dim={headstart && !hunter ? 0.18 : 0}
       />
+      {beating ? <HeartbeatVignette pulse={pulse} /> : null}
 
       {outFor !== null && !caught ? (
         <View accessibilityRole="alert" style={[styles.hud, styles.amber]}>
@@ -102,6 +134,8 @@ export function LiveGame({ id }: { id: string }) {
             </>
           )}
         </View>
+      ) : beating ? (
+        <HeartbeatCard pulse={pulse} />
       ) : (
         <Hud>
           <HudClock
@@ -144,6 +178,38 @@ export function LiveGame({ id }: { id: string }) {
           {error ? <Text variant="error" style={{ marginTop: 8 }}>{error}</Text> : null}
           <CardAction label="Cancelar" onPress={() => setPicking(false)} />
         </View>
+      ) : shouting ? (
+        <View style={styles.picker}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text style={{ fontFamily: fonts.display, fontSize: 28 }}>
+              Grito<Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.pink }}>.</Text>
+            </Text>
+            <View accessibilityLabel={`${shoutsLeft} de 3 gritos restantes`} style={{ flexDirection: 'row', gap: 6 }}>
+              {[0, 1, 2].map((i) => (
+                <View key={i} style={[styles.dot, i < shoutsLeft ? { backgroundColor: colors.pink } : { borderWidth: 2, borderColor: '#55606B' }]} />
+              ))}
+            </View>
+          </View>
+          <Text variant="muted" style={{ marginTop: 8 }}>
+            O celular do corredor mais perto toca um som por 2 segundos, se ele estiver a até 60 m de você. Escute de onde vem.
+          </Text>
+          <View style={styles.note}>
+            <TriangleAlert size={16} color={colors.amber} />
+            <Text style={{ flex: 1, fontSize: 13, color: colors.paperMuted }}>{shoutNote ?? 'Se ninguém estiver no alcance, o grito não gasta.'}</Text>
+          </View>
+          {shoutsLeft > 0 ? (
+            <CardAction tone="pink" label="Gritar" hint={`${shoutsLeft} ${shoutsLeft === 1 ? 'restante' : 'restantes'}`} onPress={doShout} />
+          ) : (
+            <Text variant="label" style={{ marginTop: 12, textAlign: 'center' }}>Seus gritos acabaram nesta rodada.</Text>
+          )}
+          <CardAction label="Agora não" onPress={() => setShouting(false)} style={{ marginTop: 6, borderWidth: 0, backgroundColor: 'transparent' }} />
+        </View>
+      ) : beating ? (
+        <View style={styles.picker}>
+          <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Fique parado ou saia devagar</Text>
+          <Text variant="small" style={{ marginTop: 4 }}>O aviso não diz de onde ele vem. Correr chama atenção, ficar parado pode funcionar.</Text>
+          <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
+        </View>
       ) : (
         <RadioCard from={last?.from?.name ?? 'Radio'} fromRole={last?.from && hunter ? 'hunter' : 'radio'} text={last?.text ?? (last?.kind === 'audio' ? 'Mandou um áudio.' : 'Tudo quieto por enquanto.')}>
           {denied ? (
@@ -159,7 +225,20 @@ export function LiveGame({ id }: { id: string }) {
               <Text variant="label">Você é liberado em {mmss(left)}</Text>
             </View>
           ) : hunter ? (
-            <CardAction tone="lime" label="Marquei um corredor" hint="ele confirma" onPress={() => setPicking(true)} />
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <CardAction tone="lime" label="Marquei um corredor" onPress={() => setPicking(true)} style={{ flex: 1 }} />
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Grito, ${shoutsLeft} restantes`}
+                onPress={() => {
+                  setShoutNote(null);
+                  setShouting(true);
+                }}
+                style={({ pressed }) => [styles.shoutBtn, pressed && { opacity: 0.85 }]}>
+                <Megaphone size={18} color={colors.paper} />
+                <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong }}>{shoutsLeft}</Text>
+              </Pressable>
+            </View>
           ) : (
             <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
           )}
@@ -195,6 +274,18 @@ const styles = StyleSheet.create({
     borderColor: colors.inkBorder,
     borderRadius: radius.xl,
     padding: 16,
+  },
+  dot: { width: 12, height: 12, borderRadius: 6 },
+  note: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 14, backgroundColor: colors.ink, borderRadius: radius.md, padding: 12 },
+  shoutBtn: {
+    marginTop: 12,
+    height: 52,
+    paddingHorizontal: 16,
+    borderRadius: radius.lg,
+    backgroundColor: colors.pink,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: colors.ink },
 });
