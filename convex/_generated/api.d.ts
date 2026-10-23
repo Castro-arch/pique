@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as auth from "../auth.js";
+import type * as cosmetics from "../cosmetics.js";
 import type * as emailOtp from "../emailOtp.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
@@ -28,6 +29,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   auth: typeof auth;
+  cosmetics: typeof cosmetics;
   emailOtp: typeof emailOtp;
   games: typeof games;
   http: typeof http;

@@ -14,16 +14,19 @@ export const QUICK = [
   'Tô escondido',
   'Ninguém por aqui',
   'Caçador perto!',
+  'Me salva!',
 ] as const;
+// O preso sempre pode pedir resgate, mesmo quando pego só assiste.
+const HELP = 'Me salva!';
 const MAX_AUDIO_S = 15;
 const MIN_GAP_MS = 2_000;
 
 // Quem pode falar e em qual canal. Pego só fala se a regra permitir.
-async function speaker(ctx: MutationCtx, gameId: Doc<'games'>['_id']) {
+async function speaker(ctx: MutationCtx, gameId: Doc<'games'>['_id'], askingHelp = false) {
   const { game, me } = await requireMember(ctx, gameId);
   if (game.status !== 'headstart' && game.status !== 'hunt') throw new ConvexError('O Radio abre quando a rodada começa.');
   if (!me.role) throw new ConvexError('Você não está nesta rodada.');
-  if (me.state === 'caught' && !game.rules.spectatorsHelp) throw new ConvexError('Quem foi pego só assiste nesta partida.');
+  if (me.state === 'caught' && !game.rules.spectatorsHelp && !(askingHelp && me.jail)) throw new ConvexError('Quem foi pego só assiste nesta partida.');
   const last = await ctx.db
     .query('messages')
     .withIndex('by_game', (q) => q.eq('gameId', gameId).gt('at', Date.now() - MIN_GAP_MS))
@@ -37,7 +40,7 @@ export const sendQuick = mutation({
   args: { gameId: v.id('games'), text: v.string() },
   handler: async (ctx, { gameId, text }) => {
     if (!(QUICK as readonly string[]).includes(text)) throw new ConvexError('Mensagem não permitida.');
-    const { me, team } = await speaker(ctx, gameId);
+    const { me, team } = await speaker(ctx, gameId, text === HELP);
     await ctx.db.insert('messages', { gameId, playerId: me._id, team, kind: 'quick', text, at: Date.now() });
   },
 });

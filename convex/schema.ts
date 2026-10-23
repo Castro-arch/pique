@@ -33,6 +33,7 @@ export default defineSchema({
     phoneVerificationTime: v.optional(v.number()),
     isAnonymous: v.optional(v.boolean()),
     username: v.optional(v.string()),
+    frame: v.optional(v.string()), // moldura equipada (cosmético)
   })
     .index('email', ['email'])
     .index('username', ['username']),
@@ -86,6 +87,9 @@ export default defineSchema({
     revealUntil: v.optional(v.number()),
     nextPing: v.optional(v.union(v.literal('sombra'), v.literal('despiste'))),
     shieldUntil: v.optional(v.number()),
+    // Salvar o amigo: o pego fica preso onde foi pego; um corredor perto por 3 s solta.
+    jail: v.optional(v.object({ lat: v.number(), lng: v.number(), at: v.number() })),
+    rescue: v.optional(v.object({ targetId: v.id('players'), since: v.number() })),
   })
     .index('by_game', ['gameId'])
     .index('by_game_user', ['gameId', 'userId'])
@@ -142,6 +146,13 @@ export default defineSchema({
     seconds: v.optional(v.number()),
     at: v.number(),
   }).index('by_game', ['gameId', 'at']),
+
+  // Cosméticos comprados (gravados pelo webhook da loja). Os grátis não entram aqui.
+  cosmetics: defineTable({
+    userId: v.id('users'),
+    itemId: v.string(),
+    at: v.number(),
+  }).index('by_user', ['userId', 'itemId']),
 
   // Compras do anfitrião (gravadas pelo webhook da RevenueCat).
   entitlements: defineTable({

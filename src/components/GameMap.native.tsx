@@ -76,7 +76,7 @@ export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, 
             tracksViewChanges={p.kind === 'ping'}
             zIndex={p.isMe ? 10 : 1}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Avatar name={p.name} size={p.isMe ? 46 : 36} state={personState(p, outOfZone)} glow={p.isMe} />
+              <Avatar name={p.name} size={p.isMe ? 46 : 36} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
               <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }]}>
                 <Text
                   style={{

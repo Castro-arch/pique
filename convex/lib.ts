@@ -42,6 +42,9 @@ export const BOOST_REVEAL_S = { despiste: 2, sombra: 5, escudo: 8 } as const; //
 export const SHIELD_MS = 2 * 60_000;
 export const DESPISTE_M = 60;
 export const BOOST_NAME = { despiste: 'Despiste', sombra: 'Sombra', escudo: 'Escudo' } as const;
+export const RESCUE_M = 10; // chega a menos disso do preso
+export const RESCUE_HOLD_MS = 3_000; // e fica 3 s
+export const RESCUE_SHIELD_MS = 30_000; // quem foi solto não pode ser marcado logo em seguida
 export const FRESH_POSITION_MS = 60_000; // posição mais velha que isso não conta para coração e grito
 
 // Sem letras que confundem (0/O, 1/I/L).

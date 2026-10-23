@@ -1,7 +1,9 @@
 import { Image } from 'expo-image';
+import { LinearGradient } from 'expo-linear-gradient';
 import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Text } from '@/components/Text';
+import { FRAMES } from '@/lib/cosmetics';
 import { colors, fonts, roleColor, type Role } from '@/theme/tokens';
 
 type State = Role | 'draw' | 'out' | 'warning' | 'neutral';
@@ -17,7 +19,27 @@ const ring: Record<State, string> = {
 
 // Foto do jogador com anel na cor do papel. Sem foto, mostra a inicial do nome.
 // "out" = pego (cinza e tracejado); "draw" = no sorteio (tracejado).
-export function Avatar({
+// `frame` = moldura comprada na loja: um anel colorido por fora do anel do papel.
+export function Avatar({ frame, style, ...props }: Parameters<typeof Plain>[0] & { frame?: string | null }) {
+  const f = frame ? FRAMES[frame] : undefined;
+  if (!f) return <Plain {...props} style={style} />;
+  const size = props.size ?? 36;
+  const pad = Math.max(3, Math.round(size * 0.09));
+  const outer = size + pad * 2;
+  return (
+    <View
+      style={[
+        { width: outer, height: outer, borderRadius: outer / 2, alignItems: 'center', justifyContent: 'center' },
+        f.glow ? { boxShadow: `0 0 ${Math.round(size * 0.3)}px ${f.glow}99` } : null,
+        style,
+      ]}>
+      <LinearGradient colors={f.colors} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={[StyleSheet.absoluteFill, { borderRadius: outer / 2 }]} />
+      <Plain {...props} />
+    </View>
+  );
+}
+
+function Plain({
   source,
   name,
   size = 36,

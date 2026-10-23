@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
-import { EyeOff, Megaphone, TriangleAlert } from 'lucide-react-native';
+import { EyeOff, Lock, Megaphone, TriangleAlert } from 'lucide-react-native';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
@@ -33,11 +33,22 @@ export function LiveGame({ id }: { id: string }) {
   const [shouting, setShouting] = useState(false);
   const [shoutNote, setShoutNote] = useState<string | null>(null);
   const spendBoost = useMutation(api.play.useBoost);
+  const sendQuick = useMutation(api.radio.sendQuick);
+  const [justWatch, setJustWatch] = useState(false);
+  const [helpSent, setHelpSent] = useState(false);
   const [using, setUsing] = useState<{ id: string; kind: BoostKind } | null>(null);
 
   // 10.4 Coração acelerado: caçador a menos de 30 m. Vibra no ritmo tum-tum.
   const beating = !!view && view.game.status === 'hunt' && view.me.role === 'runner' && view.me.state === 'active' && view.me.heartbeat;
   const pulse = useHeartbeat(beating);
+
+  // Saiu da prisão: na próxima vez o "Me salva!" e o "Só assistir" voltam.
+  useEffect(() => {
+    if (view && !view.me.jailed) {
+      setJustWatch(false);
+      setHelpSent(false);
+    }
+  }, [view?.me.jailed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 10.6 Um caçador gritou perto de mim: abre a tela que toca o som.
   // Só vale grito recente (quem abre o app depois não ouve grito velho).
@@ -163,6 +174,17 @@ export function LiveGame({ id }: { id: string }) {
             </>
           )}
         </View>
+      ) : me.jailed && !justWatch ? (
+        <View accessibilityRole="alert" style={[styles.hud, styles.amber]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <Lock size={15} color={colors.amberInk} strokeWidth={2.4} />
+            <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, letterSpacing: 0.3, color: colors.amberInk }}>VOCÊ ESTÁ PRESO</Text>
+          </View>
+          <Text style={{ fontFamily: fonts.display, fontSize: 30, lineHeight: 31, marginTop: 6, color: colors.amberInk }}>Fique aqui. Um corredor pode te soltar.</Text>
+          <Text style={{ fontSize: 14, lineHeight: 19, fontFamily: fonts.bodyMedium, marginTop: 6, color: colors.amberInk }}>
+            Quando ele chegar a 10 m, vocês dois voltam para o jogo.
+          </Text>
+        </View>
       ) : revealed && !caught ? (
         <RevealAlert key={revealed} until={revealed} now={now} />
       ) : beating ? (
@@ -244,6 +266,14 @@ export function LiveGame({ id }: { id: string }) {
           )}
           <CardAction label="Agora não" onPress={() => setShouting(false)} style={{ marginTop: 6, borderWidth: 0, backgroundColor: 'transparent' }} />
         </View>
+      ) : me.rescue ? (
+        <View style={styles.picker}>
+          <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Soltando {me.rescue.name}: fique perto por 3 s</Text>
+          <Text variant="small" style={{ marginTop: 4 }}>
+            Se sair do círculo, o resgate recomeça. Os caçadores sabem onde {me.rescue.name} está preso: pode ser armadilha.
+          </Text>
+          <Bar value={(now - me.rescue.since) / 3000} style={{ marginTop: 12, height: 8 }} />
+        </View>
       ) : using ? (
         <View style={styles.picker}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
@@ -281,6 +311,19 @@ export function LiveGame({ id }: { id: string }) {
           text={boostLine ?? last?.text ?? (last?.kind === 'audio' ? 'Mandou um áudio.' : 'Tudo quieto por enquanto.')}>
           {denied ? (
             <Text variant="error" style={{ marginTop: 10 }}>Libere a localização para jogar.</Text>
+          ) : me.jailed && !justWatch ? (
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <CardAction
+                tone="lime"
+                label={helpSent ? 'Pedido enviado' : 'Me salva!'}
+                style={{ flex: 1 }}
+                onPress={() => {
+                  setHelpSent(true);
+                  sendQuick({ gameId: id as GameId, text: 'Me salva!' }).catch(() => setHelpSent(false));
+                }}
+              />
+              <CardAction label="Só assistir" style={{ flex: 1 }} onPress={() => setJustWatch(true)} />
+            </View>
           ) : caught ? (
             <View style={styles.locked}>
               <Text style={{ fontFamily: fonts.display, fontSize: 18 }}>Você foi pego</Text>

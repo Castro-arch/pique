@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { BarChart3, Settings } from 'lucide-react-native';
+import { BarChart3, Settings, ShoppingBag } from 'lucide-react-native';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AvatarStack } from '@/components/Avatar';
@@ -23,6 +23,9 @@ export default function Home() {
       <View style={styles.top}>
         <Logo />
         <View style={{ flexDirection: 'row', gap: 10 }}>
+          <RoundIcon label="Loja" onPress={() => router.push('/loja')}>
+            <ShoppingBag size={20} color={colors.paper} />
+          </RoundIcon>
           <RoundIcon label="Estatísticas" onPress={() => router.push('/estatisticas')}>
             <BarChart3 size={20} color={colors.paper} strokeWidth={2.4} />
           </RoundIcon>

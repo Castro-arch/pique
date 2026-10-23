@@ -7,6 +7,8 @@ import { internalMutation } from './_generated/server';
 // se a partida ainda existe antes de agir.
 const TABLES = [
   'messages',
+  'boosts',
+  'cosmetics',
   'captures',
   'positions',
   'players',

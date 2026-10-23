@@ -406,6 +406,81 @@ describe('radio', () => {
   });
 });
 
+describe('salvar o amigo', () => {
+  test('pego fica preso no lugar; corredor perto por 3 s solta', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(100));
+    await move(s.teo, gameId, north(160));
+    await s.priya.mutation(api.play.reportCaught, { gameId });
+
+    // Todo mundo vê onde ela está presa, inclusive o caçador.
+    const seen = (await s.leo.query(api.play.view, { gameId })).people.find((p) => p.name === 'Priya');
+    expect(seen).toMatchObject({ kind: 'live', state: 'caught' });
+    expect(Math.round(distanceBetween(seen!, north(100)))).toBe(0);
+    expect((await s.priya.query(api.play.view, { gameId })).me.jailed).toBe(true);
+
+    // O preso pode pedir ajuda mesmo quando pego só assiste.
+    await s.priya.mutation(api.radio.sendQuick, { gameId, text: 'Me salva!' });
+
+    // Teo chega a 5 m: começa o resgate; 3 s depois, os dois estão no jogo.
+    vi.advanceTimersByTime(2_500);
+    await move(s.teo, gameId, north(105));
+    expect((await s.teo.query(api.play.view, { gameId })).me.rescue?.name).toBe('Priya');
+    vi.advanceTimersByTime(3_500);
+    await move(s.teo, gameId, north(104));
+    const priya = await s.priya.query(api.play.view, { gameId });
+    expect(priya.me.state).toBe('active');
+    expect(priya.me.jailed).toBe(false);
+    expect(priya.me.shieldUntil).not.toBeNull(); // protegida por 30 s
+    expect((await s.teo.query(api.play.view, { gameId })).me.rescue).toBeNull();
+  });
+
+  test('sair do círculo recomeça o resgate', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    await move(s.priya, gameId, north(100));
+    await move(s.teo, gameId, north(108));
+    await s.priya.mutation(api.play.reportCaught, { gameId });
+    vi.advanceTimersByTime(2_500);
+    await move(s.teo, gameId, north(106)); // começa
+    vi.advanceTimersByTime(2_500);
+    await move(s.teo, gameId, north(130)); // saiu
+    vi.advanceTimersByTime(2_500);
+    await move(s.teo, gameId, north(106)); // recomeça do zero
+    expect((await s.priya.query(api.play.view, { gameId })).me.state).toBe('caught');
+  });
+});
+
+describe('cosméticos', () => {
+  test('equipa só o que tem e a moldura aparece no mapa', async () => {
+    const s = await lobbyWith4();
+    const shop = await s.host.query(api.cosmetics.shop, {});
+    expect(shop.items.filter((i) => i.owned).map((i) => i.id)).toEqual(['neon', 'arcoiris']);
+    await expect(s.host.mutation(api.cosmetics.equip, { itemId: 'gelo' })).rejects.toThrow(/não é sua/);
+
+    // Compra registrada (como o webhook da loja faria).
+    const hostId = (await s.host.query(api.games.lobby, { gameId: s.gameId })).players.find((p) => p.name === 'Castro')!;
+    await s.t.run(async (ctx) => {
+      const player = await ctx.db.get(hostId.id);
+      await ctx.db.insert('cosmetics', { userId: player!.userId, itemId: 'gelo', at: Date.now() });
+    });
+    await s.host.mutation(api.cosmetics.equip, { itemId: 'gelo' });
+    expect((await s.host.query(api.cosmetics.shop, {})).frame).toBe('gelo');
+
+    await startWithLeoHunting(s);
+    await move(s.host, s.gameId, north(10));
+    await move(s.priya, s.gameId, north(20));
+    const me = (await s.priya.query(api.play.view, { gameId: s.gameId })).people.find((p) => p.name === 'Castro');
+    expect(me?.frame).toBe('gelo');
+  });
+});
+
 test('limpeza apaga a partida depois de 7 dias', async () => {
   const s = await lobbyWith4();
   await advance(s.t, 7 * 24 * 60 * MIN + 1);

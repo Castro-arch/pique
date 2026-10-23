@@ -10,6 +10,7 @@ export type MapPerson = {
   lat: number;
   lng: number;
   at: number;
+  frame?: string | null;
 };
 
 export type MapZone = { lat: number; lng: number; radius: number };
@@ -35,7 +36,7 @@ export const ago = (at: number, now: number) => {
 export function personTag(p: MapPerson, now: number) {
   if (p.isMe) return 'Você';
   if (p.kind === 'ping') return `${p.name} · ${ago(p.at, now)}`;
-  if (p.state === 'caught') return `${p.name} · pego`;
+  if (p.state === 'caught') return `${p.name} · preso`;
   return `${p.name} · ao vivo`;
 }
 

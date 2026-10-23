@@ -15,6 +15,9 @@ import {
   HEARTBEAT_M,
   lastPosition,
   requireMember,
+  RESCUE_HOLD_MS,
+  RESCUE_M,
+  RESCUE_SHIELD_MS,
   SHIELD_MS,
   SHOUT_M,
   SHOUTS_PER_ROUND,
@@ -64,7 +67,10 @@ export const sendPosition = mutation({
       if (out && !me.outOfZoneSince) await markOutOfZone(ctx, me, now);
       if (!out && me.outOfZoneSince) await ctx.db.patch(me._id, { outOfZoneSince: undefined, exposed: undefined });
     }
-    if (me.role === 'runner' && game.status === 'hunt') await pickUpBoost(ctx, game, me, { lat, lng });
+    if (me.role === 'runner' && game.status === 'hunt') {
+      await pickUpBoost(ctx, game, me, { lat, lng });
+      await tryRescue(ctx, me, { lat, lng }, now);
+    }
     return { accepted: true as const };
   },
 });
@@ -122,6 +128,35 @@ export const useBoost = mutation({
   },
 });
 
+// ── Salvar o amigo ─────────────────────────────────────────────────────
+
+// Corredor livre perto (10 m) de um preso por 3 s: os dois voltam ao jogo.
+async function tryRescue(ctx: MutationCtx, me: Doc<'players'>, at: { lat: number; lng: number }, now: number) {
+  let target: Doc<'players'> | null = null;
+  for (const p of await gamePlayers(ctx, me.gameId)) {
+    if (p.role !== 'runner' || p.state !== 'caught' || !p.jail) continue;
+    if (distanceM(p.jail, at) <= RESCUE_M) target = p;
+  }
+  if (!target) {
+    if (me.rescue) await ctx.db.patch(me._id, { rescue: undefined });
+    return;
+  }
+  if (me.rescue?.targetId !== target._id) {
+    await ctx.db.patch(me._id, { rescue: { targetId: target._id, since: now } });
+    return;
+  }
+  if (now - me.rescue.since < RESCUE_HOLD_MS) return;
+  await ctx.db.patch(target._id, {
+    state: 'active',
+    jail: undefined,
+    caughtAt: undefined,
+    caughtBy: undefined,
+    shieldUntil: now + RESCUE_SHIELD_MS,
+  });
+  await ctx.db.patch(me._id, { rescue: undefined });
+  await systemMessage(ctx, me.gameId, `${me.name} soltou ${target.name}! Os dois voltaram para o jogo.`);
+}
+
 type Seen = {
   id: Id<'players'>;
   name: string;
@@ -132,6 +167,7 @@ type Seen = {
   lat: number;
   lng: number;
   at: number;
+  frame: string | null;
 };
 
 // A regra de visibilidade do documento, aplicada no servidor:
@@ -145,10 +181,18 @@ export const view = query({
     const iHunt = me.role === 'hunter' && me.state === 'active';
     const seen: Seen[] = [];
 
+    const frames = new Map<Id<'players'>, string | null>();
+    for (const p of players) frames.set(p._id, (await ctx.db.get(p.userId))?.frame ?? null);
+
     for (const p of players) {
       const role = p.role!;
       const isMe = p._id === me._id;
-      const base = { id: p._id, name: p.name, role, state: p.state, isMe };
+      const base = { id: p._id, name: p.name, role, state: p.state, isMe, frame: frames.get(p._id) ?? null };
+      // Preso fica parado onde foi pego, e todo mundo sabe onde (inclusive os caçadores).
+      if (p.state === 'caught' && p.jail) {
+        seen.push({ ...base, kind: 'live', ...p.jail });
+        continue;
+      }
       // Corredor e espectador nunca veem caçadores.
       if (!isMe && !iHunt && role === 'hunter') continue;
       // Caçador vê corredor no último ping, a não ser que ele esteja exposto.
@@ -221,6 +265,8 @@ export const view = query({
         nextPing: me.nextPing ?? null,
         boosts: held.sort((a, b) => (a.takenAt ?? 0) - (b.takenAt ?? 0)).map((b) => ({ id: b._id, kind: b.kind })),
         blockedBoost: blocked ? BOOST_NAME[blocked.kind] : null,
+        jailed: me.state === 'caught' && !!me.jail,
+        rescue: me.rescue ? { name: players.find((p) => p._id === me.rescue!.targetId)?.name ?? '', since: me.rescue.since } : null,
       },
       boosts: runner ? mapBoosts.map((b) => ({ id: b._id, kind: b.kind, lat: b.lat, lng: b.lng })) : [],
       boostsOnMap: mapBoosts.length,
@@ -289,7 +335,17 @@ async function confirmCapture(ctx: MutationCtx, capture: Doc<'captures'>) {
 }
 
 async function caught(ctx: MutationCtx, runner: Doc<'players'>, hunter: Doc<'players'> | null) {
-  await ctx.db.patch(runner._id, { state: 'caught', caughtAt: Date.now(), caughtBy: hunter?._id, exposed: undefined, outOfZoneSince: undefined });
+  const pos = await lastPosition(ctx, runner._id);
+  await ctx.db.patch(runner._id, {
+    state: 'caught',
+    caughtAt: Date.now(),
+    caughtBy: hunter?._id,
+    exposed: undefined,
+    outOfZoneSince: undefined,
+    revealed: undefined,
+    rescue: undefined,
+    jail: pos ? { lat: pos.lat, lng: pos.lng, at: Date.now() } : undefined,
+  });
   const free = (await gamePlayers(ctx, runner.gameId)).filter((p) => p.role === 'runner' && p.state === 'active').length;
   const who = hunter ? `${hunter.name} pegou ${runner.name}` : `${runner.name} foi pego`;
   await systemMessage(ctx, runner.gameId, `${who}. ${free === 1 ? 'Resta 1 corredor' : `Restam ${free} corredores`}.`);

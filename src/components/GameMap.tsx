@@ -50,7 +50,7 @@ export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, 
             return (
               <MapPin key={p.id} x={x - size / 2} y={y - size / 2}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  <Avatar name={p.name} size={size} state={personState(p, outOfZone)} glow={p.isMe} />
+                  <Avatar name={p.name} size={size} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
                   <View
                     style={{
                       borderRadius: 999,

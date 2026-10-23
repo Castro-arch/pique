@@ -39,6 +39,7 @@ export default function Ajustes() {
       <ListGroup>
         <ListRow title="Nome" value={me.name} chevron onPress={() => router.push('/editar-perfil')} />
         <ListRow title="Usuário" value={`@${me.username}`} chevron onPress={() => router.push('/editar-perfil')} />
+        <ListRow title="Meu visual" value="Moldura e cosméticos" chevron onPress={() => router.push('/visual')} />
         <ListRow title="E-mail" value={me.email} last />
       </ListGroup>
 

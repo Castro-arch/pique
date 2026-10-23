@@ -75,6 +75,8 @@ export const start = mutation({
         revealUntil: undefined,
         nextPing: undefined,
         shieldUntil: undefined,
+        jail: undefined,
+        rescue: undefined,
       });
     }
     await clearBoosts(ctx, gameId);
