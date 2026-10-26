@@ -1,9 +1,9 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // Estende o app.json com o que depende de ambiente ou de plugins nativos.
-// A chave do Google Maps (Android) vem de GOOGLE_MAPS_API_KEY no ambiente do
-// build (EAS secret ou .env.local), nunca no repositório, que é público.
-// No iPhone o mapa é o Apple Maps e não precisa de chave.
+// Mapa: no Android é o MapLibre com o satélite da Esri (EXPO_PUBLIC_ESRI_KEY no
+// ambiente do build, nunca no repositório, que é público); no iPhone é o Apple
+// Maps, sem chave. O react-native-maps continua para o iPhone.
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...(config as ExpoConfig),
   ios: {
@@ -34,11 +34,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         microphonePermission: 'O Pique usa o microfone só enquanto você segura o botão de falar no Radio.',
       },
     ],
-    [
-      'react-native-maps',
-      {
-        androidGoogleMapsApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
-      },
-    ],
+    'react-native-maps',
+    '@maplibre/maplibre-react-native',
   ],
 });
