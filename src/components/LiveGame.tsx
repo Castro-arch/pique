@@ -106,7 +106,7 @@ export function LiveGame({ id }: { id: string }) {
     }
   };
 
-  const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart);
+  const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart) && g.features.boosts;
   const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
   const shield = me.shieldUntil && me.shieldUntil > now ? secondsUntil(me.shieldUntil, now) : 0;
   // O que o Radio mostra para o corredor quando um boost dele está em jogo.
@@ -337,6 +337,7 @@ export function LiveGame({ id }: { id: string }) {
           ) : hunter ? (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <CardAction tone="lime" label="Marquei um corredor" onPress={() => setPicking(true)} style={{ flex: 1 }} />
+              {me.shoutsLeft !== null ? (
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={`Grito, ${shoutsLeft} restantes`}
@@ -348,6 +349,7 @@ export function LiveGame({ id }: { id: string }) {
                 <Megaphone size={18} color={colors.paper} />
                 <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong }}>{shoutsLeft}</Text>
               </Pressable>
+              ) : null}
             </View>
           ) : (
             <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />

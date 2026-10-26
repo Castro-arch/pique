@@ -8,6 +8,7 @@ import {
   BOOSTS_PER_WAVE,
   DESPISTE_M,
   distanceM,
+  features,
   gamePlayers,
   lastPosition,
   MIN,
@@ -120,7 +121,7 @@ export const headStartOver = internalMutation({
     if (!game || game.status !== 'headstart') return;
     await ctx.db.patch(gameId, { status: 'hunt' });
     await systemMessage(ctx, gameId, 'Acabou a vantagem. Os caçadores foram liberados.');
-    await ctx.scheduler.runAfter(MIN, internal.rounds.spawnBoosts, { gameId, round });
+    if (features(game.rules).boosts) await ctx.scheduler.runAfter(MIN, internal.rounds.spawnBoosts, { gameId, round });
   },
 });
 
@@ -184,12 +185,13 @@ export const spawnBoosts = internalMutation({
     for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'map')).collect()) {
       await ctx.db.delete(b._id);
     }
-    for (let i = 0; i < BOOSTS_PER_WAVE; i++) {
+    const count = BOOSTS_PER_WAVE[game.rules.boostAmount ?? 'normal'];
+    for (let i = 0; i < count; i++) {
       // sqrt espalha por igual na área, e não amontoado no centro.
       const at = offsetM(game.zone, game.zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
       await ctx.db.insert('boosts', { gameId, round, kind: randomKind(), ...at, state: 'map' });
     }
-    await systemMessage(ctx, gameId, `${BOOSTS_PER_WAVE} boosts apareceram. Você guarda até 2; quanto mais forte, mais tempo fica visível ao pegar.`, 'runner');
+    await systemMessage(ctx, gameId, `${count} boosts apareceram. Você guarda até 2; quanto mais forte, mais tempo fica visível ao pegar.`, 'runner');
     const next = Date.now() + BOOST_EVERY_MIN * MIN;
     if (next < (game.endsAt ?? 0)) await ctx.scheduler.runAt(next, internal.rounds.spawnBoosts, { gameId, round });
   },

@@ -25,6 +25,16 @@ export const LIMITS = {
   zoneRadius: [75, 1500],
 } as const;
 export const RULES_VERSION = 1;
+
+// O que está ligado nesta partida. Regra sem valor conta como ligada.
+export function features(rules: Doc<'games'>['rules']) {
+  return {
+    boosts: rules.boosts !== false,
+    heartbeat: rules.heartbeat !== false,
+    shouts: rules.shouts !== false,
+    rescue: rules.rescue !== false,
+  };
+}
 export const MAX_PLAYERS = 20;
 export const FREE_HOSTED_GAMES = 3;
 export const MIN_ZONE_RADIUS = 75; // a zona encolhe até aqui (150 m de diâmetro)
@@ -35,7 +45,7 @@ export const HEARTBEAT_M = 30; // corredor sente o coração acelerar com caçad
 export const SHOUT_M = 60; // alcance do grito
 export const SHOUTS_PER_ROUND = 3;
 export const BOOST_EVERY_MIN = 4; // uma onda de boosts a cada 4 min de caça
-export const BOOSTS_PER_WAVE = 3;
+export const BOOSTS_PER_WAVE = { few: 2, normal: 3, many: 5 } as const;
 export const BOOST_PICK_M = 15; // passa a menos disso e pega
 export const BOOST_SLOTS = 2; // guarda no máximo 2
 export const BOOST_REVEAL_S = { despiste: 2, sombra: 5, escudo: 8 } as const; // quanto mais forte, mais tempo visível

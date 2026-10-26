@@ -14,6 +14,12 @@ export const rules = v.object({
   shrink: v.boolean(),
   shrinkEveryMin: v.number(),
   spectatorsHelp: v.boolean(),
+  // Boosts e tensão (10.8). Sem valor = ligado, para partidas antigas.
+  boosts: v.optional(v.boolean()),
+  boostAmount: v.optional(v.union(v.literal('few'), v.literal('normal'), v.literal('many'))),
+  heartbeat: v.optional(v.boolean()),
+  shouts: v.optional(v.boolean()),
+  rescue: v.optional(v.boolean()),
 });
 
 export const boostKind = v.union(v.literal('despiste'), v.literal('sombra'), v.literal('escudo'));

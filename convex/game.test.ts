@@ -457,6 +457,50 @@ describe('salvar o amigo', () => {
   });
 });
 
+describe('regras de boosts e tensão', () => {
+  test('anfitrião desliga boosts, coração, grito e resgate', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await s.host.mutation(api.games.setRules, {
+      gameId,
+      rules: {
+        durationMin: 30, headStartMin: 3, pingEveryMin: 2, hunters: 1, shrink: true, shrinkEveryMin: 5, spectatorsHelp: false,
+        boosts: false, heartbeat: false, shouts: false, rescue: false,
+      },
+    });
+    await s.leo.mutation(api.games.setSide, { gameId, side: 'hunter' });
+    for (const p of [s.host, s.priya, s.teo]) await p.mutation(api.games.setSide, { gameId, side: 'runner' });
+    await s.host.mutation(api.rounds.start, { gameId });
+    await advance(s.t, 3 * MIN);
+    await advance(s.t, MIN);
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(10));
+
+    const priya = await s.priya.query(api.play.view, { gameId });
+    expect(priya.boosts).toHaveLength(0); // nenhuma onda
+    expect(priya.me.heartbeat).toBe(false); // caçador a 10 m, mas desligado
+    expect(priya.game.features).toEqual({ boosts: false, heartbeat: false, shouts: false, rescue: false });
+    expect((await s.leo.query(api.play.view, { gameId })).me.shoutsLeft).toBeNull();
+    await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/desligado/);
+
+    await s.priya.mutation(api.play.reportCaught, { gameId });
+    expect((await s.priya.query(api.play.view, { gameId })).me.jailed).toBe(false); // sem prisão: pego é pego
+  });
+
+  test('quantidade de boosts por onda', async () => {
+    const s = await lobbyWith4();
+    await s.host.mutation(api.games.setRules, {
+      gameId: s.gameId,
+      rules: { durationMin: 30, headStartMin: 3, pingEveryMin: 2, hunters: 1, shrink: true, shrinkEveryMin: 5, spectatorsHelp: false, boostAmount: 'many' },
+    });
+    await s.host.mutation(api.rounds.start, { gameId: s.gameId });
+    await advance(s.t, 3 * MIN);
+    await advance(s.t, MIN);
+    const runner = (await Promise.all([s.host, s.leo, s.priya, s.teo].map((p) => p.query(api.play.view, { gameId: s.gameId })))).find((v) => v.me.role === 'runner')!;
+    expect(runner.boosts).toHaveLength(5);
+  });
+});
+
 describe('cosméticos', () => {
   test('equipa só o que tem e a moldura aparece no mapa', async () => {
     const s = await lobbyWith4();

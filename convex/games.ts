@@ -191,6 +191,11 @@ export const setRules = mutation({
       shrink: v.boolean(),
       shrinkEveryMin: v.number(),
       spectatorsHelp: v.boolean(),
+      boosts: v.optional(v.boolean()),
+      boostAmount: v.optional(v.union(v.literal('few'), v.literal('normal'), v.literal('many'))),
+      heartbeat: v.optional(v.boolean()),
+      shouts: v.optional(v.boolean()),
+      rescue: v.optional(v.boolean()),
     }),
   },
   handler: async (ctx, { gameId, rules }) => {
@@ -207,6 +212,11 @@ export const setRules = mutation({
         shrink: rules.shrink,
         shrinkEveryMin: clamp(rules.shrinkEveryMin, LIMITS.shrinkEveryMin),
         spectatorsHelp: rules.spectatorsHelp,
+        boosts: rules.boosts ?? game.rules.boosts,
+        boostAmount: rules.boostAmount ?? game.rules.boostAmount,
+        heartbeat: rules.heartbeat ?? game.rules.heartbeat,
+        shouts: rules.shouts ?? game.rules.shouts,
+        rescue: rules.rescue ?? game.rules.rescue,
       },
     });
   },

@@ -10,6 +10,7 @@ import {
   BOOST_SLOTS,
   CAPTURE_CONFIRM_MS,
   distanceM,
+  features,
   FRESH_POSITION_MS,
   gamePlayers,
   HEARTBEAT_M,
@@ -206,7 +207,8 @@ export const view = query({
     }
 
     const runners = players.filter((p) => p.role === 'runner');
-    const heartbeat = game.status === 'hunt' && me.role === 'runner' && me.state === 'active'
+    const on = features(game.rules);
+    const heartbeat = on.heartbeat && game.status === 'hunt' && me.role === 'runner' && me.state === 'active'
       ? await hunterWithin(ctx, players, me._id, HEARTBEAT_M)
       : false;
     // Boosts: o corredor vê os do mapa e os que guardou; o caçador só sabe quantos tem.
@@ -246,6 +248,7 @@ export const view = query({
         startedAt: game.startedAt ?? null,
         headStartMin: game.rules.headStartMin,
         endedAt: game.endedAt ?? null,
+        features: on,
       },
       me: {
         id: me._id,
@@ -258,7 +261,7 @@ export const view = query({
         catches: players.filter((p) => p.caughtBy === me._id).length,
         // Só o corredor sabe que tem caçador perto, e não de que lado.
         heartbeat,
-        shoutsLeft: me.role === 'hunter' ? (me.shoutsLeft ?? SHOUTS_PER_ROUND) : null,
+        shoutsLeft: on.shouts && me.role === 'hunter' ? (me.shoutsLeft ?? SHOUTS_PER_ROUND) : null,
         shoutedAt: me.role === 'runner' ? (me.shoutedAt ?? null) : null,
         revealUntil: me.revealed ? (me.revealUntil ?? null) : null,
         shieldUntil: me.shieldUntil ?? null,
@@ -304,6 +307,7 @@ export const shout = mutation({
     const { game, me } = await requireMember(ctx, gameId);
     if (game.status !== 'hunt') throw new ConvexError('Só dá para gritar depois da vantagem.');
     if (me.role !== 'hunter' || me.state !== 'active') throw new ConvexError('Só caçadores gritam.');
+    if (!features(game.rules).shouts) throw new ConvexError('O grito está desligado nesta partida.');
     const left = me.shoutsLeft ?? SHOUTS_PER_ROUND;
     if (left <= 0) throw new ConvexError('Seus gritos acabaram nesta rodada.');
     const mine = await lastPosition(ctx, me._id);
@@ -335,7 +339,8 @@ async function confirmCapture(ctx: MutationCtx, capture: Doc<'captures'>) {
 }
 
 async function caught(ctx: MutationCtx, runner: Doc<'players'>, hunter: Doc<'players'> | null) {
-  const pos = await lastPosition(ctx, runner._id);
+  const game = await ctx.db.get(runner.gameId);
+  const pos = game && features(game.rules).rescue ? await lastPosition(ctx, runner._id) : null;
   await ctx.db.patch(runner._id, {
     state: 'caught',
     caughtAt: Date.now(),
@@ -349,7 +354,6 @@ async function caught(ctx: MutationCtx, runner: Doc<'players'>, hunter: Doc<'pla
   const free = (await gamePlayers(ctx, runner.gameId)).filter((p) => p.role === 'runner' && p.state === 'active').length;
   const who = hunter ? `${hunter.name} pegou ${runner.name}` : `${runner.name} foi pego`;
   await systemMessage(ctx, runner.gameId, `${who}. ${free === 1 ? 'Resta 1 corredor' : `Restam ${free} corredores`}.`);
-  const game = await ctx.db.get(runner.gameId);
   if (game) await ctx.runMutation(internal.rounds.checkEnd, { gameId: game._id, round: game.round });
 }
 

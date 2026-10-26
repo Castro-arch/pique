@@ -12,8 +12,28 @@ import { useLobby, type GameId } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../../convex/_generated/api';
 
-type Rules = { durationMin: number; headStartMin: number; pingEveryMin: number; zoneMeters: number; shrinkEveryMin: number; hunters: number; shrink: boolean; spectatorsHelp: boolean };
-const defaults: Rules = { ...match.rules, shrink: true, spectatorsHelp: false };
+type Amount = 'few' | 'normal' | 'many';
+type Rules = {
+  durationMin: number;
+  headStartMin: number;
+  pingEveryMin: number;
+  zoneMeters: number;
+  shrinkEveryMin: number;
+  hunters: number;
+  shrink: boolean;
+  spectatorsHelp: boolean;
+  boosts: boolean;
+  boostAmount: Amount;
+  heartbeat: boolean;
+  shouts: boolean;
+  rescue: boolean;
+};
+const defaults: Rules = { ...match.rules, shrink: true, spectatorsHelp: false, boosts: true, boostAmount: 'normal', heartbeat: true, shouts: true, rescue: true };
+const AMOUNTS: [Amount, string][] = [
+  ['few', 'Poucos'],
+  ['normal', 'Normal'],
+  ['many', 'Muitos'],
+];
 const clamp = (v: number, min: number, max: number) => Math.min(max, Math.max(min, v));
 
 // 5.3 Regras da casa (folha por cima do lobby)
@@ -23,10 +43,13 @@ export default function Regras() {
   const save = useMutation(api.games.setRules);
   const [r, setR] = useState(defaults);
   const [loaded, setLoaded] = useState(false);
+  const [tab, setTab] = useState<'partida' | 'tensao'>('partida');
   // Com partida real, começa pelas regras salvas no servidor.
   useEffect(() => {
     if (lobby && !loaded) {
-      setR((x) => ({ ...x, ...lobby.rules }));
+      // Regra sem valor no servidor (partida antiga) fica no padrão: ligada.
+      const saved = Object.fromEntries(Object.entries(lobby.rules).filter(([, v]) => v !== undefined));
+      setR((x) => ({ ...x, ...saved }));
       setLoaded(true);
     }
   }, [lobby, loaded]);
@@ -54,6 +77,50 @@ export default function Regras() {
           </Pressable>
         </View>
 
+        <View accessibilityRole="tablist" style={styles.tabs}>
+          {(
+            [
+              ['partida', 'Partida'],
+              ['tensao', 'Boosts e tensão'],
+            ] as const
+          ).map(([k, label]) => (
+            <Pressable key={k} accessibilityRole="tab" accessibilityState={{ selected: tab === k }} onPress={() => setTab(k)} style={[styles.tab, tab === k && { backgroundColor: colors.inkBorder }]}>
+              <Text style={{ fontSize: 14, fontFamily: fonts.bodyStrong, color: tab === k ? colors.paper : colors.paperMuted }}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+
+        {tab === 'tensao' ? (
+          <View style={{ marginTop: 4 }}>
+            <Row title="Boosts no mapa" sub="Aparecem a cada 4 min · guarda até 2">
+              <Toggle label="Boosts no mapa" value={r.boosts} onChange={(v) => set({ boosts: v })} />
+            </Row>
+            <Row title="Quantidade" sub="Mais boosts, mais correria">
+              <View style={[styles.segment, !r.boosts && { opacity: 0.4 }]}>
+                {AMOUNTS.map(([k, label]) => (
+                  <Pressable
+                    key={k}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: r.boostAmount === k, disabled: !r.boosts }}
+                    disabled={!r.boosts}
+                    onPress={() => set({ boostAmount: k })}
+                    style={[styles.seg, r.boostAmount === k && { backgroundColor: colors.lime }]}>
+                    <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, color: r.boostAmount === k ? colors.limeInk : colors.paperMuted }}>{label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+            </Row>
+            <Row title="Coração acelerado" sub="Corredor sente caçador a menos de 30 m">
+              <Toggle label="Coração acelerado" value={r.heartbeat} onChange={(v) => set({ heartbeat: v })} />
+            </Row>
+            <Row title="Grito" sub="Cada caçador tem 3 por rodada">
+              <Toggle label="Grito" value={r.shouts} onChange={(v) => set({ shouts: v })} />
+            </Row>
+            <Row title="Salvar o amigo" sub="Pego fica preso; um corredor perto solta" last>
+              <Toggle label="Salvar o amigo" value={r.rescue} onChange={(v) => set({ rescue: v })} />
+            </Row>
+          </View>
+        ) : (
         <View style={{ marginTop: 6 }}>
           <Row title="Duração da rodada" sub="Corredores vencem se alguém chegar ao fim">
             <Stepper label="duração" value={`${r.durationMin} min`} onMinus={() => set({ durationMin: clamp(r.durationMin - 5, 10, 60) })} onPlus={() => set({ durationMin: clamp(r.durationMin + 5, 10, 60) })} />
@@ -74,13 +141,16 @@ export default function Regras() {
             <Toggle label="Espectadores ajudam no Radio" value={r.spectatorsHelp} onChange={(v) => set({ spectatorsHelp: v })} />
           </Row>
         </View>
+        )}
 
+        {tab === 'partida' ? (
         <View style={styles.tip}>
           <Text variant="small" style={{ lineHeight: 19 }}>
             <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 13 }}>Na prática:</Text> {r.headStartMin} min para sumir, depois cada
             corredor aparece umas {pings} vezes até o fim.
           </Text>
         </View>
+        ) : null}
 
         <View style={{ flex: 1 }} />
         <Button label="Salvar regras" onPress={submit} />
@@ -104,5 +174,9 @@ function Row({ title, sub, children, last }: { title: string; sub: string; child
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 64 },
+  tabs: { flexDirection: 'row', backgroundColor: colors.ink, borderRadius: 16, padding: 4, gap: 4, marginTop: 10 },
+  tab: { flex: 1, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  segment: { flexDirection: 'row', backgroundColor: colors.ink, borderWidth: 1, borderColor: colors.inkBorder, borderRadius: 14, padding: 3, gap: 2 },
+  seg: { height: 32, paddingHorizontal: 10, borderRadius: 10, justifyContent: 'center' },
   tip: { marginTop: 14, backgroundColor: colors.ink, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 14 },
 });
