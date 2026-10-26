@@ -1,15 +1,25 @@
+import { useState } from 'react';
 import { View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { BoostPin } from '@/components/Boosts';
+import { SatelliteMap } from '@/components/GameMapSatellite';
 import { MapBackdrop, MapPin } from '@/components/MapBackdrop';
 import { Text } from '@/components/Text';
 import { colors, fonts } from '@/theme/tokens';
 
 import { personState, personTag, type GameMapProps, type MapZone } from './gameMapTypes';
 
-// Versão web do mapa da partida: o mapa desenhado (react-native-maps não roda
-// no navegador). No celular entra o GameMap.native.tsx, com satélite de verdade.
+// Versão web do mapa da partida (react-native-maps não roda no navegador).
+// Com a chave do site, satélite do Google (GameMapSatellite); sem ela, ou se o
+// Google recusar a chave, o mapa desenhado. No celular entra o GameMap.native.tsx.
+const WEB_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_WEB_KEY;
+
+export function GameMap(props: GameMapProps) {
+  const [failed, setFailed] = useState(false);
+  if (WEB_KEY && !failed) return <SatelliteMap {...props} apiKey={WEB_KEY} onFail={() => setFailed(true)} />;
+  return <DrawnMap {...props} />;
+}
 
 // Centro da zona no desenho (espaço 390 x 844) e quanto o raio ocupa na tela.
 const CX = 195;
@@ -25,7 +35,7 @@ function project(p: { lat: number; lng: number }, zone: MapZone) {
   return { x: CX + dx * s, y: CY - dy * s };
 }
 
-export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps) {
+function DrawnMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps) {
   return (
     <MapBackdrop
       zone={zone ? { cx: CX, cy: CY, r: R_PX } : undefined}
