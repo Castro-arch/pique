@@ -1,9 +1,8 @@
 import type { ConfigContext, ExpoConfig } from 'expo/config';
 
 // Estende o app.json com o que depende de ambiente ou de plugins nativos.
-// Mapa: no Android é o MapLibre com o satélite da Esri (EXPO_PUBLIC_ESRI_KEY no
-// ambiente do build, nunca no repositório, que é público); no iPhone é o Apple
-// Maps, sem chave. O react-native-maps continua para o iPhone.
+// Mapa: no Android é o MapLibre com as ruas do OpenFreeMap (grátis, sem chave);
+// no iPhone é o Apple Maps, também sem chave. O react-native-maps fica para o iPhone.
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...(config as ExpoConfig),
   ios: {

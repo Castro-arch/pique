@@ -8,19 +8,18 @@ import { StyleSheet, View } from 'react-native';
 
 import { BoostPin } from '@/components/Boosts';
 import { MapCredit, PersonPin } from '@/components/MapPins';
-import { MAP_PADDING, satelliteStyle, zoneBounds, zoneShapes } from '@/lib/satellite';
+import { MAP_PADDING, streetStyle, zoneBounds, zoneShapes } from '@/lib/mapStyle';
 import { colors } from '@/theme/tokens';
 
 import type { GameMapProps } from './gameMapTypes';
 
-// Satélite de verdade no navegador: imagem da Esri desenhada pelo MapLibre,
-// com a zona tracejada e os jogadores e boosts como marcadores. Os marcadores
+// Mapa de ruas no navegador (OpenFreeMap desenhado pelo MapLibre), com a zona
+// tracejada e os jogadores e boosts como marcadores. Os marcadores
 // usam os mesmos componentes do app, renderizados dentro do mapa via portal.
 // O worker do MapLibre vem de public/ (veja scripts/copy-maplibre-worker.js).
 maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
 
-export function SatelliteMap({
-  esriKey,
+export function StreetMap({
   onFail,
   zone,
   nextZoneRadius,
@@ -30,7 +29,7 @@ export function SatelliteMap({
   outOfZone,
   dim = 0,
   boosts = [],
-}: GameMapProps & { esriKey: string; onFail: () => void }) {
+}: GameMapProps & { onFail: () => void }) {
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
 
@@ -41,7 +40,7 @@ export function SatelliteMap({
       m = new maplibregl.Map({
         container: el.current,
         // Mesmo formato de estilo; só os tipos vêm de pacotes diferentes (nativo e web).
-        style: satelliteStyle(esriKey, zone, nextZoneRadius) as unknown as maplibregl.StyleSpecification,
+        style: streetStyle(zone, nextZoneRadius) as unknown as maplibregl.StyleSpecification,
         center: zone ? [zone.lng, zone.lat] : [-46.63, -23.55],
         zoom: 16,
         attributionControl: false,
@@ -55,11 +54,12 @@ export function SatelliteMap({
     }
     m.touchZoomRotate.disableRotation();
     m.on('load', () => setMap(m));
+    if (__DEV__) m.on('error', (e) => console.warn('mapa:', e.error?.message ?? e));
     return () => {
       setMap(null);
       m.remove();
     };
-  }, [esriKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zona nova ou encolhendo: troca o desenho e reenquadra.
   useEffect(() => {

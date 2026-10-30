@@ -2,12 +2,12 @@ import { StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Text } from '@/components/Text';
-import { ESRI_CREDIT } from '@/lib/satellite';
+import { MAP_CREDIT } from '@/lib/mapStyle';
 import { colors, fonts } from '@/theme/tokens';
 
 import { personState, personTag, type MapPerson } from './gameMapTypes';
 
-// Jogador no mapa de satélite (site e Android): foto com moldura e etiqueta.
+// Jogador no mapa de ruas (site e Android): foto com moldura e etiqueta.
 export function PersonPin({ p, now, hunter, outOfZone }: { p: MapPerson; now: number; hunter: boolean; outOfZone: boolean }) {
   return (
     <View collapsable={false} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
@@ -26,11 +26,11 @@ export function PersonPin({ p, now, hunter, outOfZone }: { p: MapPerson; now: nu
   );
 }
 
-// Crédito que a Esri pede no mapa. Fica no vão entre o cartão do Radio e as abas.
+// Crédito que o OpenFreeMap e o OpenStreetMap pedem. Fica no vão entre o Radio e as abas.
 export function MapCredit() {
   return (
     <Text pointerEvents="none" style={styles.credit}>
-      {ESRI_CREDIT}
+      {MAP_CREDIT}
     </Text>
   );
 }

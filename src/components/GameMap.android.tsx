@@ -4,26 +4,20 @@ import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BoostPin } from '@/components/Boosts';
-import { DrawnMap } from '@/components/GameMapDrawn';
 import { MapCredit, PersonPin } from '@/components/MapPins';
-import { ESRI_KEY, MAP_PADDING, satelliteStyle, zoneBounds } from '@/lib/satellite';
+import { MAP_PADDING, streetStyle, zoneBounds } from '@/lib/mapStyle';
 
 import type { GameMapProps } from './gameMapTypes';
 
-// Mapa da partida no Android: satélite da Esri desenhado pelo MapLibre (sem
-// Google, sem cobrança). Sem a chave da Esri no build, o mapa desenhado.
-// O iPhone usa o GameMap.native.tsx (Apple Maps) e o site, o GameMap.tsx.
-export function GameMap(props: GameMapProps) {
-  if (!ESRI_KEY) return <DrawnMap {...props} />;
-  return <SatelliteMap {...props} esriKey={ESRI_KEY} />;
-}
-
-function SatelliteMap({ esriKey, zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps & { esriKey: string }) {
+// Mapa da partida no Android: ruas do OpenFreeMap desenhadas pelo MapLibre
+// (sem Google, sem conta, sem cobrança). O iPhone usa o GameMap.native.tsx
+// (Apple Maps) e o site, o GameMap.tsx.
+export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps) {
   const camera = useRef<CameraRef>(null);
   // O estilo leva a zona; muda só quando a zona muda.
   const style = useMemo(
-    () => satelliteStyle(esriKey, zone, nextZoneRadius),
-    [esriKey, zone?.lat, zone?.lng, zone?.radius, nextZoneRadius], // eslint-disable-line react-hooks/exhaustive-deps
+    () => streetStyle(zone, nextZoneRadius),
+    [zone?.lat, zone?.lng, zone?.radius, nextZoneRadius], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Enquadra a zona inteira, com folga para o placar em cima e o Radio embaixo.

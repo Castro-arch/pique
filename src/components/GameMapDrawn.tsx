@@ -8,8 +8,8 @@ import { colors, fonts } from '@/theme/tokens';
 
 import { personState, personTag, type GameMapProps, type MapZone } from './gameMapTypes';
 
-// Mapa desenhado no próprio app: a reserva quando não há satélite (sem a
-// chave da Esri). Os jogadores e boosts ficam no espaço 390 x 844 do design.
+// Mapa desenhado no próprio app: a reserva quando o mapa de ruas não carrega
+// (navegador sem WebGL). Os jogadores e boosts ficam no espaço 390 x 844 do design.
 
 // Centro da zona no desenho (espaço 390 x 844) e quanto o raio ocupa na tela.
 const CX = 195;

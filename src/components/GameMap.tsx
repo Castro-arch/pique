@@ -1,16 +1,15 @@
 import { useState } from 'react';
 
 import { DrawnMap } from '@/components/GameMapDrawn';
-import { SatelliteMap } from '@/components/GameMapSatellite';
-import { ESRI_KEY } from '@/lib/satellite';
+import { StreetMap } from '@/components/GameMapStreets';
 
 import type { GameMapProps } from './gameMapTypes';
 
-// Mapa da partida no navegador (quem joga pelo iPhone usa o site): satélite
-// da Esri com o MapLibre. Sem a chave, ou se o mapa não carregar, o desenhado.
+// Mapa da partida no navegador (quem joga pelo iPhone usa o site): mapa de
+// ruas do OpenFreeMap com o MapLibre. Se o navegador não tiver WebGL, o desenhado.
 // No Android entra o GameMap.android.tsx; no iPhone, o GameMap.native.tsx.
 export function GameMap(props: GameMapProps) {
   const [failed, setFailed] = useState(false);
-  if (ESRI_KEY && !failed) return <SatelliteMap {...props} esriKey={ESRI_KEY} onFail={() => setFailed(true)} />;
-  return <DrawnMap {...props} />;
+  if (failed) return <DrawnMap {...props} />;
+  return <StreetMap {...props} onFail={() => setFailed(true)} />;
 }
