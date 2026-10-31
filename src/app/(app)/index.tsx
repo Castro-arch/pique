@@ -1,7 +1,8 @@
 import { useMutation, useQuery } from 'convex/react';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
+import { AccessibilityInfo, Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BENTO, BentoBackground, Sticker, type StickerKind } from '@/components/Bento';
 import { Button } from '@/components/Button';
@@ -43,6 +44,23 @@ export default function Home() {
     permissionsSeen().then((seen) => !seen && router.push('/permissoes'));
   }, [demo]);
 
+  // Easter egg: segurar a mãozinha 3 vezes = tapa no nome.
+  const shake = useRef(new Animated.Value(0)).current;
+  const squash = useRef(new Animated.Value(1)).current;
+  const pow = useRef(new Animated.Value(0)).current;
+  const hit = () => {
+    if (Platform.OS === 'web') (navigator as Navigator & { vibrate?: (p: number[]) => boolean }).vibrate?.([70, 40, 30]);
+    else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {});
+    shake.setValue(0);
+    squash.setValue(0.8);
+    pow.setValue(0);
+    Animated.parallel([
+      Animated.sequence([14, -12, 9, -6, 3, 0].map((v) => Animated.timing(shake, { toValue: v, duration: 55, useNativeDriver: true }))),
+      Animated.spring(squash, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true }),
+      Animated.timing(pow, { toValue: 1, duration: 900, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  };
+
   const requests = crew?.incoming.length ?? 0;
   const newGame = () => (demo ? router.push('/lobby') : create.run());
 
@@ -63,8 +81,15 @@ export default function Home() {
 
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 24 }}>
           <Appear style={{ alignItems: 'center' }}>
-            <WavingHand />
-            <OutlinedName name={me.name || 'você'} />
+            <WavingHand onSlap={hit} />
+            <Animated.View style={{ transform: [{ translateX: shake }, { scaleY: squash }] }}>
+              <OutlinedName name={me.name || 'você'} />
+            </Animated.View>
+            <Animated.Text
+              pointerEvents="none"
+              style={[styles.pow, { opacity: pow.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }), transform: [{ scale: pow.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.3, 1.25, 1] }) }, { rotate: '-10deg' }] }]}>
+              PÁ!
+            </Animated.Text>
           </Appear>
           <Appear delay={80}>
             <Text style={styles.sub}>{'Crie uma partida ou entre\npelo QR de um amigo.'}</Text>
@@ -108,8 +133,49 @@ export default function Home() {
 }
 
 // A mãozinha: acena ao abrir (gira pelo pulso) e repete de leve a cada 6 s.
-function WavingHand() {
+// Segurar nela 3 vezes seguidas: toma impulso e desce um tapa no nome.
+function WavingHand({ onSlap }: { onSlap: () => void }) {
   const turn = useRef(new Animated.Value(0)).current;
+  const swing = useRef(new Animated.Value(0)).current; // graus extras do tapa
+  const drop = useRef(new Animated.Value(0)).current; // quanto desce até o nome
+  const holds = useRef({ n: 0, at: 0 });
+  const busy = useRef(false);
+
+  const onHold = () => {
+    if (busy.current) return;
+    const now = Date.now();
+    holds.current = { n: now - holds.current.at < 4000 ? holds.current.n + 1 : 1, at: now };
+    if (holds.current.n < 3) {
+      // aviso de que contou: tremidinha
+      if (Platform.OS !== 'web') Haptics.selectionAsync().catch(() => {});
+      Animated.sequence([
+        Animated.timing(swing, { toValue: -8, duration: 70, useNativeDriver: true }),
+        Animated.timing(swing, { toValue: 8, duration: 70, useNativeDriver: true }),
+        Animated.timing(swing, { toValue: 0, duration: 70, useNativeDriver: true }),
+      ]).start();
+      return;
+    }
+    holds.current = { n: 0, at: 0 };
+    busy.current = true;
+    Animated.sequence([
+      // impulso para trás
+      Animated.parallel([
+        Animated.timing(swing, { toValue: -50, duration: 240, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(drop, { toValue: -14, duration: 240, useNativeDriver: true }),
+      ]),
+      // o tapa
+      Animated.parallel([
+        Animated.timing(swing, { toValue: 75, duration: 110, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.timing(drop, { toValue: 46, duration: 110, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ]),
+    ]).start(() => {
+      onSlap();
+      Animated.parallel([
+        Animated.spring(swing, { toValue: 0, friction: 5, tension: 60, useNativeDriver: true }),
+        Animated.spring(drop, { toValue: 0, friction: 6, tension: 60, useNativeDriver: true }),
+      ]).start(() => (busy.current = false));
+    });
+  };
   useEffect(() => {
     let stop = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -134,13 +200,13 @@ function WavingHand() {
       turn.stopAnimation();
     };
   }, [turn]);
+  const angle = Animated.add(turn, swing).interpolate({ inputRange: [-120, 120], outputRange: ['-120deg', '120deg'] });
   return (
-    <Animated.View
-      accessible
-      accessibilityLabel="Oi"
-      style={{ marginBottom: 6, transformOrigin: '50% 85%', transform: [{ rotate: turn.interpolate({ inputRange: [-30, 30], outputRange: ['-30deg', '30deg'] }) }] }}>
-      <Sticker kind="hand" color={colors.pink} size={112} tilt={-12} />
-    </Animated.View>
+    <Pressable onLongPress={onHold} delayLongPress={320} accessibilityLabel="Oi" style={{ zIndex: 2 }}>
+      <Animated.View style={{ marginBottom: 6, transformOrigin: '50% 85%', transform: [{ translateY: drop }, { rotate: angle }] }}>
+        <Sticker kind="hand" color={colors.pink} size={112} tilt={-12} />
+      </Animated.View>
+    </Pressable>
   );
 }
 
@@ -200,6 +266,7 @@ const styles = StyleSheet.create({
   top: { width: 48, height: 48, borderRadius: 16, backgroundColor: BENTO.tile, borderWidth: 1, borderColor: BENTO.line, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 6, top: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.pink, borderWidth: 2, borderColor: BENTO.tile },
   name: { fontFamily: fonts.display, letterSpacing: -3, color: colors.paper },
+  pow: { position: 'absolute', right: 10, top: 70, fontFamily: fonts.display, fontSize: 46, color: '#FFC23D', textShadowColor: '#000', textShadowOffset: { width: 3, height: 4 }, textShadowRadius: 0 },
   sub: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25, letterSpacing: -0.4, color: '#C9C7BF', marginTop: 14, textAlign: 'center' },
   current: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, backgroundColor: '#1E2A12', borderWidth: 1, borderColor: colors.lime, borderRadius: 20, padding: 14 },
   liveDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.lime, boxShadow: '0 0 0 6px rgba(200,242,60,0.2)' },
