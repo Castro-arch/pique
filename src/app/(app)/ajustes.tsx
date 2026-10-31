@@ -1,6 +1,6 @@
 import { useAuthActions } from '@convex-dev/auth/react';
 import { router } from 'expo-router';
-import { MapPin } from 'lucide-react-native';
+import { MapPin } from '@/components/icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 

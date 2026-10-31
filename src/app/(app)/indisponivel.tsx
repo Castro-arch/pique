@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Bell } from 'lucide-react-native';
+import { Bell } from '@/components/icons';
 import { StyleSheet, View } from 'react-native';
 
 import { AvatarStack } from '@/components/Avatar';

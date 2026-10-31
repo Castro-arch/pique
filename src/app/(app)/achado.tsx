@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { EyeOff } from 'lucide-react-native';
+import { EyeOff } from '@/components/icons';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 

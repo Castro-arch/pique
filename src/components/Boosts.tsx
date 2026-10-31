@@ -1,5 +1,5 @@
 import * as Haptics from 'expo-haptics';
-import { Eye, Ghost, ShieldCheck, Shuffle } from 'lucide-react-native';
+import { Eye, Ghost, ShieldCheck, Shuffle } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 

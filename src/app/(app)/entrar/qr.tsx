@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { ChevronLeft, Flashlight } from 'lucide-react-native';
+import { ChevronLeft, Flashlight } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';

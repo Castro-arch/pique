@@ -1,4 +1,4 @@
-import { HeartPulse, Vibrate } from 'lucide-react-native';
+import { HeartPulse, Vibrate } from '@/components/icons';
 import { Animated, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/Text';

@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Camera, Share2, Trophy } from 'lucide-react-native';
+import { Camera, Share2, Trophy } from '@/components/icons';
 import { useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';

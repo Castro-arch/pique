@@ -1,7 +1,7 @@
 import { useMutation } from 'convex/react';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
-import { LocateFixed } from 'lucide-react-native';
+import { LocateFixed } from '@/components/icons';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

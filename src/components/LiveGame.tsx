@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
-import { EyeOff, Lock, Megaphone, TriangleAlert } from 'lucide-react-native';
+import { EyeOff, Lock, Megaphone, TriangleAlert } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 

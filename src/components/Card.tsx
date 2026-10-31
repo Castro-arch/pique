@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
-import { ChevronRight } from 'lucide-react-native';
+import { ChevronRight } from '@/components/icons';
 
 import { Text } from '@/components/Text';
 import { colors, radius } from '@/theme/tokens';

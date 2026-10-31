@@ -33,6 +33,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         microphonePermission: 'O Pique usa o microfone só enquanto você segura o botão de falar no Radio.',
       },
     ],
+    [
+      'expo-image-picker',
+      {
+        photosPermission: 'O Pique usa suas fotos só quando você escolhe uma para o perfil ou para postar o fim da rodada.',
+        cameraPermission: 'O Pique usa a câmera só quando você tira uma foto para o perfil ou para o fim da rodada.',
+      },
+    ],
+    'expo-notifications',
     'react-native-maps',
     '@maplibre/maplibre-react-native',
   ],

@@ -1,6 +1,6 @@
 import { useMutation } from 'convex/react';
 import { ConvexError } from 'convex/values';
-import { Check } from 'lucide-react-native';
+import { Check } from '@/components/icons';
 import { useState } from 'react';
 import { View } from 'react-native';
 
@@ -36,7 +36,7 @@ export default function Nome() {
 
   return (
     <Screen scroll>
-      <StepBars total={3} current={1} />
+      <StepBars total={2} current={1} />
       <Headline mark="?" style={{ marginTop: 28, fontSize: 44, lineHeight: 44 }}>
         Como a crew te chama
       </Headline>

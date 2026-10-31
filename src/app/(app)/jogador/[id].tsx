@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ban, ChevronRight, Flag, VolumeX } from 'lucide-react-native';
+import { Ban, ChevronRight, Flag, VolumeX } from '@/components/icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';

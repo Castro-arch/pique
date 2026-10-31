@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Check } from 'lucide-react-native';
+import { Check } from '@/components/icons';
 import { View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';

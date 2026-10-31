@@ -1,5 +1,5 @@
 import { View } from 'react-native';
-import { EyeOff, Heart } from 'lucide-react-native';
+import { EyeOff, Heart } from '@/components/icons';
 
 import { GameTabs, Hud, HudClock, HudFoot, HudRunners, mmss, Person, RadioCard, useCountdown } from '@/components/Game';
 import { MapBackdrop } from '@/components/MapBackdrop';

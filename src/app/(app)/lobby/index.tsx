@@ -1,7 +1,7 @@
 import { useMutation } from 'convex/react';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { ChevronLeft, QrCode } from 'lucide-react-native';
+import { ChevronLeft, QrCode } from '@/components/icons';
 import { useEffect, useState } from 'react';
 import { Pressable, Share, StyleSheet, View } from 'react-native';
 

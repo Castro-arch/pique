@@ -1,6 +1,6 @@
 import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Check, EyeOff, Lock, LogOut, Radio as RadioIcon, TriangleAlert, Vibrate, WifiOff } from 'lucide-react-native';
+import { Check, EyeOff, Lock, LogOut, Radio as RadioIcon, TriangleAlert, Vibrate, WifiOff } from '@/components/icons';
 import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';

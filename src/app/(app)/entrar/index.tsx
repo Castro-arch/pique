@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams } from 'expo-router';
-import { ChevronRight, CirclePlus, Copy, Info, QrCode } from 'lucide-react-native';
+import { ChevronRight, CirclePlus, Copy, Info, QrCode } from '@/components/icons';
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 

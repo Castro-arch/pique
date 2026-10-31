@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Lock, Radio, Timer } from 'lucide-react-native';
+import { Lock, Radio, Timer } from '@/components/icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { useCountdown, mmss } from '@/components/Game';

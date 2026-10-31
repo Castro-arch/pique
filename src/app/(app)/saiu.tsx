@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Check, MessageCircle } from 'lucide-react-native';
+import { Check, MessageCircle } from '@/components/icons';
 import { StyleSheet, View } from 'react-native';
 
 import { Button } from '@/components/Button';

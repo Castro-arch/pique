@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ellipsis } from 'lucide-react-native';
+import { Ellipsis } from '@/components/icons';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 

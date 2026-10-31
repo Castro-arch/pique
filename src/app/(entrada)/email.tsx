@@ -1,6 +1,6 @@
 import { useAuthActions } from '@convex-dev/auth/react';
 import { router } from 'expo-router';
-import { Lock } from 'lucide-react-native';
+import { Lock } from '@/components/icons';
 import { useState } from 'react';
 import { View } from 'react-native';
 

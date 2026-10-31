@@ -1,6 +1,6 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Info, Volume2 } from 'lucide-react-native';
+import { Info, Volume2 } from '@/components/icons';
 import { useEffect } from 'react';
 import { Platform, StyleSheet, Vibration, View } from 'react-native';
 

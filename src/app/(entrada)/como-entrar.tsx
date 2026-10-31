@@ -4,7 +4,7 @@ import { makeRedirectUri } from 'expo-auth-session';
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
 import * as WebBrowser from 'expo-web-browser';
-import { Mail } from 'lucide-react-native';
+import { Mail } from '@/components/icons';
 import { useState, type ReactNode } from 'react';
 import { ActivityIndicator, Platform, Pressable, StyleSheet, View } from 'react-native';
 

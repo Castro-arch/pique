@@ -1,5 +1,6 @@
 import { router } from 'expo-router';
-import { BarChart3, Settings, ShoppingBag } from 'lucide-react-native';
+import { BarChart3, Settings, ShoppingBag } from '@/components/icons';
+import { useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AvatarStack } from '@/components/Avatar';
@@ -10,6 +11,7 @@ import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
 import { useDemoMode } from '@/lib/demoMode';
 import { useCreateGame } from '@/lib/game';
+import { permissionsSeen } from '@/lib/onboarding';
 import { useMe } from '@/lib/useMe';
 import { colors, fonts, radius } from '@/theme/tokens';
 
@@ -18,6 +20,11 @@ export default function Home() {
   const me = useMe();
   const demo = useDemoMode();
   const create = useCreateGame();
+  // Primeira vez aqui depois do nome: a tela única de permissões.
+  useEffect(() => {
+    if (demo) return;
+    permissionsSeen().then((seen) => !seen && router.push('/permissoes'));
+  }, [demo]);
   return (
     <Screen>
       <View style={styles.top}>

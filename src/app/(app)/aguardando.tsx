@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { Bell, Check } from 'lucide-react-native';
+import { Bell, Check } from '@/components/icons';
 import { useEffect, useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 

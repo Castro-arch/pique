@@ -1,6 +1,6 @@
 import { useMutation } from 'convex/react';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Ruler } from 'lucide-react-native';
+import { Ruler } from '@/components/icons';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';

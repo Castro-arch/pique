@@ -1,6 +1,6 @@
 import { useQuery } from 'convex/react';
 import { router } from 'expo-router';
-import { ChevronLeft, ChevronRight, Smile, Spline, Volume2 } from 'lucide-react-native';
+import { ChevronLeft, ChevronRight, Smile, Spline, Volume2 } from '@/components/icons';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 

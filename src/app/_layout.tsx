@@ -1,16 +1,18 @@
-import {
-  BricolageGrotesque_700Bold,
-  BricolageGrotesque_800ExtraBold,
-} from '@expo-google-fonts/bricolage-grotesque';
-import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold } from '@expo-google-fonts/inter';
+import { BricolageGrotesque_700Bold } from '@expo-google-fonts/bricolage-grotesque/700Bold';
+import { BricolageGrotesque_800ExtraBold } from '@expo-google-fonts/bricolage-grotesque/800ExtraBold';
+import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
+import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
+import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { useConvexAuth, useQuery } from 'convex/react';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { Platform } from 'react-native';
 
+import { Loading } from '@/components/Loading';
 import { SetupMissing } from '@/components/SetupMissing';
 import { api } from '../../convex/_generated/api';
 import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
@@ -22,20 +24,31 @@ import { colors } from '@/theme/tokens';
 SplashScreen.preventAutoHideAsync();
 setupWebHead();
 
+// Quanto esperamos as fontes antes de abrir com a do sistema. Rede lenta ou
+// uma fonte que falha não podem deixar o app parado na tela de carregamento.
+const FONT_WAIT_MS = 3000;
+
 export default function RootLayout() {
-  const [fontsLoaded] = useFonts({
-    BricolageGrotesque_700Bold,
-    BricolageGrotesque_800ExtraBold,
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-  });
+  // No site as fontes vêm do public/index.html (WOFF2, bem mais leves) e
+  // aparecem sem travar a abertura; no celular, os TTF de dentro do app.
+  const [fontsLoaded, fontError] = useFonts(
+    Platform.OS === 'web'
+      ? {}
+      : { BricolageGrotesque_700Bold, BricolageGrotesque_800ExtraBold, Inter_400Regular, Inter_500Medium, Inter_600SemiBold },
+  );
+
+  const [waited, setWaited] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setWaited(true), FONT_WAIT_MS);
+    return () => clearTimeout(t);
+  }, []);
+  const ready = fontsLoaded || !!fontError || waited;
 
   useEffect(() => {
-    if (fontsLoaded) SplashScreen.hideAsync();
-  }, [fontsLoaded]);
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
 
-  if (!fontsLoaded) return null;
+  if (!ready) return <Loading />;
   if (!convex) return <SetupMissing />;
 
   return (
@@ -57,7 +70,7 @@ function Routes() {
   const demo = useDemoMode();
 
   // Espera saber se há sessão e, logado, se o perfil já carregou.
-  if (!demo && (isLoading || (isAuthenticated && me === undefined))) return null;
+  if (!demo && (isLoading || (isAuthenticated && me === undefined))) return <Loading />;
 
   const needsProfile = !demo && isAuthenticated && !!me && !me.username;
   const inside = demo || (isAuthenticated && !needsProfile);

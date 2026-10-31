@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { Lock, MapPinOff } from 'lucide-react-native';
+import { Lock, MapPinOff } from '@/components/icons';
 import { Linking, View } from 'react-native';
 
 import { Button } from '@/components/Button';
