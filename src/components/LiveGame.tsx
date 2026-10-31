@@ -34,7 +34,7 @@ export function LiveGame({ id }: { id: string }) {
   const now = useNow();
   const playing = view?.game.status === 'headstart' || view?.game.status === 'hunt';
   const { denied } = useSendPosition(id, !!playing && view?.me.state === 'active');
-  useSendHeading(id, !!playing && view?.me.state === 'active');
+  const myHeading = useSendHeading(id, !!playing && view?.me.state === 'active');
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mark = useMutation(api.play.markCapture);
@@ -184,7 +184,8 @@ export function LiveGame({ id }: { id: string }) {
       <GameMap
         zone={zone}
         nextZoneRadius={g.nextZoneRadius}
-        people={view.people}
+        // meu biquinho usa a bússola daqui, sem esperar a volta do servidor
+        people={myHeading === null ? view.people : view.people.map((p) => (p.isMe ? { ...p, heading: myHeading } : p))}
         now={now}
         hunter={hunter}
         outOfZone={!!me.outOfZoneSince}
@@ -432,19 +433,31 @@ function boostLineFor(me: { blockedBoost?: string | null; shieldUntil?: number |
   return null;
 }
 
-// Manda para onde estou virado: no máximo a cada 1,5 s e só se virar 15° ou mais.
+// Manda para onde estou virado: no máximo a cada 1 s e só se virar 8° ou
+// mais. O último valor sempre sai (mesmo se a pessoa parar de girar no meio
+// do intervalo). Devolve a direção local, que o meu próprio pino usa na hora.
 function useSendHeading(id: string, active: boolean) {
   const heading = useHeading(active);
   const send = useMutation(api.play.setHeading);
   const last = useRef({ at: 0, deg: -999 });
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!active || heading === null) return;
-    const now = Date.now();
+    const flush = () => {
+      timer.current = null;
+      last.current = { at: Date.now(), deg: heading };
+      send({ gameId: id as GameId, heading }).catch(() => {});
+    };
     const diff = Math.abs(((heading - last.current.deg + 540) % 360) - 180);
-    if (now - last.current.at < 1500 || diff < 15) return;
-    last.current = { at: now, deg: heading };
-    send({ gameId: id as GameId, heading }).catch(() => {});
+    if (diff < 8) return;
+    if (timer.current) clearTimeout(timer.current);
+    const wait = Math.max(0, 1000 - (Date.now() - last.current.at));
+    timer.current = setTimeout(flush, wait);
   }, [heading, active, id, send]);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  return heading;
 }
 
 // Entra subindo e aparecendo (os botões de baixo quando a situação muda).
