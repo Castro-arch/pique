@@ -18,7 +18,7 @@ export const BENTO = { ink: '#0B0F13', tile: '#141A21', line: '#222A33', muted: 
 // ---------- Figurinhas ----------
 const K = '#0B0F13';
 const sw = { stroke: K, strokeWidth: 3.6, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
-export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield' | 'copy';
+export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield' | 'copy' | 'heart' | 'lock' | 'mega' | 'radar' | 'shrink';
 
 function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: Omit<typeof sw, "stroke"> & { stroke: string } }) {
   switch (kind) {
@@ -99,6 +99,45 @@ function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: 
         <>
           <Path d="M32 6l22 8v16c0 14-9 23-22 28C19 53 10 44 10 30V14z" fill={color} {...l} />
           <Path d="M22 31l7 7 13-14" fill="none" {...l} strokeWidth={4.4} />
+        </>
+      );
+    case 'heart':
+      return (
+        <>
+          <Path d="M32 54S8 40 8 23a12 12 0 0 1 24-4 12 12 0 0 1 24 4c0 17-24 31-24 31z" fill={color} {...l} />
+          <Path d="M16 30h8l4-7 6 14 4-7h10" fill="none" {...l} strokeWidth={4} />
+        </>
+      );
+    case 'lock':
+      return (
+        <>
+          <Path d="M20 28v-7a12 12 0 0 1 24 0v7" fill="none" {...l} strokeWidth={5} />
+          <Rect x={12} y={28} width={40} height={28} rx={8} fill={color} {...l} />
+          <Circle cx={32} cy={42} r={4} fill={K} />
+        </>
+      );
+    case 'mega':
+      return (
+        <>
+          <Path d="M10 26h10l22-14v40L20 38H10z" fill={color} {...l} />
+          <Path d="M48 22c4 3 6 7 6 10s-2 7-6 10" fill="none" {...l} strokeWidth={4.4} />
+        </>
+      );
+    case 'radar':
+      return (
+        <>
+          <Circle cx={32} cy={32} r={24} fill={color} {...l} />
+          <Circle cx={32} cy={32} r={13} fill="none" {...l} />
+          <Circle cx={32} cy={32} r={4} fill={K} />
+          <Path d="M32 32l15-15" fill="none" {...l} strokeWidth={4.4} />
+        </>
+      );
+    case 'shrink':
+      return (
+        <>
+          <Rect x={6} y={6} width={52} height={52} rx={16} fill={color} {...l} />
+          <Path d="M18 18l9 9M46 18l-9 9M18 46l9-9M46 46l-9-9" fill="none" {...l} strokeWidth={4.4} />
+          <Path d="M27 20v7h-7M37 20v7h7M27 44v-7h-7M37 44v-7h7" fill="none" {...l} strokeWidth={4} />
         </>
       );
     case 'copy':

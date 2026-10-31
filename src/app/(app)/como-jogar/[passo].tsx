@@ -1,279 +1,566 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ArrowRight, ChevronLeft, Lock } from '@/components/icons';
-import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
-import Svg, { Path } from 'react-native-svg';
+import { useEffect, useState, type ReactNode } from 'react';
+import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import Svg, { Circle, Line, Path } from 'react-native-svg';
 
-import { Avatar } from '@/components/Avatar';
+import { BENTO, Sticker, type StickerKind } from '@/components/Bento';
+import { BoostSticker } from '@/components/Boosts';
 import { Button } from '@/components/Button';
-import { Chip } from '@/components/Chip';
-import { StepBars } from '@/components/Controls';
-import { MapBackdrop, MapPin } from '@/components/MapBackdrop';
-import { CloseButton } from '@/components/Nav';
-import { Screen, Spacer } from '@/components/Screen';
-import { Headline, Text } from '@/components/Text';
-import { colors, fonts, radius } from '@/theme/tokens';
+import { MapBackdrop } from '@/components/MapBackdrop';
+import { Appear, Pressy } from '@/components/Motion';
+import { Text } from '@/components/Text';
+import { useCreateGame } from '@/lib/game';
+import { useScreenInsets } from '@/lib/screenInsets';
+import { colors, fonts } from '@/theme/tokens';
 
-type Step = { kicker: string; title: string; body: string; art: () => ReactNode; extra?: () => ReactNode };
+// 24.1 a 24.10 Como jogar (antes da partida): passos curtos tipo stories em
+// cima do mapa. Toque para avançar (no terço esquerdo, volta). Alguns passos
+// têm o seletor Corredor / Caçador para ver o mesmo momento dos dois lados.
 
-// Linha 16 do design: primeiro o que o jogo É, depois uma regra por tela.
+type Side = 'runner' | 'hunter';
+type Face = { kicker: string; tone: string; title: string; body: string; sticker: [StickerKind, string]; hud?: [string, string, string?][] };
+type Step = { face: Face; hunterFace?: Face; side?: Side; dim?: number; art: (side: Side, tick: number) => ReactNode };
+type At = { left: number; top: number };
+
+const PAPER = colors.paper;
+const LIME = colors.lime;
+const PINK = colors.pink;
+const INK = BENTO.ink;
+
+const zoneCircle = (r = 150, cy = 430) => <Circle cx={195} cy={cy} r={r} fill="rgba(200,242,60,0.10)" stroke={LIME} strokeWidth={4} strokeDasharray="14 10" />;
+
 const steps: Step[] = [
   {
-    kicker: 'O que é o Pique',
-    title: 'Pique-esconde de verdade, na rua.',
-    body: 'Você e seus amigos saem pelo bairro: uns se escondem, outros procuram. O celular é só o juiz: mostra o mapa, conta o tempo e avisa quem foi pego.',
-    art: () => (
-      <ArtBox>
-        <MapBackdrop fades={false} />
-        <Svg width="100%" height="100%" viewBox="0 0 350 330" style={StyleSheet.absoluteFill}>
-          <Path d="M96 205 C140 170 185 135 222 100" stroke={colors.pink} strokeWidth={3} strokeLinecap="round" strokeDasharray="2 8" fill="none" />
-        </Svg>
-        <Chip label="3 a 20 pessoas · ao ar livre" tone="dark" style={{ position: 'absolute', left: 14, top: 14 }} />
-        <Who x={70} y={470} name="Leo" role="hunter" note="procurando…" />
-        <Who x={240} y={170} name="Priya" role="runner" note="escondida" />
-        <Who x={300} y={600} name="Teo" role="runner" />
-      </ArtBox>
-    ),
+    dim: 0.55,
+    face: { kicker: 'A RODA', tone: PINK, title: 'Juntem os celulares.', body: 'Uma luz passa de celular em celular e para em quem vai caçar. Ninguém escolhe, é sorte.', sticker: ['crew', LIME] },
+    art: (_, tick) => <Roda lit={tick % 6} />,
   },
   {
-    kicker: 'Dois times',
-    title: 'Uns fogem, outros caçam.',
-    body: 'No começo da partida, um sorteio decide quem é caçador. Todo o resto é corredor.',
+    face: { kicker: 'A ZONA', tone: '#5E8C00', title: 'O jogo acontece aqui.', body: 'Quem cria a partida marca um círculo no mapa. Todo mundo joga dentro dele, nas ruas de verdade.', sticker: ['pin', '#FFC23D'] },
     art: () => (
-      <ArtBox>
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          <Team hunter title="Caçadores" body="Procuram e pegam os corredores." names={['Leo', 'Teo']} />
-          <Team title="Corredores" body="Se escondem e tentam não ser pegos." names={['Priya', 'Sasha', 'Jonah', 'Vic']} />
-        </View>
-      </ArtBox>
-    ),
-  },
-  {
-    kicker: 'A área do jogo',
-    title: 'Todo mundo fica dentro do círculo.',
-    body: 'Quem cria a partida desenha um círculo no mapa: um quarteirão, uma praça, um parque. Sair dele não vale.',
-    art: () => (
-      <ArtBox>
-        <MapBackdrop zone={{ cx: 195, cy: 380, r: 150 }} fades={false} />
-        <Who x={130} y={280} name="Priya" role="runner" />
-        <Who x={225} y={440} name="Leo" role="hunter" />
-        <Chip label="dentro vale · fora não vale" tone="dark" dot={colors.lime} style={{ position: 'absolute', left: 14, bottom: 14 }} />
-      </ArtBox>
-    ),
-  },
-  {
-    kicker: 'Os primeiros minutos',
-    title: 'Primeiro, os corredores somem.',
-    body: 'Assim que começa, os corredores têm uns minutos para se esconder. A tela dos caçadores fica travada até o tempo acabar.',
-    art: () => (
-      <ArtBox>
-        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
-          <View style={[styles.mini, { backgroundColor: colors.lime }]}>
-            <Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.limeInk }}>Corra!</Text>
-            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.limeInk }}>corredor</Text>
-          </View>
-          <View style={[styles.mini, { backgroundColor: colors.inkRaised, borderWidth: 2, borderColor: colors.pink }]}>
-            <Lock size={28} color={colors.pink} strokeWidth={2.4} />
-            <Text style={{ fontFamily: fonts.display, fontSize: 28 }}>2:03</Text>
-            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.pink }}>caçador travado</Text>
-          </View>
-        </View>
-      </ArtBox>
-    ),
-  },
-  {
-    kicker: 'O segredo',
-    title: 'O mapa só mostra de vez em quando.',
-    body: 'Os caçadores não veem ninguém ao vivo. A cada 2 minutos o mapa mostra onde cada corredor estava naquela hora. Aí é correr atrás.',
-    art: () => (
-      <ArtBox>
-        <MapBackdrop fades={false} />
-        <Who x={240} y={170} name="Priya" role="runner" tag="estava aqui" />
-        <Who x={80} y={460} name="Leo" role="hunter" />
-        <View style={styles.pingBar}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong }}>próximo ping</Text>
-            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.lime }}>0:42</Text>
-          </View>
-          <View style={{ marginTop: 8, height: 6, borderRadius: 3, backgroundColor: colors.inkBorder }}>
-            <View style={{ width: '65%', height: 6, borderRadius: 3, backgroundColor: colors.lime }} />
-          </View>
-        </View>
-      </ArtBox>
-    ),
-  },
-  {
-    kicker: 'Pegou!',
-    title: 'Encostou, pegou. Quem ganha?',
-    body: 'O caçador encosta no corredor de verdade e o corredor confirma no celular.',
-    art: () => (
-      <ArtBox height={290}>
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <Avatar name="Leo" size={56} state="hunter" />
-            <ArrowRight size={34} color={colors.paper} strokeWidth={2.6} />
-            <Avatar name="Priya" size={56} state="runner" />
-          </View>
-          <View style={styles.ask}>
-            <Text variant="small">No celular da Priya</Text>
-            <Text style={{ fontFamily: fonts.display, fontSize: 22, marginTop: 2 }}>O Leo te pegou?</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              <View style={[styles.askBtn, { backgroundColor: colors.pink }]}>
-                <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, color: colors.pinkInk }}>Fui pega</Text>
+      <Layer svg={zoneCircle()}>
+        {(at) => (
+          <>
+            <Spot at={at(195, 412)}>
+              <Sticker kind="pin" color={PINK} size={48} tilt={0} />
+            </Spot>
+            <Spot at={at(195, 610)}>
+              <View style={styles.chip}>
+                <Text style={{ fontSize: 13, color: INK, opacity: 0.6 }}>
+                  Zona <Text style={{ fontSize: 14, fontFamily: fonts.display, color: INK }}>600 m</Text>
+                </Text>
               </View>
-              <View style={[styles.askBtn, { borderWidth: 1, borderColor: colors.inkBorder }]}>
-                <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong }}>Não</Text>
-              </View>
-            </View>
-          </View>
-        </View>
-      </ArtBox>
+            </Spot>
+          </>
+        )}
+      </Layer>
     ),
-    extra: () => (
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-        <View style={[styles.win, { backgroundColor: colors.limeTint, borderColor: colors.lime }]}>
-          <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.lime }}>CORREDORES VENCEM</Text>
-          <Text style={{ fontSize: 13, marginTop: 3 }}>se alguém estiver livre quando o tempo acabar</Text>
-        </View>
-        <View style={[styles.win, { backgroundColor: colors.pinkTint, borderColor: colors.pink }]}>
-          <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.pink }}>CAÇADORES VENCEM</Text>
-          <Text style={{ fontSize: 13, marginTop: 3 }}>se pegarem todo mundo antes</Text>
-        </View>
-      </View>
+  },
+  {
+    side: 'runner',
+    face: {
+      kicker: 'VANTAGEM',
+      tone: '#5E8C00',
+      title: 'Corra e se esconda.',
+      body: 'Os corredores saem na frente. Por 1 minuto o caçador fica travado, sem ver ninguém.',
+      sticker: ['run', LIME],
+      hud: [['VANTAGEM', '0:42', LIME], ['CAÇADOR', 'travado']],
+    },
+    hunterFace: {
+      kicker: 'VANTAGEM',
+      tone: PINK,
+      title: 'Espere travado.',
+      body: 'Por 1 minuto você não vê ninguém nem pode sair. Use esse tempo para combinar com o seu time.',
+      sticker: ['lock', '#FFC23D'],
+      hud: [['VANTAGEM', '0:42', PINK], ['VOCÊ', 'travado']],
+    },
+    art: (side) => (
+      <Layer
+        svg={
+          <>
+            {side === 'runner'
+              ? [
+                  [110, 330],
+                  [290, 360],
+                  [140, 520],
+                  [262, 505],
+                ].map(([x, y]) => <Line key={x} x1={195} y1={430} x2={x} y2={y} stroke={LIME} strokeWidth={3} strokeDasharray="4 8" strokeLinecap="round" opacity={0.7} />)
+              : null}
+            {zoneCircle()}
+          </>
+        }>
+        {(at) =>
+          side === 'runner' ? (
+            <>
+              <Who at={at(110, 330)} l="L" />
+              <Who at={at(290, 360)} l="P" />
+              <Who at={at(140, 520)} l="T" />
+              <Who at={at(262, 505)} l="C" kind="me" label="você" />
+              <Spot at={at(195, 430)}>
+                <Sticker kind="lock" color="#FFC23D" size={40} tilt={-6} />
+              </Spot>
+            </>
+          ) : (
+            <>
+              <Who at={at(195, 440)} l="C" kind="hunter" label="você" />
+              <Spot at={at(195, 380)}>
+                <Sticker kind="lock" color="#FFC23D" size={48} tilt={-6} />
+              </Spot>
+            </>
+          )
+        }
+      </Layer>
+    ),
+  },
+  {
+    side: 'hunter',
+    face: {
+      kicker: 'O PING',
+      tone: '#1E8FD0',
+      title: 'Fique de olho no ping.',
+      body: 'A cada 2 min o caçador vê onde você está naquele segundo. Depois do ping, mude de lugar.',
+      sticker: ['radar', '#5AC8FA'],
+      hud: [['PRÓXIMO PING', 'agora', LIME], ['RODADA', '28:00']],
+    },
+    hunterFace: {
+      kicker: 'O PING',
+      tone: '#1E8FD0',
+      title: 'A cada 2 min, todo mundo aparece.',
+      body: 'Ele mostra onde cada corredor estava naquele segundo. No resto do tempo, o seu mapa fica vazio.',
+      sticker: ['radar', '#5AC8FA'],
+      hud: [['PRÓXIMO PING', 'agora', PINK], ['RODADA', '28:00']],
+    },
+    art: (side, tick) => {
+      const spots: [number, number, string][] = [
+        [118, 342, 'L'],
+        [286, 372, 'P'],
+        [150, 512, 'T'],
+        [255, 488, 'S'],
+      ];
+      const r = 30 + (tick % 4) * 8;
+      return (
+        <Layer
+          svg={
+            <>
+              {zoneCircle()}
+              {spots.map(([x, y]) => (
+                <Circle key={x} cx={x} cy={y} r={r} fill="none" stroke={PINK} strokeWidth={3} opacity={0.6 - (tick % 4) * 0.12} />
+              ))}
+            </>
+          }>
+          {(at) => (
+            <>
+              {spots.map(([x, y, l]) => (side === 'runner' && l === 'S' ? null : <Who key={l} at={at(x, y)} l={l} label="agora" />))}
+              {side === 'runner' ? <Who at={at(255, 488)} l="C" kind="me" label="você · visto agora" /> : <Who at={at(198, 420)} l="C" kind="hunter" label="você" />}
+            </>
+          )}
+        </Layer>
+      );
+    },
+  },
+  {
+    side: 'runner',
+    face: {
+      kicker: 'RASTRO',
+      tone: '#8A4FE0',
+      title: 'O ping é só uma foto.',
+      body: 'Se você continuar andando, o caçador vai atrás de onde você estava. Mexa-se depois de cada ping.',
+      sticker: ['ghost', '#B57CFF'],
+      hud: [['PRÓXIMO PING', '1:10', LIME], ['RODADA', '27:10']],
+    },
+    hunterFace: {
+      kicker: 'RASTRO',
+      tone: '#8A4FE0',
+      title: 'Ela já pode ter ido.',
+      body: 'O ping mostra onde a pessoa estava. Corra para lá, mas pense para onde ela foi depois.',
+      sticker: ['ghost', '#B57CFF'],
+      hud: [['PRÓXIMO PING', '1:10', PINK], ['RODADA', '27:10']],
+    },
+    art: (side) => (
+      <Layer
+        svg={
+          <>
+            {zoneCircle()}
+            {side === 'runner' ? <Path d="M150 500 C175 470 230 470 262 420" fill="none" stroke={LIME} strokeWidth={3} strokeDasharray="4 8" strokeLinecap="round" /> : null}
+            <Path d="M110 560 C125 540 140 520 150 500" fill="none" stroke={PINK} strokeWidth={3} strokeDasharray="4 8" strokeLinecap="round" />
+          </>
+        }>
+        {(at) => (
+          <>
+            <Who at={at(150, 500)} l="" kind="ghost" label="ping de 1 min atrás" />
+            <Spot at={at(128, 470)}>
+              <Sticker kind="ghost" color="#B57CFF" size={40} tilt={-8} />
+            </Spot>
+            {side === 'runner' ? <Who at={at(262, 420)} l="C" kind="me" label="você agora" /> : null}
+            <Who at={at(110, 560)} l={side === 'runner' ? 'L' : 'C'} kind="hunter" label={side === 'runner' ? 'indo pro ping' : 'você'} />
+          </>
+        )}
+      </Layer>
+    ),
+  },
+  {
+    face: {
+      kicker: 'BOOSTS',
+      tone: '#1E8FD0',
+      title: 'Pegue boosts nas ruas.',
+      body: 'Despiste, Sombra e Escudo te ajudam a fugir. O preço: os caçadores te veem por alguns segundos.',
+      sticker: ['shield', '#5AC8FA'],
+      hud: [['SEUS BOOSTS', '1 de 2', LIME], ['RODADA', '24:30']],
+    },
+    art: () => (
+      <Layer svg={zoneCircle()}>
+        {(at) => (
+          <>
+            <Spot at={at(118, 352)}>
+              <BoostSticker kind="despiste" size={44} edge />
+            </Spot>
+            <Spot at={at(272, 402)}>
+              <BoostSticker kind="sombra" size={44} edge />
+            </Spot>
+            <Spot at={at(192, 522)}>
+              <BoostSticker kind="escudo" size={44} edge />
+            </Spot>
+            <Who at={at(150, 560)} l="C" kind="me" label="você" />
+          </>
+        )}
+      </Layer>
+    ),
+  },
+  {
+    side: 'runner',
+    face: {
+      kicker: 'PERTO DEMAIS',
+      tone: PINK,
+      title: 'Seu coração acelera.',
+      body: 'Quando um caçador chega perto, seu celular avisa. E ele pode fazer o seu celular gritar para te achar.',
+      sticker: ['heart', PINK],
+      hud: [['PRÓXIMO PING', '0:40', LIME], ['RODADA', '22:05']],
+    },
+    hunterFace: {
+      kicker: 'PERTO DEMAIS',
+      tone: PINK,
+      title: 'Chegou perto? Grite.',
+      body: 'Toque em Grito e o celular do corredor mais perto faz barulho. Escute e vá atrás.',
+      sticker: ['mega', '#FFC23D'],
+      hud: [['PRÓXIMO PING', '0:40', PINK], ['RODADA', '22:05']],
+    },
+    art: (side, tick) => (
+      <Layer
+        svg={
+          <>
+            {zoneCircle()}
+            <Circle cx={215} cy={455} r={62 + (tick % 2) * 8} fill="rgba(255,42,85,0.16)" stroke={PINK} strokeWidth={2} strokeDasharray="6 6" />
+          </>
+        }>
+        {(at) => (
+          <>
+            <Who at={at(215, 455)} l={side === 'runner' ? 'C' : 'P'} kind={side === 'runner' ? 'me' : 'runner'} label={side === 'runner' ? 'você' : 'escondida'} />
+            <Who at={at(258, 400)} l={side === 'runner' ? 'L' : 'C'} kind="hunter" label={side === 'runner' ? '40 m' : 'você'} />
+            <Spot at={at(170, 372)}>
+              {side === 'runner' ? <Sticker kind="heart" color={PINK} size={tick % 2 ? 56 : 50} tilt={-10} /> : <Sticker kind="mega" color="#FFC23D" size={tick % 2 ? 56 : 50} tilt={8} />}
+            </Spot>
+          </>
+        )}
+      </Layer>
+    ),
+  },
+  {
+    face: {
+      kicker: 'O CERCO',
+      tone: '#8A4FE0',
+      title: 'A zona aperta a cada 5 min.',
+      body: 'Ficou fora por 30 segundos? Os caçadores passam a te ver ao vivo até você voltar.',
+      sticker: ['shrink', '#B57CFF'],
+      hud: [['A ZONA ENCOLHE', 'agora', LIME], ['ZONA NOVA', '420 m']],
+    },
+    art: () => (
+      <Layer
+        svg={
+          <>
+            <Circle cx={195} cy={430} r={150} fill="none" stroke="rgba(243,240,232,0.35)" strokeWidth={3} strokeDasharray="6 10" />
+            {zoneCircle(105, 440)}
+          </>
+        }>
+        {(at) => (
+          <>
+            <Who at={at(318, 360)} l="P" label="fora · 0:30" />
+            <Who at={at(190, 450)} l="C" kind="me" label="você" />
+            <Who at={at(150, 400)} l="L" kind="hunter" />
+          </>
+        )}
+      </Layer>
+    ),
+  },
+  {
+    face: {
+      kicker: 'PEGA-PEGA',
+      tone: PINK,
+      title: 'Encostou, pegou.',
+      body: 'O caçador encosta e você confirma no app. Preso, você espera: um amigo pode chegar perto e te soltar.',
+      sticker: ['hand', PINK],
+      hud: [['CORREDORES', '3 de 4', LIME], ['RODADA', '18:40']],
+    },
+    art: (_, tick) => (
+      <Layer
+        svg={
+          <>
+            {zoneCircle(105, 440)}
+            <Circle cx={150} cy={470} r={40} fill="rgba(200,242,60,0.12)" stroke={LIME} strokeWidth={3} />
+            <Circle cx={150} cy={470} r={40} fill="none" stroke={PAPER} strokeWidth={5} strokeLinecap="round" strokeDasharray={`${40 + (tick % 5) * 40} 400`} transform="rotate(-90 150 470)" />
+          </>
+        }>
+        {(at) => (
+          <>
+            <Who at={at(150, 470)} l="T" kind="ghost" label="preso" />
+            <Who at={at(228, 520)} l="C" kind="me" label="você · salvando" />
+            <Who at={at(250, 380)} l="L" kind="hunter" />
+            <Who at={at(272, 400)} l="P" label="pego" />
+            <Spot at={at(258, 340)}>
+              <Sticker kind="hand" color={PINK} size={48} tilt={18} />
+            </Spot>
+          </>
+        )}
+      </Layer>
+    ),
+  },
+  {
+    dim: 0.5,
+    face: { kicker: 'SUA VEZ', tone: '#5E8C00', title: 'Bora jogar?', body: 'Junte 3 ou mais amigos. Um cria a partida e os outros entram pelo QR.', sticker: ['run', LIME] },
+    art: () => (
+      <Layer svg={zoneCircle(150, 380)}>
+        {(at) => (
+          <Spot at={at(195, 360)}>
+            <Sticker kind="hand" color={PINK} size={90} tilt={-12} />
+          </Spot>
+        )}
+      </Layer>
     ),
   },
 ];
 
-// 16.1 a 16.6 Como jogar
 export default function ComoJogar() {
-  // de=inicio: veio do cadastro (depois das permissões) e termina na home.
-  const { passo = '1', de } = useLocalSearchParams<{ passo?: string; de?: string }>();
-  const onboarding = de === 'inicio';
-  const i = Math.min(Math.max(Number(passo) - 1 || 0, 0), steps.length - 1);
+  const { passo = '1' } = useLocalSearchParams<{ passo?: string; de?: string }>();
+  const insets = useScreenInsets();
+  const create = useCreateGame();
+  const { width } = useWindowDimensions();
+  const [i, setI] = useState(() => Math.min(Math.max(Number(passo) - 1 || 0, 0), steps.length - 1));
+  const [side, setSide] = useState<Side>(steps[i].side ?? 'runner');
+  const [tick, setTick] = useState(0);
   const s = steps[i];
   const last = i === steps.length - 1;
-  const go = (n: number) => router.replace({ pathname: '/como-jogar/[passo]', params: { passo: String(n), ...(onboarding ? { de } : {}) } });
+  const face = side === 'hunter' && s.hunterFace ? s.hunterFace : s.face;
+
+  // Relógio das animações (a luz da roda, o ping pulsando, o coração batendo).
+  useEffect(() => {
+    const t = setInterval(() => setTick((n) => n + 1), 420);
+    return () => clearInterval(t);
+  }, []);
+  const go = (n: number) => {
+    const k = Math.min(Math.max(n, 0), steps.length - 1);
+    setI(k);
+    setSide(steps[k].side ?? 'runner');
+  };
+  const leave = () => router.replace('/');
 
   return (
-    <Screen>
-      <StepBars total={steps.length} current={i + 1} />
-      <View style={styles.head}>
-        <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, letterSpacing: 0.7, color: colors.paperMuted }}>
-          COMO JOGAR · {i + 1} DE {steps.length}
-        </Text>
-        <CloseButton onPress={() => router.replace('/')} />
+    <View style={{ flex: 1, backgroundColor: colors.inkSunken }}>
+      <MapBackdrop fades={false} dim={s.dim ?? 0.15} />
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {s.art(side, tick)}
       </View>
-      {s.art()}
-      <Text style={{ fontFamily: fonts.display, fontSize: 15, color: colors.lime, marginTop: 22 }}>{s.kicker}</Text>
-      <Headline mark={s.title.endsWith("?") ? "?" : "."} style={{ marginTop: 6 }}>
-        {s.title.replace(/[.?]$/, "")}
-      </Headline>
-      <Text variant="muted" style={{ marginTop: 10, fontSize: last ? 15 : 16 }}>{s.body}</Text>
-      {s.extra?.()}
-      <Spacer />
-      <View style={{ flexDirection: 'row', gap: 10 }}>
-        {i === 0 ? null : (
-          <Pressable accessibilityRole="button" accessibilityLabel="Passo anterior" onPress={() => go(i)} style={styles.backBtn}>
-            <ChevronLeft size={20} color={colors.paper} strokeWidth={2.4} />
+
+      {/* toque na tela: no terço esquerdo volta, no resto avança */}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={last ? 'Último passo' : 'Próximo passo'}
+        onPress={(e) => (e.nativeEvent.pageX < width / 3 ? go(i - 1) : last ? null : go(i + 1))}
+        style={StyleSheet.absoluteFill}
+      />
+
+      <View style={[styles.top, { paddingTop: Math.max(insets.top, 20) + 8 }]} pointerEvents="box-none">
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} pointerEvents="box-none">
+          <View accessibilityRole="progressbar" accessibilityLabel={`Passo ${i + 1} de ${steps.length}`} style={{ flex: 1, flexDirection: 'row', gap: 4 }} pointerEvents="none">
+            {steps.map((_, k) => (
+              <View key={k} style={{ flex: 1, height: 4, borderRadius: 2, backgroundColor: k < i ? PAPER : k === i ? LIME : 'rgba(243,240,232,0.25)' }} />
+            ))}
+          </View>
+          <Pressable accessibilityRole="button" onPress={leave} hitSlop={12}>
+            <Text style={{ fontSize: 14, fontFamily: fonts.bodyStrong }}>{last ? 'OK' : 'Pular'}</Text>
           </Pressable>
-        )}
-        <Button
-          label={last ? 'Entendi, bora jogar' : i === 0 ? 'Como funciona?' : 'Próximo'}
-          style={{ flex: 1 }}
-          onPress={() => (last ? router.replace('/') : go(i + 2))}
-        />
+        </View>
+        {face.hud ? (
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }} pointerEvents="none">
+            {face.hud.map(([label, value, tone]) => (
+              <View key={label} style={styles.hud}>
+                <Text style={styles.hudLabel}>{label}</Text>
+                <Text style={[styles.hudValue, { color: tone ?? PAPER }]}>{value}</Text>
+              </View>
+            ))}
+          </View>
+        ) : null}
+        {s.hunterFace ? (
+          <View style={styles.toggle}>
+            {(['runner', 'hunter'] as const).map((k) => (
+              <Pressable
+                key={k}
+                accessibilityRole="button"
+                accessibilityState={{ selected: side === k }}
+                onPress={() => setSide(k)}
+                style={[styles.toggleBtn, side === k && { backgroundColor: k === 'runner' ? LIME : PINK }]}>
+                <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, color: side === k ? (k === 'runner' ? INK : PAPER) : BENTO.muted }}>
+                  {k === 'runner' ? 'Corredor' : 'Caçador'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        ) : null}
       </View>
-      {i === 0 ? (
-        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={{ alignSelf: 'center', marginTop: 10, padding: 4 }}>
-          <Text variant="small">
-            Já jogou antes? <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, textDecorationLine: 'underline' }}>Pular explicação</Text>
-          </Text>
-        </Pressable>
-      ) : null}
-    </Screen>
+
+      <Appear key={`${i}-${side}`} style={[styles.card, { bottom: Math.max(insets.bottom, 16) + 12, pointerEvents: last ? "auto" : "none" }]}>
+        <View style={styles.cardSticker} pointerEvents="none">
+          <Sticker kind={face.sticker[0]} color={face.sticker[1]} size={56} tilt={-8} />
+        </View>
+        <Text style={[styles.kicker, { color: face.tone }]}>{face.kicker}</Text>
+        <Text style={styles.title}>{face.title}</Text>
+        <Text style={styles.body}>{face.body}</Text>
+        {last ? (
+          <View style={{ gap: 8, marginTop: 14 }}>
+            <Button label="Criar partida" variant="dark" loading={create.busy} onPress={create.run} style={{ minHeight: 56, borderRadius: 22, backgroundColor: INK }} />
+            {create.error ? <Text variant="error">{create.error}</Text> : null}
+            <Pressy accessibilityRole="button" onPress={() => router.replace('/entrar/qr')} style={styles.qr}>
+              <Sticker kind="qr" color={LIME} size={28} tilt={-8} />
+              <Text style={{ fontSize: 16, fontFamily: fonts.bodyStrong, color: INK }}>Entrar com QR Code</Text>
+            </Pressy>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 4 }}>
+              <Text onPress={() => router.replace('/treino')} style={styles.link}>
+                Rodada de treino
+              </Text>
+              <Text onPress={() => go(0)} style={styles.link}>
+                Ver de novo
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <Text style={styles.more}>toque para continuar ›</Text>
+        )}
+      </Appear>
+    </View>
   );
 }
 
-function ArtBox({ children, plain, height = 330 }: { children: ReactNode; plain?: boolean; height?: number }) {
+// Camada do desenho: um Svg no espaço 390 x 844 do design (igual ao
+// MapBackdrop, cobrindo a tela) e as peças posicionadas por cima.
+function Layer({ svg, children }: { svg: ReactNode; children: (at: (x: number, y: number) => At) => ReactNode }) {
+  const { width: W, height: H } = useWindowDimensions();
+  const k = Math.max(W / 390, H / 844);
+  const ox = (W - 390 * k) / 2;
+  const oy = (H - 844 * k) / 2;
+  const at = (x: number, y: number): At => ({ left: ox + x * k, top: oy + y * k });
   return (
-    <View
-      style={[
-        styles.art,
-        { height },
-        plain && { backgroundColor: colors.inkRaised, borderWidth: 1, borderColor: colors.inkBorder, padding: 18 },
-      ]}>
+    <>
+      <Svg width={390 * k} height={844 * k} viewBox="0 0 390 844" style={{ position: "absolute", left: ox, top: oy }}>
+        {svg}
+      </Svg>
+      {children(at)}
+    </>
+  );
+}
+
+// Uma peça centrada no ponto.
+function Spot({ at, children }: { at: At; children: ReactNode }) {
+  return (
+    <View style={{ position: 'absolute', left: at.left - 60, top: at.top - 60, width: 120, height: 120, alignItems: 'center', justifyContent: 'center' }}>
       {children}
     </View>
   );
 }
 
-// Uma pessoa no mapinha das artes, com a etiqueta embaixo.
-function Who({ x, y, name, role, note, tag }: { x: number; y: number; name: string; role: 'runner' | 'hunter'; note?: string; tag?: string }) {
-  const color = role === 'runner' ? colors.lime : colors.pink;
+// Uma pessoa no mapa: corredor (verde), caçador (anel rosa), você (anel branco) ou rastro (tracejado).
+function Who({ at, l, kind = 'runner', label }: { at: At; l: string; kind?: 'runner' | 'hunter' | 'me' | 'ghost'; label?: string }) {
+  const size = kind === 'me' ? 36 : 30;
+  const look =
+    kind === 'hunter'
+      ? { backgroundColor: INK, borderColor: PINK }
+      : kind === 'me'
+        ? { backgroundColor: LIME, borderColor: PAPER, boxShadow: '0 0 0 6px rgba(200,242,60,0.25)' }
+        : kind === 'ghost'
+          ? { backgroundColor: 'rgba(200,242,60,0.18)', borderColor: LIME, borderStyle: 'dashed' as const }
+          : { backgroundColor: LIME, borderColor: INK };
   return (
-    <MapPin x={x} y={y}>
-      <View style={{ alignItems: 'center', gap: 4 }}>
-        <Avatar name={name} size={42} state={role} />
-        {note ? <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color }}>{note}</Text> : null}
-        {tag ? (
-          <View style={{ backgroundColor: colors.lime, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8 }}>
-            <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.limeInk }}>{tag}</Text>
-          </View>
-        ) : null}
+    <View style={{ position: 'absolute', left: at.left - 70, top: at.top - size / 2, width: 140, alignItems: 'center' }}>
+      <View style={[{ width: size, height: size, borderRadius: size / 2, borderWidth: 3, alignItems: 'center', justifyContent: 'center' }, look]}>
+        <Text style={{ fontFamily: fonts.display, fontSize: kind === 'me' ? 15 : 13, color: kind === 'hunter' ? PAPER : kind === 'ghost' ? LIME : INK }}>{l}</Text>
       </View>
-    </MapPin>
-  );
-}
-
-// Metade da arte dos dois times.
-function Team({ hunter, title, body, names }: { hunter?: boolean; title: string; body: string; names: string[] }) {
-  const color = hunter ? colors.pink : colors.lime;
-  return (
-    <View style={{ flex: 1, backgroundColor: hunter ? colors.pinkTint : colors.limeTint, padding: 16 }}>
-      <View style={{ flexDirection: 'row' }}>
-        {names.map((n, k) => (
-          <Avatar key={n} name={n} size={32} state={hunter ? 'hunter' : 'runner'} style={{ marginLeft: k ? -8 : 0 }} />
-        ))}
-      </View>
-      <Spacer />
-      <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.display, fontSize: 24, color }}>
-        {title}
-      </Text>
-      <Text style={{ fontSize: 14, lineHeight: 19, marginTop: 6 }}>{body}</Text>
+      {label ? (
+        <View style={styles.tag}>
+          <Text style={{ fontSize: 10, fontFamily: fonts.bodyStrong }} numberOfLines={1}>
+            {label}
+          </Text>
+        </View>
+      ) : null}
     </View>
   );
 }
 
+// A roda: seis celulares em volta e a luz passando por eles.
+function Roda({ lit }: { lit: number }) {
+  return (
+    <Layer svg={null}>
+      {(at) => (
+        <>
+          {Array.from({ length: 6 }, (_, k) => {
+            const a = (k / 6) * Math.PI * 2 - Math.PI / 2;
+            const p = at(195 + Math.cos(a) * 112, 330 + Math.sin(a) * 112);
+            const on = k === lit;
+            return (
+              <View
+                key={k}
+                style={[
+                  styles.phone,
+                  { left: p.left - 22, top: p.top - 36, transform: [{ rotate: `${(a * 180) / Math.PI + 90}deg` }] },
+                  on ? { backgroundColor: PINK, borderColor: PAPER, boxShadow: '0 0 30px 10px rgba(255,42,85,0.55)' } : null,
+                ]}>
+                <Text style={{ fontFamily: fonts.display, fontSize: 15, color: on ? PAPER : '#55606B' }}>{'CLJPTS'[k]}</Text>
+              </View>
+            );
+          })}
+          <Spot at={at(195, 330)}>
+            <Sticker kind="hand" color={PINK} size={80} tilt={-10} />
+          </Spot>
+        </>
+      )}
+    </Layer>
+  );
+}
+
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 44, marginTop: 8 },
-  art: { marginTop: 8, borderRadius: radius.xxl, overflow: 'hidden', backgroundColor: colors.inkSunken },
-  mini: { width: 120, height: 210, borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 6 },
-  pingBar: { position: 'absolute', left: 14, right: 14, bottom: 14, backgroundColor: colors.inkRaised, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 12 },
-  ask: { backgroundColor: colors.inkRaised, borderWidth: 1, borderColor: colors.inkBorder, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16, width: 250 },
-  askBtn: { flex: 1, alignItems: 'center', borderRadius: 12, paddingVertical: 8 },
-  codeCard: {
+  top: { position: 'absolute', left: 16, right: 16, top: 0 },
+  hud: { flex: 1, backgroundColor: INK, borderWidth: 2, borderColor: BENTO.line, borderRadius: 18, paddingVertical: 8, paddingHorizontal: 12 },
+  hudLabel: { fontSize: 10, fontFamily: fonts.bodyStrong, letterSpacing: 0.4, color: BENTO.muted },
+  hudValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
+  toggle: { flexDirection: 'row', alignSelf: 'center', marginTop: 14, backgroundColor: INK, borderWidth: 2, borderColor: BENTO.line, borderRadius: 999, padding: 4 },
+  toggleBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999 },
+  card: {
     position: 'absolute',
-    left: 14,
-    right: 14,
-    bottom: 14,
-    backgroundColor: colors.lime,
-    borderRadius: radius.lg,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
+    left: 16,
+    right: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 2,
+    borderColor: INK,
+    borderRadius: 26,
+    boxShadow: '4px 5px 0 #0B0F13',
+    paddingTop: 18,
+    paddingHorizontal: 18,
+    paddingBottom: 16,
   },
-  share: { backgroundColor: colors.limeInk, borderRadius: 999, paddingVertical: 9, paddingHorizontal: 14 },
-  pick: { flexDirection: 'row', alignItems: 'center', gap: 10, backgroundColor: colors.ink, borderRadius: radius.md, padding: 8, paddingRight: 12 },
-  win: { flex: 1, borderWidth: 1, borderRadius: radius.md, padding: 10 },
-  backBtn: {
-    width: 56,
-    height: 56,
-    borderRadius: radius.xl,
-    borderWidth: 1,
-    borderColor: colors.inkBorder,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
+  cardSticker: { position: 'absolute', right: 16, top: -30 },
+  kicker: { fontSize: 11, fontFamily: fonts.bodyStrong, letterSpacing: 0.9 },
+  title: { fontFamily: fonts.display, fontSize: 27, lineHeight: 28, letterSpacing: -0.5, color: INK, marginTop: 4, paddingRight: 44 },
+  body: { fontSize: 14, lineHeight: 20, color: INK, opacity: 0.75, marginTop: 8 },
+  more: { fontSize: 12, fontFamily: fonts.bodyStrong, color: INK, opacity: 0.45, marginTop: 12 },
+  link: { fontSize: 13, fontFamily: fonts.bodyStrong, color: INK, opacity: 0.6, paddingVertical: 4 },
+  qr: { height: 56, borderRadius: 22, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: INK, boxShadow: '3px 4px 0 #0B0F13', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
+  chip: { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: INK, borderRadius: 999, paddingVertical: 6, paddingHorizontal: 12 },
+  tag: { marginTop: 4, backgroundColor: INK, borderRadius: 999, paddingVertical: 2, paddingHorizontal: 7 },
+  phone: { position: 'absolute', width: 44, height: 72, borderRadius: 12, backgroundColor: '#1A2027', borderWidth: 3, borderColor: '#2A333D', alignItems: 'center', justifyContent: 'center' },
 });
