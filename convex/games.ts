@@ -157,6 +157,7 @@ export const lobby = query({
         name: p.name,
         side: p.side,
         ready: p.ready,
+        choosing: isChoosing(p, game),
         isHost: p.userId === game.hostId,
         isMe: p._id === me._id,
         // O papel sorteado só aparece para o próprio time (ou depois do fim).
@@ -166,12 +167,19 @@ export const lobby = query({
   },
 });
 
+// Ainda escolhendo o lado: entrou e não confirmou, nem jogou nenhuma rodada desta
+// partida (quem já jogou não trava a revanche). O anfitrião nunca trava.
+export function isChoosing(p: Doc<'players'>, game: Doc<'games'>) {
+  return p.state !== 'left' && !p.ready && !p.role && p.userId !== game.hostId;
+}
+
 export const setSide = mutation({
   args: { gameId: v.id('games'), side },
   handler: async (ctx, { gameId, side }) => {
     const { game, me } = await requireMember(ctx, gameId);
     if (game.status !== 'lobby' && game.status !== 'ended') throw new ConvexError('A rodada já começou.');
-    await ctx.db.patch(me._id, { side });
+    // Confirmar o lado conta como pronto: o anfitrião só começa depois disso.
+    await ctx.db.patch(me._id, { side, ready: true });
   },
 });
 

@@ -12,6 +12,7 @@ import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { match, players as demoPlayers } from '@/lib/demo';
 import { errorInfo, useFollowRound, useLobby, type GameId } from '@/lib/game';
+import { inviteLink } from '@/lib/qr';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../../convex/_generated/api';
 
@@ -47,12 +48,14 @@ export default function Lobby() {
     : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.id === 'castro' ? demoSide : p.role, photo: p.photo }));
   const count = (s: Side) => people.filter((p) => p.side === s).length;
 
-  const share = () => Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link https://pique.app/p/${code}` });
+  const share = () => Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link ${inviteLink(code)}` });
   const copy = async () => {
     await Clipboard.setStringAsync(code);
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
+  // Quem entrou e ainda não confirmou o lado trava o começar.
+  const choosing = lobby?.players.filter((p) => p.choosing).length ?? 0;
   const begin = async () => {
     if (!id) return router.push('/sorteio');
     setError(null);
@@ -144,8 +147,14 @@ export default function Lobby() {
       <Spacer />
       {error ? <Text variant="error" style={{ marginTop: 16 }}>{error}</Text> : null}
       <Button
-        label={lobby && people.length < 2 ? 'Esperando a crew entrar…' : 'Começar partida'}
-        disabled={!!lobby && people.length < 2}
+        label={
+          lobby && people.length < 2
+            ? 'Esperando a crew entrar…'
+            : choosing > 0
+              ? `Esperando ${choosing} escolher${choosing > 1 ? 'em' : ''} o lado…`
+              : 'Começar partida'
+        }
+        disabled={!!lobby && (people.length < 2 || choosing > 0)}
         loading={starting}
         style={{ marginTop: 20 }}
         onPress={begin}

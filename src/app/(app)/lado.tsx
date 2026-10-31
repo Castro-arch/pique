@@ -11,7 +11,7 @@ import { BackButton } from '@/components/Nav';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { match, photos } from '@/lib/demo';
-import { useLobby, type GameId } from '@/lib/game';
+import { useLobby, type GameId, useFollowRound } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
 
@@ -23,6 +23,8 @@ export default function Lado() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const lobby = useLobby(id);
   const save = useMutation(api.games.setSide);
+  // Se a rodada começar enquanto a pessoa escolhe, ela vai junto para a revelação do papel.
+  useFollowRound(id, lobby?.status);
   const [side, setSide] = useState<Side>('runner');
   const code = lobby?.code ?? match.code;
   const count = (s: Side) => lobby?.players.filter((p) => p.side === s).length ?? 0;

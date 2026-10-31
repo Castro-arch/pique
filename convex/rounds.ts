@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { notify } from './alerts';
+import { isChoosing } from './games';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
@@ -69,6 +70,12 @@ export const start = mutation({
     if (!game.zone) throw new ConvexError('Marque a zona de jogo antes de começar.');
     const players = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left');
     if (players.length < 2) throw new ConvexError('Precisa de pelo menos 2 pessoas para jogar.');
+    // Todo mundo precisa ter escolhido o lado; senão quem estava escolhendo fica para trás.
+    const choosing = players.filter((p) => isChoosing(p, game));
+    if (choosing.length) {
+      const names = choosing.map((p) => p.name).join(', ');
+      throw new ConvexError(`Esperando ${names} escolher${choosing.length > 1 ? 'em' : ''} o lado.`);
+    }
 
     const round = game.round + 1;
     for (const { id, role } of assignRoles(players, game.rules.hunters)) {

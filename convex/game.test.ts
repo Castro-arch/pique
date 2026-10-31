@@ -35,6 +35,11 @@ async function lobbyWith4() {
   return { ...s, gameId, code };
 }
 
+// Todo mundo confirma o lado no sorteio (o anfitrião já entra pronto).
+async function everyoneChooses(s: Awaited<ReturnType<typeof lobbyWith4>>) {
+  for (const p of [s.leo, s.priya, s.teo]) await p.mutation(api.games.setSide, { gameId: s.gameId, side: 'draw' });
+}
+
 // Força os papéis para o teste ser previsível: Leo caça, o resto corre.
 async function startWithLeoHunting(s: Awaited<ReturnType<typeof lobbyWith4>>) {
   await s.host.mutation(api.games.setRules, {
@@ -73,9 +78,23 @@ describe('lobby', () => {
     expect((await lobbyOf(host, gameId)).isHost).toBe(true);
   });
 
+  test('só começa depois que todo mundo escolhe o lado', async () => {
+    const s = await lobbyWith4();
+    const lobby = await lobbyOf(s.host, s.gameId);
+    expect(lobby.players.filter((p) => p.choosing).map((p) => p.name)).toEqual(['Leo', 'Priya', 'Teo']);
+    await expect(s.host.mutation(api.rounds.start, { gameId: s.gameId })).rejects.toThrow(/Esperando Leo, Priya, Teo escolherem/);
+    await s.leo.mutation(api.games.setSide, { gameId: s.gameId, side: 'hunter' });
+    await s.priya.mutation(api.games.setSide, { gameId: s.gameId, side: 'runner' });
+    await expect(s.host.mutation(api.rounds.start, { gameId: s.gameId })).rejects.toThrow(/Esperando Teo escolher o lado/);
+    await s.teo.mutation(api.games.setSide, { gameId: s.gameId, side: 'draw' });
+    await s.host.mutation(api.rounds.start, { gameId: s.gameId });
+    expect((await viewOf(s.teo, s.gameId)).game.status).toBe('headstart');
+  });
+
   test('código errado e partida já começada', async () => {
     const s = await lobbyWith4();
     await expect(s.priya.mutation(api.games.join, { code: 'ZZZZZZ' })).rejects.toThrow();
+    await everyoneChooses(s);
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
     const late = await s.t.run((ctx) => ctx.db.insert('users', { name: 'Sasha' }));
     await expect(s.t.withIdentity({ subject: `${late}|x` }).mutation(api.games.join, { code: s.code })).rejects.toThrow(/IN_PROGRESS/);
@@ -499,6 +518,7 @@ describe('regras de boosts e tensão', () => {
       gameId: s.gameId,
       rules: { durationMin: 30, headStartMin: 3, pingEveryMin: 2, hunters: 1, shrink: true, shrinkEveryMin: 5, spectatorsHelp: false, boostAmount: 'many' },
     });
+    await everyoneChooses(s);
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
     await advance(s.t, 3 * MIN);
     await advance(s.t, MIN);
