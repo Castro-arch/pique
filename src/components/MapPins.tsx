@@ -1,6 +1,7 @@
 import { StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { useDock } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { MAP_CREDIT } from '@/lib/mapStyle';
 import { colors, fonts } from '@/theme/tokens';
@@ -28,8 +29,10 @@ export function PersonPin({ p, now, hunter, outOfZone }: { p: MapPerson; now: nu
 
 // Crédito que o OpenFreeMap e o OpenStreetMap pedem. Fica no vão entre o Radio e as abas.
 export function MapCredit() {
+  // Na faixa entre as abas e a borda de baixo da tela.
+  const { dock } = useDock();
   return (
-    <Text pointerEvents="none" style={styles.credit}>
+    <Text pointerEvents="none" style={[styles.credit, { bottom: Math.max(1, dock - 15) }]}>
       {MAP_CREDIT}
     </Text>
   );
@@ -38,5 +41,5 @@ export function MapCredit() {
 const styles = StyleSheet.create({
   tag: { borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: 'rgba(26,32,39,0.92)' },
   // Embaixo das abas, centralizado: não disputa espaço com o cartão do Radio.
-  credit: { position: 'absolute', left: 0, right: 0, bottom: 1, textAlign: 'center', fontSize: 8, color: 'rgba(243,240,232,0.45)' },
+  credit: { position: 'absolute', left: 0, right: 0, textAlign: 'center', fontSize: 8, color: 'rgba(243,240,232,0.45)' },
 });

@@ -1,15 +1,16 @@
 import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
-import { Lock, Megaphone, TriangleAlert } from '@/components/icons';
+import { Hand, Lock, Megaphone, TriangleAlert } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { ArcHud } from '@/components/ArcHud';
 import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Boosts';
-import { Bar, CardAction, GameTabs, mmss, RadioCard, useDock } from '@/components/Game';
+import { Bar, CardAction, GameTabs, mmss, useDock } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
+import { RadioBubble, useRadioPeek } from '@/components/RadioBubble';
 import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
 import { errorInfo, secondsUntil, useNow, useSendPosition, useView, type GameId } from '@/lib/game';
@@ -40,6 +41,7 @@ export function LiveGame({ id }: { id: string }) {
   const [justWatch, setJustWatch] = useState(false);
   const [helpSent, setHelpSent] = useState(false);
   const [using, setUsing] = useState<{ id: string; kind: BoostKind } | null>(null);
+  const radioPeek = useRadioPeek(radio?.messages, view ? boostLineFor(view.me, now) : null, view ? boostKeyFor(view.me, now) : null, view?.me.role === 'hunter');
 
   // 10.4 Coração acelerado: caçador a menos de 30 m. Vibra no ritmo tum-tum.
   const beating = !!view && view.game.status === 'hunt' && view.me.role === 'runner' && view.me.state === 'active' && view.me.heartbeat;
@@ -99,7 +101,6 @@ export function LiveGame({ id }: { id: string }) {
   const pingTotal = g.pingEveryMin * 60;
   const outFor = me.outOfZoneSince ? Math.max(0, 30 - Math.round((now - me.outOfZoneSince) / 1000)) : null;
   const caught = me.state === 'caught';
-  const last = radio?.messages[radio.messages.length - 1];
   const runnersToMark = view.people.filter((p) => p.role === 'runner' && p.state === 'active');
 
   const shoutsLeft = me.shoutsLeft ?? 0;
@@ -118,18 +119,6 @@ export function LiveGame({ id }: { id: string }) {
   const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
   // Algum aviso (fora da zona, preso, preço do boost, coração) ocupa o lugar do placar.
   const coveredHud = (outFor !== null && !caught) || (me.jailed && !justWatch) || (!!revealed && !caught) || beating;
-  const shield = me.shieldUntil && me.shieldUntil > now ? secondsUntil(me.shieldUntil, now) : 0;
-  // O que o Radio mostra para o corredor quando um boost dele está em jogo.
-  const boostLine = me.blockedBoost
-    ? `Seus 2 boosts estão cheios. Use um para pegar o ${me.blockedBoost}.`
-    : shield
-      ? `Escudo ativo: ninguém te marca por ${mmss(shield)}.`
-      : me.nextPing === 'sombra'
-        ? 'Sombra ativa: você some do próximo ping.'
-        : me.nextPing === 'despiste'
-          ? 'Despiste ativo: seu próximo ping sai no lugar errado.'
-          : null;
-
   const confirmBoost = async () => {
     if (!using) return;
     setError(null);
@@ -313,59 +302,94 @@ export function LiveGame({ id }: { id: string }) {
           <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
         </View>
       ) : (
-        <RadioCard
-          from={boostLine ? 'Radio' : (last?.from?.name ?? 'Radio')}
-          fromRole={!boostLine && last?.from && hunter ? 'hunter' : 'radio'}
-          text={boostLine ?? last?.text ?? (last?.kind === 'audio' ? 'Mandou um áudio.' : 'Tudo quieto por enquanto.')}>
-          {denied ? (
-            <Text variant="error" style={{ marginTop: 10 }}>Libere a localização para jogar.</Text>
-          ) : me.jailed && !justWatch ? (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <CardAction
-                tone="lime"
-                label={helpSent ? 'Pedido enviado' : 'Me salva!'}
-                style={{ flex: 1 }}
-                onPress={() => {
-                  setHelpSent(true);
-                  sendQuick({ gameId: id as GameId, text: 'Me salva!' }).catch(() => setHelpSent(false));
-                }}
-              />
-              <CardAction label="Só assistir" style={{ flex: 1 }} onPress={() => setJustWatch(true)} />
+        <>
+          {radioPeek.peek ? null : (
+            <View style={[styles.actions, { bottom: card }]}>
+              {denied ? (
+                <Pill tone="amber" label="Libere a localização para jogar" />
+              ) : me.jailed && !justWatch ? (
+                <>
+                  <Pill
+                    tone="lime"
+                    label={helpSent ? 'Pedido enviado' : 'Me salva!'}
+                    onPress={() => {
+                      setHelpSent(true);
+                      sendQuick({ gameId: id as GameId, text: 'Me salva!' }).catch(() => setHelpSent(false));
+                    }}
+                  />
+                  <Pill label="Só assistir" onPress={() => setJustWatch(true)} />
+                </>
+              ) : caught ? (
+                <Pill label="Você foi pego · assistindo" />
+              ) : hunter && headstart ? (
+                <Pill icon={<Lock size={16} color={colors.pink} strokeWidth={2.4} />} label={`Você sai em ${mmss(left)}`} />
+              ) : hunter ? (
+                <>
+                  <Pill tone="lime" label="Marquei um corredor" onPress={() => setPicking(true)} />
+                  {me.shoutsLeft !== null ? (
+                    <Pill
+                      tone="pink"
+                      a11y={`Grito, ${shoutsLeft} restantes`}
+                      icon={<Megaphone size={18} color={colors.paper} />}
+                      label={String(shoutsLeft)}
+                      onPress={() => {
+                        setShoutNote(null);
+                        setShouting(true);
+                      }}
+                    />
+                  ) : null}
+                </>
+              ) : (
+                <Pill
+                  a11y="Fui pego, sistema de honra"
+                  icon={<Hand size={18} color="#FF8FA8" strokeWidth={2.2} />}
+                  label="Fui pego"
+                  onPress={() => router.push({ pathname: '/pego', params: { id } })}
+                />
+              )}
             </View>
-          ) : caught ? (
-            <View style={styles.locked}>
-              <Text style={{ fontFamily: fonts.display, fontSize: 16 }}>Você foi pego</Text>
-              <Text variant="label">Assista até o fim da rodada</Text>
-            </View>
-          ) : hunter && headstart ? (
-            <View style={styles.locked}>
-              <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.display, fontSize: 16, paddingHorizontal: 12 }}>Os corredores estão se escondendo</Text>
-              <Text variant="label">Você é liberado em {mmss(left)}</Text>
-            </View>
-          ) : hunter ? (
-            <View style={{ flexDirection: 'row', gap: 8 }}>
-              <CardAction tone="lime" label="Marquei um corredor" onPress={() => setPicking(true)} style={{ flex: 1 }} />
-              {me.shoutsLeft !== null ? (
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={`Grito, ${shoutsLeft} restantes`}
-                onPress={() => {
-                  setShoutNote(null);
-                  setShouting(true);
-                }}
-                style={({ pressed }) => [styles.shoutBtn, pressed && { opacity: 0.85 }]}>
-                <Megaphone size={18} color={colors.paper} />
-                <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong }}>{shoutsLeft}</Text>
-              </Pressable>
-              ) : null}
-            </View>
-          ) : (
-            <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
           )}
-        </RadioCard>
+          <RadioBubble peek={radioPeek.peek} unread={radioPeek.unread} bottom={card} onPress={() => radioPeek.open(id)} />
+        </>
       )}
       <GameTabs />
     </View>
+  );
+}
+
+// Qual aviso de boost está valendo (sem o relógio): a bolinha só abre quando ele muda.
+function boostKeyFor(me: { blockedBoost?: string | null; shieldUntil?: number | null; nextPing?: string | null }, now: number) {
+  if (me.blockedBoost) return 'cheio:' + me.blockedBoost;
+  if (me.shieldUntil && me.shieldUntil > now) return 'escudo';
+  return me.nextPing ?? null;
+}
+
+// O que o Radio mostra para o corredor quando um boost dele está em jogo.
+function boostLineFor(me: { blockedBoost?: string | null; shieldUntil?: number | null; nextPing?: string | null }, now: number) {
+  const shield = me.shieldUntil && me.shieldUntil > now ? secondsUntil(me.shieldUntil, now) : 0;
+  if (me.blockedBoost) return `Seus 2 boosts estão cheios. Use um para pegar o ${me.blockedBoost}.`;
+  if (shield) return `Escudo ativo: ninguém te marca por ${mmss(shield)}.`;
+  if (me.nextPing === 'sombra') return 'Sombra ativa: você some do próximo ping.';
+  if (me.nextPing === 'despiste') return 'Despiste ativo: seu próximo ping sai no lugar errado.';
+  return null;
+}
+
+// Botão redondo da parte de baixo (17.1 e 17.3): Fui pego, Marquei, Grito...
+function Pill({ label, tone, icon, a11y, onPress }: { label: string; tone?: 'lime' | 'pink' | 'amber'; icon?: React.ReactNode; a11y?: string; onPress?: () => void }) {
+  const bg = tone === 'lime' ? colors.lime : tone === 'pink' ? colors.pink : tone === 'amber' ? colors.amber : 'rgba(26,32,39,0.96)';
+  const fg = tone === 'lime' ? colors.limeInk : tone === 'amber' ? colors.amberInk : colors.paper;
+  return (
+    <Pressable
+      accessibilityRole={onPress ? 'button' : 'text'}
+      accessibilityLabel={a11y ?? label}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => [styles.pill, { backgroundColor: bg }, !tone && styles.pillDark, pressed && { opacity: 0.85 }]}>
+      {icon}
+      <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: fonts.bodyStrong, color: fg, flexShrink: 1 }}>
+        {label}
+      </Text>
+    </Pressable>
   );
 }
 
@@ -407,5 +431,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  actions: { position: 'absolute', left: 16, right: 84, flexDirection: 'row', gap: 8 },
+  pill: { height: 56, borderRadius: 28, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
+  pillDark: { borderWidth: 1, borderColor: colors.inkBorder },
   pick: { flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 12, borderRadius: radius.md, backgroundColor: colors.ink },
 });
