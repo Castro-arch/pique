@@ -23,10 +23,12 @@ const RING = 164; // anel do ping
 const FILL = '#111519';
 const LINE = colors.inkBorder;
 
-// Bolinhas no mesmo raio do anel: o olho a 139° e o par de boosts no espelho dele.
-const at = (deg: number) => ({ x: CX + 80 * Math.cos((deg * Math.PI) / 180), y: CY + 80 * Math.sin((deg * Math.PI) / 180) });
-const EYE = at(139);
-const SLOTS = [at(58), at(24)];
+// Bolinhas por fora do anel (que vai até 82 px do centro), para não cobrir o
+// anel nem o texto do ping: o olho à esquerda e o par de boosts no espelho dele.
+const ORBIT = 104;
+const at = (deg: number) => ({ x: CX + ORBIT * Math.cos((deg * Math.PI) / 180), y: CY + ORBIT * Math.sin((deg * Math.PI) / 180) });
+const EYE = at(140);
+const SLOTS = [at(62), at(30)];
 const HALO = 24;
 const DOT = 34;
 
