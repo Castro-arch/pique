@@ -76,7 +76,7 @@ export function StreetMap({
       <div ref={el} style={{ position: 'absolute', inset: 0, background: colors.inkSunken }} />
       {map
         ? boosts.map((b) => (
-            <Marker key={b.id} map={map} lat={b.lat} lng={b.lng} anchor="center" zIndex={0}>
+            <Marker key={b.id} map={map} lat={b.lat} lng={b.lng} anchor="top" offset={[0, -23]} zIndex={0}>
               <View style={{ width: 110 }}>
                 <BoostPin kind={b.kind} />
               </View>

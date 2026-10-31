@@ -71,6 +71,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// Ruas da zona já carregadas (sem elas a onda de boosts espera a busca).
+async function withStreets(s: { t: Awaited<ReturnType<typeof setup>>['t']; gameId: Id<'games'> }) {
+  const points = [north(-90), north(-60), north(-30), north(0), north(30), north(60), north(90), north(110)];
+  await s.t.run((ctx) => ctx.db.patch(s.gameId, { streets: { key: 'x', points } }));
+}
+
 async function advance(t: Awaited<ReturnType<typeof setup>>['t'], ms: number) {
   vi.advanceTimersByTime(ms + 1_000); // +1 s: o horário agendado tem arredondamento
   await t.finishInProgressScheduledFunctions();
@@ -388,6 +394,7 @@ describe('rodada', () => {
   test('boosts: aparecem, pegar revela, guarda até 2 e cada um tem seu efeito', async () => {
     const s = await lobbyWith4();
     const { gameId, t } = s;
+    await withStreets(s);
     await startWithLeoHunting(s);
     await advance(t, 3 * MIN); // fim da vantagem
     await advance(t, MIN); // 1 min de caça: primeira onda
@@ -648,12 +655,23 @@ describe('regras de boosts e tensão', () => {
       gameId: s.gameId,
       rules: { durationMin: 30, headStartMin: 3, pingEveryMin: 2, hunters: 1, shrink: true, shrinkEveryMin: 5, spectatorsHelp: false, boostAmount: 'many' },
     });
+    await withStreets(s);
     await everyoneChooses(s);
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
     await advance(s.t, 3 * MIN);
     await advance(s.t, MIN);
     const runner = (await Promise.all([s.host, s.leo, s.priya, s.teo].map((p) => viewOf(p, s.gameId)))).find((v) => v.me.role === 'runner')!;
     expect(runner.boosts).toHaveLength(5);
+  });
+
+  test('sem as ruas a onda espera a busca e, depois de uns 3 min, solta assim mesmo', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    await advance(s.t, MIN);
+    expect((await viewOf(s.priya, s.gameId)).boosts).toHaveLength(0); // esperando as ruas
+    for (let k = 0; k < 6; k++) await advance(s.t, 30_000);
+    expect((await viewOf(s.priya, s.gameId)).boosts).toHaveLength(3);
   });
 });
 

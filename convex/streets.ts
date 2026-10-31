@@ -8,7 +8,16 @@ import { distanceM } from './lib';
 // calçadas da área no OpenStreetMap (Overpass) e guardamos pontos em cima
 // delas. Os boosts nascem nesses pontos, nunca dentro de quarteirão ou casa.
 
-const OVERPASS = 'https://overpass-api.de/api/interpreter';
+// O servidor principal às vezes demora (ou recusa quando está cheio): tenta
+// os espelhos em seguida, cada um com tempo limite.
+const OVERPASS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter',
+];
+const WAIT_MS = 35_000; // por servidor
+const RETRY_MS = 45_000; // falhou em todos: tenta de novo daqui a pouco
+const MAX_TRIES = 4;
 // Ruas e caminhos onde dá para andar (sem rodovia nem trilho).
 const WALKABLE = '^(residential|living_street|unclassified|tertiary|secondary|primary|pedestrian|footway|path|service|cycleway|steps|track)$';
 const EVERY_M = 18; // um ponto a cada 18 m de rua
@@ -42,20 +51,42 @@ export function samplePoints(ways: Pt[][], zone: { lat: number; lng: number; rad
   return out.slice(0, MAX_POINTS).map((p) => ({ lat: +p.lat.toFixed(6), lng: +p.lng.toFixed(6) }));
 }
 
+type Overpass = { elements: { type: string; id: number; lat?: number; lon?: number; nodes?: number[] }[]; remark?: string };
+
+async function ask(url: string, query: string): Promise<Overpass | null> {
+  const stop = new AbortController();
+  const timer = setTimeout(() => stop.abort(), WAIT_MS);
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Pique (pique.expo.app)' },
+      body: 'data=' + encodeURIComponent(query),
+      signal: stop.signal,
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as Overpass;
+    // "runtime error" no remark = o servidor desistiu no meio (resposta pela metade).
+    if (!Array.isArray(data.elements) || /error/i.test(data.remark ?? '')) return null;
+    return data;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export const load = internalAction({
-  args: { gameId: v.id('games'), lat: v.number(), lng: v.number(), radius: v.number() },
-  handler: async (ctx, zone) => {
-    const query = `[out:json][timeout:25];way["highway"~"${WALKABLE}"](around:${Math.round(zone.radius)},${zone.lat},${zone.lng});(._;>;);out skel;`;
-    let data: { elements: { type: string; id: number; lat?: number; lon?: number; nodes?: number[] }[] };
-    try {
-      const res = await fetch(OVERPASS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'User-Agent': 'Pique (pique.expo.app)' },
-        body: 'data=' + encodeURIComponent(query),
-      });
-      if (!res.ok) return; // sem ruas: os boosts caem em qualquer lugar da zona, como antes
-      data = await res.json();
-    } catch {
+  args: { gameId: v.id('games'), lat: v.number(), lng: v.number(), radius: v.number(), tries: v.optional(v.number()) },
+  handler: async (ctx, { tries = 0, ...zone }) => {
+    const query = `[out:json][timeout:30];way["highway"~"${WALKABLE}"](around:${Math.round(zone.radius)},${zone.lat},${zone.lng});(._;>;);out skel;`;
+    let data: Overpass | null = null;
+    for (const url of OVERPASS) {
+      data = await ask(url, query);
+      if (data) break;
+    }
+    if (!data) {
+      // Todos falharam: tenta de novo daqui a pouco (a zona pode ter mudado; save confere).
+      if (tries + 1 < MAX_TRIES) await ctx.scheduler.runAfter(RETRY_MS, internal.streets.load, { ...zone, tries: tries + 1 });
       return;
     }
     const nodes = new Map<number, Pt>();

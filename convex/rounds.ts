@@ -283,10 +283,17 @@ async function clearBoosts(ctx: MutationCtx, gameId: Id<'games'>) {
 
 // Uma onda: some o que ninguém pegou e aparecem 3 boosts novos dentro da zona.
 export const spawnBoosts = internalMutation({
-  args: roundArgs,
-  handler: async (ctx, { gameId, round }) => {
+  args: { ...roundArgs, waited: v.optional(v.number()) },
+  handler: async (ctx, { gameId, round, waited = 0 }) => {
     const game = await liveGame(ctx, gameId, round);
     if (!game || game.status !== 'hunt' || !game.zone) return;
+    // As ruas ainda não chegaram (a busca está tentando de novo): espera um
+    // pouco em vez de soltar boosts dentro de quarteirão. Depois de ~3 min, solta assim mesmo.
+    if (!game.streets?.points.length && waited < 6) {
+      if (waited === 0) await ctx.scheduler.runAfter(0, internal.streets.load, { gameId, ...game.zone });
+      await ctx.scheduler.runAfter(30_000, internal.rounds.spawnBoosts, { gameId, round, waited: waited + 1 });
+      return;
+    }
     for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'map')).collect()) {
       await ctx.db.delete(b._id);
     }
