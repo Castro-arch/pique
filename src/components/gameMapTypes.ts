@@ -27,6 +27,7 @@ export type GameMapProps = {
   outOfZone: boolean;
   dim?: number;
   boosts?: MapBoost[]; // só o corredor recebe
+  padding?: { top: number; bottom: number; left: number; right: number }; // folga do enquadramento (mapas pequenos)
 };
 
 export const ago = (at: number, now: number) => {

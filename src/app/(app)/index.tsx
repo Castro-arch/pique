@@ -10,6 +10,7 @@ import { BENTO, Sticker, type StickerKind } from '@/components/Bento';
 import { Button } from '@/components/Button';
 import { Appear, Pressy } from '@/components/Motion';
 import { Logo } from '@/components/Nav';
+import { OutlinedText } from '@/components/OutlinedText';
 import { Text } from '@/components/Text';
 import { useDemoMode } from '@/lib/demoMode';
 import { useCreateGame } from '@/lib/game';
@@ -225,45 +226,10 @@ function WavingHand({ onSlap }: { onSlap: () => void }) {
   );
 }
 
-// O nome com contorno preto e relevo, como as figurinhas. O contorno são cópias
-// pretas deslocadas em volta (funciona igual no app e no site).
-const RING = [
-  [-1, 0],
-  [1, 0],
-  [0, -1],
-  [0, 1],
-  [-0.7, -0.7],
-  [0.7, -0.7],
-  [-0.7, 0.7],
-  [0.7, 0.7],
-];
+// O nome grande com contorno de figurinha; o tamanho diminui para nomes longos.
 function OutlinedName({ name }: { name: string }) {
   const size = Math.max(44, Math.min(96, Math.floor(600 / (name.length + 1))));
-  const w = Math.max(3, Math.round(size * 0.055));
-  const text = (dot: string) => (
-    <>
-      {name}
-      <Text style={[styles.name, { fontSize: size, lineHeight: size * 1.05, color: dot }]}>.</Text>
-    </>
-  );
-  const layer = (dx: number, dy: number, key: string) => (
-    <Text key={key} aria-hidden numberOfLines={1} selectable={false} style={[styles.name, { fontSize: size, lineHeight: size * 1.05, color: '#000', position: 'absolute', left: dx, top: dy }]}>
-      {text('#000')}
-    </Text>
-  );
-  return (
-    <View accessibilityRole="header" accessibilityLabel={name} style={{ paddingHorizontal: w + 4, paddingBottom: w + 4 }}>
-      <View>
-        {/* relevo: uma cópia preta deslocada para baixo e para a direita, com contorno */}
-        {RING.map(([x, y], i) => layer(w * 0.9 + x * w, w * 1.3 + y * w, 'r' + i))}
-        {layer(w * 0.9, w * 1.3, 'r')}
-        {RING.map(([x, y], i) => layer(x * w, y * w, 'c' + i))}
-        <Text numberOfLines={1} selectable={false} style={[styles.name, { fontSize: size, lineHeight: size * 1.05 }]}>
-          {text(colors.pink)}
-        </Text>
-      </View>
-    </View>
-  );
+  return <OutlinedText text={name} size={size} dot={colors.pink} />;
 }
 
 // Sem seleção de texto nem menu do toque longo (iPhone e Android, no site).
@@ -285,7 +251,6 @@ const styles = StyleSheet.create({
   top: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 4, top: 2, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.pink, borderWidth: 2, borderColor: BENTO.ink },
   create: { minHeight: 60, borderRadius: 24, backgroundColor: BENTO.ink, boxShadow: '0 10px 24px rgba(11,15,19,0.25)' },
-  name: { fontFamily: fonts.display, letterSpacing: -3, color: colors.paper },
   pow: { position: 'absolute', right: 10, top: 70, fontFamily: fonts.display, fontSize: 46, color: '#FFFFFF', textShadowColor: '#000', textShadowOffset: { width: 3, height: 4 }, textShadowRadius: 0 },
   sub: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25, letterSpacing: -0.4, color: BENTO.ink, opacity: 0.78, marginTop: 14, textAlign: 'center' },
   current: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, backgroundColor: BENTO.ink, borderRadius: 20, padding: 14 },

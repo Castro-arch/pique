@@ -29,6 +29,7 @@ export function StreetMap({
   outOfZone,
   dim = 0,
   boosts = [],
+  padding = MAP_PADDING,
 }: GameMapProps & { onFail: () => void }) {
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
@@ -67,7 +68,7 @@ export function StreetMap({
     (map.getSource('zone') as maplibregl.GeoJSONSource | undefined)?.setData(zoneShapes(zone, nextZoneRadius));
   }, [map, zone?.lat, zone?.lng, zone?.radius, nextZoneRadius]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
-    if (map && zone) map.fitBounds(zoneBounds(zone), { padding: MAP_PADDING, duration: 0 });
+    if (map && zone) map.fitBounds(zoneBounds(zone), { padding, duration: 0 });
   }, [map, zone?.lat, zone?.lng, zone?.radius]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (

@@ -18,7 +18,7 @@ export const BENTO = { ink: '#0B0F13', tile: '#141A21', line: '#222A33', muted: 
 // ---------- Figurinhas ----------
 const K = '#0B0F13';
 const sw = { stroke: K, strokeWidth: 3.6, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
-export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield';
+export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield' | 'copy';
 
 function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: Omit<typeof sw, "stroke"> & { stroke: string } }) {
   switch (kind) {
@@ -99,6 +99,14 @@ function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: 
         <>
           <Path d="M32 6l22 8v16c0 14-9 23-22 28C19 53 10 44 10 30V14z" fill={color} {...l} />
           <Path d="M22 31l7 7 13-14" fill="none" {...l} strokeWidth={4.4} />
+        </>
+      );
+    case 'copy':
+      return (
+        <>
+          <Rect x={8} y={18} width={32} height={38} rx={7} fill="#FFFFFF" {...l} />
+          <Rect x={22} y={8} width={32} height={38} rx={7} fill={color} {...l} />
+          <Path d="M30 20h16M30 28h16M30 36h10" fill="none" {...l} />
         </>
       );
     case 'qr':
