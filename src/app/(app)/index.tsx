@@ -80,12 +80,13 @@ export default function Home() {
         </View>
 
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 24 }}>
-          <Appear style={{ alignItems: 'center' }}>
+          <Appear style={[{ alignItems: 'center' }, NO_SELECT]}>
             <WavingHand onSlap={hit} />
             <Animated.View style={{ transform: [{ translateX: shake }, { scaleY: squash }] }}>
-              <OutlinedName name={me.name || 'você'} />
+              <OutlinedName name={(me.name || 'você').trim().split(/\s+/)[0]} />
             </Animated.View>
             <Animated.Text
+              selectable={false}
               pointerEvents="none"
               style={[styles.pow, { opacity: pow.interpolate({ inputRange: [0, 0.15, 0.7, 1], outputRange: [0, 1, 1, 0] }), transform: [{ scale: pow.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0.3, 1.25, 1] }) }, { rotate: '-10deg' }] }]}>
               PÁ!
@@ -200,9 +201,18 @@ function WavingHand({ onSlap }: { onSlap: () => void }) {
       turn.stopAnimation();
     };
   }, [turn]);
+  // no site, segurar o dedo abriria o menu de copiar/pesquisar do navegador
+  const press = useRef<any>(null);
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const el = press.current as unknown as HTMLElement | null;
+    const block = (e: Event) => e.preventDefault();
+    el?.addEventListener('contextmenu', block);
+    return () => el?.removeEventListener('contextmenu', block);
+  }, []);
   const angle = Animated.add(turn, swing).interpolate({ inputRange: [-120, 120], outputRange: ['-120deg', '120deg'] });
   return (
-    <Pressable onLongPress={onHold} delayLongPress={320} accessibilityLabel="Oi" style={{ zIndex: 2 }}>
+    <Pressable ref={press} onLongPress={onHold} delayLongPress={320} accessibilityLabel="Oi" style={[{ zIndex: 2 }, NO_SELECT]}>
       <Animated.View style={{ marginBottom: 6, transformOrigin: '50% 85%', transform: [{ translateY: drop }, { rotate: angle }] }}>
         <Sticker kind="hand" color={colors.pink} size={112} tilt={-12} />
       </Animated.View>
@@ -232,7 +242,7 @@ function OutlinedName({ name }: { name: string }) {
     </>
   );
   const layer = (dx: number, dy: number, key: string) => (
-    <Text key={key} aria-hidden style={[styles.name, { fontSize: size, lineHeight: size * 1.05, color: '#000', position: 'absolute', left: dx, top: dy }]}>
+    <Text key={key} aria-hidden numberOfLines={1} selectable={false} style={[styles.name, { fontSize: size, lineHeight: size * 1.05, color: '#000', position: 'absolute', left: dx, top: dy }]}>
       {text('#000')}
     </Text>
   );
@@ -243,13 +253,16 @@ function OutlinedName({ name }: { name: string }) {
         {RING.map(([x, y], i) => layer(w * 0.9 + x * w, w * 1.3 + y * w, 'r' + i))}
         {layer(w * 0.9, w * 1.3, 'r')}
         {RING.map(([x, y], i) => layer(x * w, y * w, 'c' + i))}
-        <Text numberOfLines={1} style={[styles.name, { fontSize: size, lineHeight: size * 1.05 }]}>
+        <Text numberOfLines={1} selectable={false} style={[styles.name, { fontSize: size, lineHeight: size * 1.05 }]}>
           {text(colors.lime)}
         </Text>
       </View>
     </View>
   );
 }
+
+// Sem seleção de texto nem menu do toque longo (iPhone e Android, no site).
+const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' } as object) : null;
 
 // Botão do topo com a figurinha (Loja, Crew, Perfil).
 function TopSticker({ kind, color, label, dot, onPress }: { kind: StickerKind; color: string; label: string; dot?: boolean; onPress: () => void }) {
