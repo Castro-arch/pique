@@ -1,9 +1,11 @@
 import { useEffect, useRef } from 'react';
-import { AccessibilityInfo, Animated, Easing, StyleSheet, View } from 'react-native';
+import { AccessibilityInfo, Animated, Easing, Image, StyleSheet, View } from 'react-native';
 
 import { colors } from '@/theme/tokens';
 
-// Tela de carregamento: o ponto verde soltando anéis, como um ping. Sem texto,
+const MARK = require('../../assets/images/logo-mark.png');
+
+// Tela de carregamento: a logo soltando anéis, como um ping. Sem texto,
 // para não depender das fontes. No site, o public/index.html mostra a mesma
 // tela antes do JavaScript chegar; esta assume depois, sem piscar.
 export function Loading() {
@@ -32,7 +34,7 @@ export function Loading() {
       <View style={styles.mark}>
         <Animated.View style={[styles.ring, ring(a)]} />
         <Animated.View style={[styles.ring, ring(b)]} />
-        <View style={styles.dot} />
+        <Image source={MARK} style={styles.logo} accessibilityIgnoresInvertColors />
       </View>
     </View>
   );
@@ -42,5 +44,5 @@ const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   mark: { width: 200, height: 200, alignItems: 'center', justifyContent: 'center' },
   ring: { position: 'absolute', width: 200, height: 200, borderRadius: 100, borderWidth: 2, borderColor: colors.lime, backgroundColor: 'rgba(200,242,60,0.08)' },
-  dot: { width: 22, height: 22, borderRadius: 11, backgroundColor: colors.lime, borderWidth: 4, borderColor: colors.limeInk },
+  logo: { width: 96, height: 96 },
 });

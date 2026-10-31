@@ -1,7 +1,7 @@
 import { router } from 'expo-router';
 import { ChevronLeft, X } from '@/components/icons';
 import type { ReactNode } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Image, Pressable, StyleSheet, View } from 'react-native';
 
 import { Text } from '@/components/Text';
 import { colors, fonts, touch } from '@/theme/tokens';
@@ -52,10 +52,18 @@ export function TopBar({ left, title, right }: { left?: ReactNode; title?: strin
 }
 
 // Logo "● pique".
+const MARK = require('../../assets/images/logo-mark.png');
+
+// A marca: o ícone do app (bonequinho correndo) + "pique". Em fundo verde
+// (dot de outra cor) o ícone sumiria, então fica a bolinha de antes.
 export function Logo({ size = 24, color = colors.paper, dot = colors.lime }: { size?: number; color?: string; dot?: string }) {
   return (
     <View accessibilityLabel="Pique" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View style={{ width: size * 0.58, height: size * 0.58, borderRadius: size, backgroundColor: dot }} />
+      {dot === colors.lime ? (
+        <Image source={MARK} style={{ width: size * 1.15, height: size * 1.15 }} accessibilityIgnoresInvertColors />
+      ) : (
+        <View style={{ width: size * 0.58, height: size * 0.58, borderRadius: size, backgroundColor: dot }} />
+      )}
       <Text style={{ fontFamily: fonts.display, fontSize: size, letterSpacing: -0.7, color }}>pique</Text>
     </View>
   );
