@@ -33,7 +33,7 @@ const initial: Msg[] = [
   { kind: 'system', at: '29:56', text: 'Os corredores se espalharam. Vão atrás.' },
 ];
 
-// 7.2 Radio do time: respostas prontas + áudio de segurar para falar.
+// 7.2 Radio do time: respostas prontas + áudio de tocar para falar.
 // Os áudios ficam no armazenamento do Convex e são apagados no fim da partida.
 export default function Radio() {
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -77,20 +77,20 @@ export default function Radio() {
       setError(errorInfo(e).message);
     }
   };
-  const holdStart = () => {
+  // Toque para gravar, toque de novo para enviar.
+  const tapTalk = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
-    if (id) return void talk.start();
-    setTalking(true);
-    setStartedAt(Date.now());
-  };
-  const holdEnd = () => {
-    if (id) return void talk.stop();
-    if (!talking) return;
+    if (id) return void talk.toggle();
+    if (!talking) {
+      setTalking(true);
+      setStartedAt(Date.now());
+      return;
+    }
     setTalking(false);
     const seconds = Math.max(1, Math.round((Date.now() - startedAt) / 1000));
     setDemoMsgs((x) => [...x, { kind: 'audio', name: 'Você', mine: true, seconds }]);
   };
-  const isTalking = id ? talk.recording : talking;
+  const isTalking = id ? talk.recording || talk.opening : talking;
 
   return (
     <View style={[styles.root, { paddingTop: Math.max(insets.top, 56) }]}>
@@ -122,13 +122,12 @@ export default function Radio() {
         </ScrollView>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Segure para falar com o time"
-          onPressIn={holdStart}
-          onPressOut={holdEnd}
+          accessibilityLabel={isTalking ? 'Enviar áudio para o time' : 'Gravar áudio para o time'}
+          onPress={tapTalk}
           style={[styles.talk, isTalking && { backgroundColor: colors.pink }]}>
           <Mic size={20} color={isTalking ? colors.paper : colors.limeInk} />
           <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong, color: isTalking ? colors.paper : colors.limeInk }}>
-            {isTalking ? 'Gravando… solte para enviar' : talk.sending ? 'Enviando…' : 'Segure para falar'}
+            {id && talk.opening ? 'Ligando o microfone…' : isTalking ? 'Gravando… toque para enviar' : talk.sending ? 'Enviando…' : 'Toque para falar'}
           </Text>
         </Pressable>
       </View>

@@ -188,7 +188,16 @@ export function GameTabs({ unread, tab = 'mapa', bottom }: { unread?: number; ta
   return (
     <View style={[styles.tabsRow, { bottom: bottom ?? dock }]}>
       <View accessibilityRole="tablist" style={styles.tabs}>
-        <Tab label="Mapa" on={tab === 'mapa'} onPress={() => tab !== 'mapa' && router.back()} />
+        <Tab
+          label="Mapa"
+          on={tab === 'mapa'}
+          onPress={() => {
+            if (tab === 'mapa') return;
+            // Depois de recarregar a página não há para onde voltar: abre o mapa da partida.
+            if (router.canGoBack()) router.back();
+            else router.replace(id ? { pathname: '/jogo', params: { id } } : '/jogo');
+          }}
+        />
         <Tab
           label="Radio"
           on={tab === 'radio'}

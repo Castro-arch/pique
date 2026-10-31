@@ -1,3 +1,4 @@
+import { useQuery } from 'convex/react';
 import { router } from 'expo-router';
 import { BarChart3, Settings, ShoppingBag } from '@/components/icons';
 import { useEffect } from 'react';
@@ -13,6 +14,7 @@ import { useDemoMode } from '@/lib/demoMode';
 import { useCreateGame } from '@/lib/game';
 import { permissionsSeen } from '@/lib/onboarding';
 import { useMe } from '@/lib/useMe';
+import { api } from '../../../convex/_generated/api';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 // 3.1 Home
@@ -20,6 +22,16 @@ export default function Home() {
   const me = useMe();
   const demo = useDemoMode();
   const create = useCreateGame();
+  // Está numa partida: rodada valendo volta direto para o mapa (recarregou a
+  // página, fechou o app, voltou demais). No lobby, o botão lá embaixo.
+  const mine = useQuery(api.games.mine, demo ? 'skip' : {});
+  const current = mine?.[0];
+  useEffect(() => {
+    if (current && (current.status === 'headstart' || current.status === 'hunt')) {
+      router.replace({ pathname: '/jogo', params: { id: current.gameId } });
+    }
+  }, [current?.gameId, current?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Primeira vez aqui depois do nome: a tela única de permissões.
   useEffect(() => {
     if (demo) return;
@@ -69,7 +81,13 @@ export default function Home() {
       ) : null}
 
       <View style={{ gap: 10, marginTop: 12 }}>
-        <Button label="Criar partida" loading={create.busy} onPress={() => (demo ? router.push('/lobby') : create.run())} />
+        {current ? (
+          <Button
+            label={`Voltar para a partida ${current.code}`}
+            onPress={() => router.push({ pathname: current.status === 'lobby' ? '/lobby' : '/jogo', params: { id: current.gameId } })}
+          />
+        ) : null}
+        <Button variant={current ? 'secondary' : 'primary'} label="Criar partida" loading={create.busy} onPress={() => (demo ? router.push('/lobby') : create.run())} />
         {create.error ? <Text variant="error">{create.error}</Text> : null}
         <Button label="Entrar com código" variant="secondary" onPress={() => router.push('/entrar')} />
         <Button label="Rodada de treino com bots" variant="link" onPress={() => router.push('/treino')} />
