@@ -84,7 +84,8 @@ export default function Home() {
         {current ? (
           <Button
             label={`Voltar para a partida ${current.code}`}
-            onPress={() => router.push({ pathname: current.status === 'lobby' ? '/lobby' : '/jogo', params: { id: current.gameId } })}
+            // No lobby ou depois do fim: o lobby (quem não é anfitrião vai para a espera da roleta).
+            onPress={() => router.push({ pathname: current.status === 'lobby' || current.status === 'ended' ? '/lobby' : '/jogo', params: { id: current.gameId } })}
           />
         ) : null}
         <Button variant={current ? 'secondary' : 'primary'} label="Criar partida" loading={create.busy} onPress={() => (demo ? router.push('/lobby') : create.run())} />

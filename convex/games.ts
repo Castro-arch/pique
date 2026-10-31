@@ -294,7 +294,9 @@ export const mine = query({
     for (const p of rows) {
       if (p.state === 'left') continue;
       const g = await ctx.db.get(p.gameId);
-      if (g && g.status !== 'ended') out.push({ gameId: g._id, code: g.code, status: g.status });
+      // Partida que acabou há pouco também conta: a crew pode jogar a revanche.
+      const recent = g?.status === 'ended' && Date.now() - (g.endedAt ?? 0) < 2 * 60 * MIN;
+      if (g && (g.status !== 'ended' || recent)) out.push({ gameId: g._id, code: g.code, status: g.status });
     }
     return out;
   },

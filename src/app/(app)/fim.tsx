@@ -118,7 +118,7 @@ function FimReal({ id }: { id: string }) {
           {host ? 'A crew vai junto para a roda. Dá para mudar as regras no lobby antes.' : `Quando ${hostName} girar a roleta, você vai junto.`}
         </Text>
         {host ? <Button variant="link" label="Ir para o lobby" onPress={() => router.replace({ pathname: '/lobby', params: { id } })} /> : null}
-        <Button variant="link" label="Voltar ao início" onPress={() => router.replace('/')} />
+        <Button variant="link" label="Ir para o início (continua na crew)" onPress={() => router.replace('/')} />
       </View>
     </View>
   );
