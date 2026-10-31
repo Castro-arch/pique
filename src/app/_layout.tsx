@@ -16,6 +16,7 @@ import { Loading } from '@/components/Loading';
 import { SetupMissing } from '@/components/SetupMissing';
 import { api } from '../../convex/_generated/api';
 import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
+import '@/lib/shoutSound'; // no site, destrava o som do grito no primeiro toque
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
 import { setupNotificationChannels } from '@/lib/notifications';
