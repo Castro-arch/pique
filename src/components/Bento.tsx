@@ -18,29 +18,29 @@ export const BENTO = { ink: '#0B0F13', tile: '#141A21', line: '#222A33', muted: 
 // ---------- Figurinhas ----------
 const K = '#0B0F13';
 const sw = { stroke: K, strokeWidth: 3.6, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
-export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr';
+export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield';
 
-function Shape({ kind, color }: { kind: StickerKind; color: string }) {
+function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: Omit<typeof sw, "stroke"> & { stroke: string } }) {
   switch (kind) {
     case 'hand':
       return (
         <>
-          <Path d="M18 30V16a4 4 0 0 1 8 0v10V11a4 4 0 0 1 8 0v15V13a4 4 0 0 1 8 0v16-9a4 4 0 0 1 8 0v18c0 12-8 20-19 20h-2c-7 0-11-3-15-8l-7-9a4 4 0 0 1 6-5l5 5z" fill={color} {...sw} />
-          <Path d="M26 34h16" fill="none" {...sw} />
+          <Path d="M18 30V16a4 4 0 0 1 8 0v10V11a4 4 0 0 1 8 0v15V13a4 4 0 0 1 8 0v16-9a4 4 0 0 1 8 0v18c0 12-8 20-19 20h-2c-7 0-11-3-15-8l-7-9a4 4 0 0 1 6-5l5 5z" fill={color} {...l} />
+          <Path d="M26 34h16" fill="none" {...l} />
         </>
       );
     case 'run':
       return (
         <>
-          <Rect x={4} y={4} width={56} height={56} rx={16} fill={color} {...sw} />
+          <Rect x={4} y={4} width={56} height={56} rx={16} fill={color} {...l} />
           <Circle cx={38} cy={17} r={5} fill={K} />
-          <Path d="M20 27l9-5 9 5 6-3M29 22l-5 13 9 5-3 12M24 35l-9 9M15 24h6M12 30h5" fill="none" {...sw} strokeWidth={4.4} />
+          <Path d="M20 27l9-5 9 5 6-3M29 22l-5 13 9 5-3 12M24 35l-9 9M15 24h6M12 30h5" fill="none" {...l} strokeWidth={4.4} />
         </>
       );
     case 'chat':
       return (
         <>
-          <Path d="M10 14h44a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H30l-12 10v-10h-8a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4z" fill={color} {...sw} />
+          <Path d="M10 14h44a4 4 0 0 1 4 4v24a4 4 0 0 1-4 4H30l-12 10v-10h-8a4 4 0 0 1-4-4V18a4 4 0 0 1 4-4z" fill={color} {...l} />
           <Circle cx={22} cy={30} r={3} fill={K} />
           <Circle cx={32} cy={30} r={3} fill={K} />
           <Circle cx={42} cy={30} r={3} fill={K} />
@@ -49,47 +49,62 @@ function Shape({ kind, color }: { kind: StickerKind; color: string }) {
     case 'crew':
       return (
         <>
-          <Circle cx={22} cy={22} r={9} fill={color} {...sw} />
-          <Path d="M6 52c0-10 7-16 16-16s16 6 16 16z" fill={color} {...sw} />
-          <Circle cx={44} cy={20} r={7} fill="#F3F0E8" {...sw} />
-          <Path d="M36 34c8-2 20 2 20 16H40" fill="#F3F0E8" {...sw} />
+          <Circle cx={22} cy={22} r={9} fill={color} {...l} />
+          <Path d="M6 52c0-10 7-16 16-16s16 6 16 16z" fill={color} {...l} />
+          <Circle cx={44} cy={20} r={7} fill="#F3F0E8" {...l} />
+          <Path d="M36 34c8-2 20 2 20 16H40" fill="#F3F0E8" {...l} />
         </>
       );
     case 'pin':
       return (
         <>
-          <Path d="M32 58S12 38 12 24a20 20 0 0 1 40 0c0 14-20 34-20 34z" fill={color} {...sw} />
-          <Circle cx={32} cy={24} r={7} fill="#F3F0E8" {...sw} />
+          <Path d="M32 58S12 38 12 24a20 20 0 0 1 40 0c0 14-20 34-20 34z" fill={color} {...l} />
+          <Circle cx={32} cy={24} r={7} fill="#F3F0E8" {...l} />
         </>
       );
     case 'bag':
       return (
         <>
-          <Path d="M12 22h40l-4 34H16z" fill={color} {...sw} />
-          <Path d="M22 22v-4a10 10 0 0 1 20 0v4" fill="none" {...sw} />
-          <Path d="M24 36l6 6 10-12" fill="none" {...sw} stroke="#F3F0E8" strokeWidth={4} />
+          <Path d="M12 22h40l-4 34H16z" fill={color} {...l} />
+          <Path d="M22 22v-4a10 10 0 0 1 20 0v4" fill="none" {...l} />
+          <Path d="M24 36l6 6 10-12" fill="none" {...l} stroke="#F3F0E8" strokeWidth={4} />
         </>
       );
     case 'cup':
       return (
         <>
-          <Path d="M18 8h28v14a14 14 0 0 1-28 0z" fill={color} {...sw} />
-          <Path d="M18 14H8c0 8 4 12 10 12M46 14h10c0 8-4 12-10 12" fill="none" {...sw} />
-          <Path d="M28 36h8v10h-8zM20 56h24v-8H20z" fill={color} {...sw} />
+          <Path d="M18 8h28v14a14 14 0 0 1-28 0z" fill={color} {...l} />
+          <Path d="M18 14H8c0 8 4 12 10 12M46 14h10c0 8-4 12-10 12" fill="none" {...l} />
+          <Path d="M28 36h8v10h-8zM20 56h24v-8H20z" fill={color} {...l} />
         </>
       );
     case 'ghost':
       return (
         <>
-          <Path d="M14 54V28a18 18 0 0 1 36 0v26l-6-5-6 5-6-5-6 5-6-5z" fill={color} {...sw} />
+          <Path d="M14 54V28a18 18 0 0 1 36 0v26l-6-5-6 5-6-5-6 5-6-5z" fill={color} {...l} />
           <Circle cx={26} cy={28} r={3.5} fill={K} />
           <Circle cx={38} cy={28} r={3.5} fill={K} />
+        </>
+      );
+    case 'shuffle':
+      return (
+        <>
+          <Rect x={6} y={6} width={52} height={52} rx={16} fill={color} {...l} />
+          <Path d="M15 22h8c8 0 10 20 18 20h8M15 42h8c3 0 5-3 7-7M34 29c2-4 4-7 7-7h8" fill="none" {...l} strokeWidth={4.4} />
+          <Path d="M43 16l6 6-6 6M43 36l6 6-6 6" fill="none" {...l} strokeWidth={4.4} />
+        </>
+      );
+    case 'shield':
+      return (
+        <>
+          <Path d="M32 6l22 8v16c0 14-9 23-22 28C19 53 10 44 10 30V14z" fill={color} {...l} />
+          <Path d="M22 31l7 7 13-14" fill="none" {...l} strokeWidth={4.4} />
         </>
       );
     case 'qr':
       return (
         <>
-          <Rect x={8} y={8} width={48} height={48} rx={10} fill={color} {...sw} />
+          <Rect x={8} y={8} width={48} height={48} rx={10} fill={color} {...l} />
           <Rect x={16} y={16} width={12} height={12} rx={2} fill={K} />
           <Rect x={36} y={16} width={12} height={12} rx={2} fill={K} />
           <Rect x={16} y={36} width={12} height={12} rx={2} fill={K} />
@@ -100,9 +115,15 @@ function Shape({ kind, color }: { kind: StickerKind; color: string }) {
 }
 
 // Figurinha com o "relevo" preto deslocado (sombra dura), levemente girada.
-export function Sticker({ kind, color = colors.lime, size = 56, tilt = -8 }: { kind: StickerKind; color?: string; size?: number; tilt?: number }) {
+// edge: borda clara por fora, como adesivo recortado (para fundos escuros, ex. o mapa).
+export function Sticker({ kind, color = colors.lime, size = 56, tilt = -8, edge }: { kind: StickerKind; color?: string; size?: number; tilt?: number; edge?: string }) {
   return (
     <View style={{ width: size, height: size, transform: [{ rotate: `${tilt}deg` }] }} pointerEvents="none">
+      {edge ? (
+        <Svg width={size * 1.125} height={size * 1.125} viewBox="-4 -4 72 72" style={{ position: "absolute", left: size * -0.0625 + size * 0.025, top: size * -0.0625 + size * 0.03 }}>
+          <Shape kind={kind} color={edge} l={{ ...sw, stroke: edge, strokeWidth: 16 }} />
+        </Svg>
+      ) : null}
       <Svg width={size} height={size} viewBox="0 0 64 64" style={[StyleSheet.absoluteFill, { transform: [{ translateX: size * 0.05 }, { translateY: size * 0.065 }] }]}>
         <Shape kind={kind} color={K} />
       </Svg>

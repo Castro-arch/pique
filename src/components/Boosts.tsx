@@ -1,8 +1,9 @@
 import * as Haptics from 'expo-haptics';
-import { Eye, Ghost, ShieldCheck, Shuffle } from '@/components/icons';
+import { Eye } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Platform, Pressable, StyleSheet, View } from 'react-native';
 
+import { Sticker, type StickerKind } from '@/components/Bento';
 import { Bar, mmss } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { colors, fonts, radius } from '@/theme/tokens';
@@ -10,26 +11,30 @@ import { colors, fonts, radius } from '@/theme/tokens';
 export type BoostKind = 'despiste' | 'sombra' | 'escudo';
 
 // Os 3 boosts. Quanto mais forte, mais tempo quem pega fica visível.
-export const BOOSTS: Record<BoostKind, { name: string; color: string; tint: string; Icon: typeof Ghost; reveal: number; effect: string }> = {
-  despiste: { name: 'Despiste', color: colors.lime, tint: colors.limeTint, Icon: Shuffle, reveal: 2, effect: 'Seu próximo ping sai a 60 m do lugar certo.' },
-  sombra: { name: 'Sombra', color: colors.amber, tint: colors.amberTint, Icon: Ghost, reveal: 5, effect: 'Você some do próximo ping.' },
-  escudo: { name: 'Escudo', color: colors.paper, tint: colors.ink, Icon: ShieldCheck, reveal: 8, effect: 'Por 2 min, nenhum caçador consegue te marcar.' },
+export const BOOSTS: Record<BoostKind, { name: string; color: string; tint: string; sticker: StickerKind; reveal: number; effect: string }> = {
+  despiste: { name: 'Despiste', color: colors.lime, tint: colors.limeTint, sticker: 'shuffle', reveal: 2, effect: 'Seu próximo ping sai a 60 m do lugar certo.' },
+  sombra: { name: 'Sombra', color: '#B57CFF', tint: '#2A1F3D', sticker: 'ghost', reveal: 5, effect: 'Você some do próximo ping.' },
+  escudo: { name: 'Escudo', color: '#5AC8FA', tint: '#12303D', sticker: 'shield', reveal: 8, effect: 'Por 2 min, nenhum caçador consegue te marcar.' },
 };
+
+// A figurinha do boost, levemente girada como as do Início.
+const TILT: Record<BoostKind, number> = { despiste: -8, sombra: 8, escudo: -6 };
+export function BoostSticker({ kind, size = 44, edge }: { kind: BoostKind; size?: number; edge?: boolean }) {
+  return <Sticker kind={BOOSTS[kind].sticker} color={BOOSTS[kind].color} size={size} tilt={TILT[kind]} edge={edge ? colors.paper : undefined} />;
+}
 
 const native = Platform.OS !== 'web';
 
-// 10.1 Boost no mapa: quadrado com o ícone e quantos segundos ele custa.
+// 10.1 Boost no mapa: a figurinha e quantos segundos ele custa.
 export function BoostPin({ kind }: { kind: BoostKind }) {
   const b = BOOSTS[kind];
   return (
     <View style={{ alignItems: 'center', gap: 6 }}>
-      <View style={[styles.pin, { borderColor: b.color, boxShadow: `0 0 0 6px ${b.color}2E` }]}>
-        <b.Icon size={22} color={b.color} strokeWidth={2} />
-      </View>
+      <BoostSticker kind={kind} size={46} edge />
       <View style={styles.pinTag}>
         <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong }}>
           {b.name}
-          <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: kind === 'escudo' ? colors.paper : b.color }}> · {b.reveal} s</Text>
+          <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: b.color }}> · {b.reveal} s</Text>
         </Text>
       </View>
     </View>
@@ -126,8 +131,8 @@ export function BoostSlot({ boost, pop, onPress, size = 42 }: { boost: { id: str
           ))}
         </>
       ) : null}
-      <Animated.View style={[styles.slot, round, { backgroundColor: b.tint, borderColor: b.color, transform: [{ scale }] }]}>
-        <b.Icon size={Math.round(size * 0.48)} color={b.color} strokeWidth={2.2} />
+      <Animated.View style={[round, { alignItems: 'center', justifyContent: 'center', transform: [{ scale }] }]}>
+        <BoostSticker kind={boost.kind} size={Math.round(size * 1.05)} edge />
       </Animated.View>
     </Pressable>
   );
@@ -153,7 +158,6 @@ export function RevealAlert({ until, now }: { until: number; now: number }) {
 }
 
 const styles = StyleSheet.create({
-  pin: { width: 44, height: 44, borderRadius: 14, borderWidth: 2, backgroundColor: colors.ink, alignItems: 'center', justifyContent: 'center' },
   pinTag: { borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: colors.inkRaised },
   slots: { position: 'absolute', right: 16, top: 224, flexDirection: 'row', gap: 8 },
   slot: { width: 42, height: 42, borderRadius: 21, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },

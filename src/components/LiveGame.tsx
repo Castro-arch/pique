@@ -6,7 +6,7 @@ import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { ArcHud } from '@/components/ArcHud';
-import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Boosts';
+import { BOOSTS, BoostSlots, BoostSticker, RevealAlert, type BoostKind } from '@/components/Boosts';
 import { Bar, CardAction, GameTabs, mmss, useDock } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
@@ -314,14 +314,7 @@ export function LiveGame({ id }: { id: string }) {
       ) : using ? (
         <Appear style={[styles.picker, { bottom: card }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            {(() => {
-              const b = BOOSTS[using.kind];
-              return (
-                <View style={[styles.boostIcon, { borderColor: b.color, backgroundColor: b.tint }]}>
-                  <b.Icon size={22} color={b.color} strokeWidth={2.2} />
-                </View>
-              );
-            })()}
+            <BoostSticker kind={using.kind} size={48} />
             <Text style={{ flex: 1, fontFamily: fonts.display, fontSize: 24 }}>
               Usar {BOOSTS[using.kind].name}
               <Text style={{ fontFamily: fonts.display, fontSize: 24, color: BOOSTS[using.kind].color }}>?</Text>
@@ -516,7 +509,6 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   dot: { width: 12, height: 12, borderRadius: 6 },
-  boostIcon: { width: 48, height: 48, borderRadius: 24, borderWidth: 2, alignItems: 'center', justifyContent: 'center' },
   note: { flexDirection: 'row', gap: 10, alignItems: 'center', marginTop: 14, backgroundColor: colors.ink, borderRadius: radius.md, padding: 12 },
   shoutBtn: {
     marginTop: 12,
