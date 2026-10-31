@@ -1,7 +1,7 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { Ellipsis } from '@/components/icons';
 import { useEffect, useState, type ReactNode } from 'react';
-import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Platform, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { MapPin } from '@/components/MapBackdrop';
@@ -114,6 +114,11 @@ export const marks = {
 };
 
 // Cartão de baixo: última mensagem do Radio e a ação do momento.
+// No navegador não há barra de status nem indicador de início: o próprio
+// navegador já ocupa essas bordas, então as abas e o cartão descem.
+export const DOCK = Platform.OS === 'web' ? 14 : 34;
+export const CARD_BOTTOM = DOCK + 70;
+
 export function RadioCard({ from, fromRole, text, children }: { from: string; fromRole?: 'hunter' | 'radio'; text: string; children?: ReactNode }) {
   const hunter = fromRole === 'hunter';
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -127,7 +132,7 @@ export function RadioCard({ from, fromRole, text, children }: { from: string; fr
         <View style={[styles.radioIcon, hunter ? { borderWidth: 3, borderColor: colors.pink, backgroundColor: colors.ink } : { borderWidth: 1.5, borderColor: colors.lime }]}>
           <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: hunter ? colors.pink : colors.lime }}>{from[0]}</Text>
         </View>
-        <Text style={{ flex: 1, fontSize: 14, lineHeight: 19 }}>
+        <Text numberOfLines={2} style={{ flex: 1, fontSize: 14, lineHeight: 19 }}>
           <Text style={{ color: colors.paperMuted, fontSize: 14 }}>{from}</Text> · {text}
         </Text>
       </Pressable>
@@ -167,7 +172,7 @@ export function CardAction({
 }
 
 // Abas Mapa / Radio e o botão de mais opções, presos na base.
-export function GameTabs({ unread, tab = 'mapa', bottom = 34 }: { unread?: number; tab?: 'mapa' | 'radio'; bottom?: number }) {
+export function GameTabs({ unread, tab = 'mapa', bottom = DOCK }: { unread?: number; tab?: 'mapa' | 'radio'; bottom?: number }) {
   // No treino com bots (?treino=1) o menu ganha os controles extras.
   // Na partida real (?id=) Radio e menu levam o id junto.
   const { treino, id } = useLocalSearchParams<{ treino?: string; id?: string }>();
@@ -283,16 +288,16 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 106,
+    bottom: CARD_BOTTOM,
     backgroundColor: 'rgba(26,32,39,0.96)',
     borderWidth: 1,
     borderColor: colors.inkBorder,
     borderRadius: radius.xl,
-    paddingVertical: 14,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   radioIcon: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.inkRaised },
-  action: { marginTop: 12, height: 52, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
+  action: { marginTop: 10, height: 50, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
   tabsRow: { position: 'absolute', left: 16, right: 16, flexDirection: 'row', gap: 10, alignItems: 'center' },
   tabs: {
     flex: 1,

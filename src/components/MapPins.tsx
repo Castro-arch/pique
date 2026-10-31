@@ -37,5 +37,6 @@ export function MapCredit() {
 
 const styles = StyleSheet.create({
   tag: { borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: 'rgba(26,32,39,0.92)' },
-  credit: { position: 'absolute', left: 18, bottom: 92, fontSize: 9, color: 'rgba(243,240,232,0.6)' },
+  // Embaixo das abas, centralizado: não disputa espaço com o cartão do Radio.
+  credit: { position: 'absolute', left: 0, right: 0, bottom: 1, textAlign: 'center', fontSize: 8, color: 'rgba(243,240,232,0.45)' },
 });

@@ -2,12 +2,12 @@ import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
 import { Lock, Megaphone, TriangleAlert } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { ArcHud } from '@/components/ArcHud';
 import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Boosts';
-import { Bar, CardAction, GameTabs, mmss, RadioCard } from '@/components/Game';
+import { Bar, CARD_BOTTOM, CardAction, GameTabs, mmss, RadioCard } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { ago } from '@/components/gameMapTypes';
@@ -371,7 +371,7 @@ export function LiveGame({ id }: { id: string }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.inkSunken },
   tag: { borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: colors.inkRaised },
-  hud: { position: 'absolute', left: 16, right: 16, top: 52, borderRadius: radius.xl, padding: 16 },
+  hud: { position: 'absolute', left: 16, right: 16, top: Platform.OS === 'web' ? 16 : 52, borderRadius: radius.xl, padding: 16 },
   amber: { backgroundColor: colors.amber },
   locked: {
     marginTop: 12,
@@ -387,7 +387,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: 106,
+    bottom: CARD_BOTTOM,
     backgroundColor: 'rgba(26,32,39,0.98)',
     borderWidth: 1,
     borderColor: colors.inkBorder,

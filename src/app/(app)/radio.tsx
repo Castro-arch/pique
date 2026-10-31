@@ -8,7 +8,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
-import { GameTabs, mmss } from '@/components/Game';
+import { DOCK, GameTabs, mmss } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
 import { errorInfo, secondsUntil, useNow, useView, type GameId } from '@/lib/game';
@@ -107,7 +107,7 @@ export default function Radio() {
         ))}
       </ScrollView>
 
-      <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 34) + 72 }}>
+      <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, DOCK) + 72 }}>
         {error || talk.error ? <Text variant="error" style={{ marginBottom: 8 }}>{error ?? talk.error}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {quick.map((q) => (
@@ -129,7 +129,7 @@ export default function Radio() {
         </Pressable>
       </View>
 
-      <GameTabs tab="radio" bottom={Math.max(insets.bottom, 34)} />
+      <GameTabs tab="radio" bottom={Math.max(insets.bottom, DOCK)} />
     </View>
   );
 }
