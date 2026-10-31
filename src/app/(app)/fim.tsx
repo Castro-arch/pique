@@ -1,4 +1,6 @@
+import { useMutation } from 'convex/react';
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect } from 'react';
 import { ImageIcon } from '@/components/icons';
 import { StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,7 +11,8 @@ import { Illustration } from '@/components/Illustration';
 import { Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { illustrations, match } from '@/lib/demo';
-import { useView } from '@/lib/game';
+import { useFollowRound, useLobby, useView, type GameId } from '@/lib/game';
+import { api } from '../../../convex/_generated/api';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 // 8.4 a 8.6 Fim de rodada para quem venceu.
@@ -32,7 +35,22 @@ const clock = (ms: number) => {
 function FimReal({ id }: { id: string }) {
   const insets = useSafeAreaInsets();
   const view = useView(id);
+  const lobby = useLobby(id);
+  const setReady = useMutation(api.games.setReady);
+  // Se o anfitrião girar a roleta (ou começar) com a pessoa ainda aqui, ela vai junto.
+  useFollowRound(id, lobby?.status);
+  useEffect(() => {
+    if (lobby?.draw) router.replace({ pathname: '/roda', params: { id } });
+  }, [id, lobby?.draw]);
   if (!view) return <View style={styles.root} />;
+  const host = !!lobby?.isHost;
+  const hostName = lobby?.players.find((p) => p.isHost)?.name ?? 'o anfitrião';
+  const rematch = async () => {
+    if (host) return router.replace({ pathname: '/roda', params: { id } });
+    // Tocar em revanche já conta como pronto: o anfitrião não fica esperando.
+    await setReady({ gameId: id as GameId, ready: true }).catch(() => {});
+    router.replace({ pathname: '/aguardando', params: { id } });
+  };
 
   const g = view.game;
   const me = view.me;
@@ -91,11 +109,15 @@ function FimReal({ id }: { id: string }) {
           <Button variant={hunter ? 'danger' : 'primary'} label="Compartilhar a vitória" onPress={() => router.push({ pathname: '/post', params: { lado: hunter ? 'cacador' : 'corredor' } })} />
         ) : null}
         <Button
-          variant={won ? 'link' : 'primary'}
-          label="Revanche com a mesma crew"
-          style={{ marginTop: 6 }}
-          onPress={() => router.replace({ pathname: '/aguardando', params: { id } })}
+          variant={won ? 'secondary' : 'primary'}
+          label={host ? 'Revanche: girar a roleta' : 'Revanche com a mesma crew'}
+          style={{ marginTop: won ? 8 : 6 }}
+          onPress={rematch}
         />
+        <Text variant="label" style={{ textAlign: 'center', marginTop: 6 }}>
+          {host ? 'A crew vai junto para a roda. Dá para mudar as regras no lobby antes.' : `Quando ${hostName} girar a roleta, você vai junto.`}
+        </Text>
+        {host ? <Button variant="link" label="Ir para o lobby" onPress={() => router.replace({ pathname: '/lobby', params: { id } })} /> : null}
         <Button variant="link" label="Voltar ao início" onPress={() => router.replace('/')} />
       </View>
     </View>

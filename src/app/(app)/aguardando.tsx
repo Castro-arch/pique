@@ -65,7 +65,7 @@ export default function Aguardando() {
         <Chip label={`${lobby?.code ?? 'TACO42'} · lobby de ${host}`} dot={colors.lime} style={{ alignSelf: 'flex-start', marginBottom: 14 }} />
         <Headline variant="display" style={{ fontSize: 48, lineHeight: 46 }}>Você tá dentro</Headline>
         <Text variant="muted" style={{ marginTop: 12, fontSize: 16 }}>
-          Quem caça sai na roleta de luz: quando {lobby?.isHost ? 'você' : host} chamar, juntem os celulares no meio da roda. Aproveita para se alongar.
+          Quem caça sai na roleta de luz: quando {lobby?.isHost ? 'você' : host} girar, seu celular abre a roda sozinho. Juntem os celulares no meio. Aproveita para se alongar.
         </Text>
 
         <View style={styles.card}>

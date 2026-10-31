@@ -185,6 +185,23 @@ describe('roleta de luz', () => {
   });
 });
 
+describe('revanche pela roleta', () => {
+  test('depois do fim o anfitrião gira de novo e todo mundo entra na rodada 2', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    for (const p of [s.host, s.priya, s.teo]) await p.mutation(api.play.reportCaught, { gameId: s.gameId });
+    expect((await lobbyOf(s.priya, s.gameId)).status).toBe('ended');
+    // ninguém precisa escolher nada de novo: quem jogou a rodada 1 não trava
+    await s.host.mutation(api.rounds.spin, { gameId: s.gameId });
+    const draw = (await lobbyOf(s.teo, s.gameId)).draw!;
+    await advance(s.t, draw.endAt - Date.now());
+    const after = await lobbyOf(s.teo, s.gameId);
+    expect(after).toMatchObject({ status: 'headstart', round: 2 });
+    for (const p of [s.host, s.leo, s.priya, s.teo]) expect((await viewOf(p, s.gameId)).me.state).toBe('active');
+  });
+});
+
 describe('rodada', () => {
   test('vantagem, ping e regra de visibilidade', async () => {
     const s = await lobbyWith4();
