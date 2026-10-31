@@ -1,4 +1,5 @@
 import { router } from 'expo-router';
+import { useCreateGame } from '@/lib/game';
 import { Bell } from '@/components/icons';
 import { StyleSheet, View } from 'react-native';
 
@@ -13,6 +14,7 @@ import { colors, fonts, radius } from '@/theme/tokens';
 
 // 4.5 Partida em andamento ou cheia: não dá pra entrar no meio.
 export default function Indisponivel() {
+  const create = useCreateGame();
   return (
     <Screen>
       <BackButton />
@@ -42,7 +44,7 @@ export default function Indisponivel() {
 
       <Spacer />
       <Button label="Me avisa na próxima rodada" onPress={() => router.replace('/')} />
-      <Button variant="secondary" label="Criar uma partida minha" style={{ marginTop: 8 }} onPress={() => router.replace('/lobby')} />
+      <Button variant="secondary" label="Criar uma partida minha" style={{ marginTop: 8 }} loading={create.busy} onPress={create.run} />
     </Screen>
   );
 }

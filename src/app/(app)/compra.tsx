@@ -8,6 +8,7 @@ import { Perk } from '@/components/Perk';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { pricing } from '@/lib/demo';
+import { useCreateGame } from '@/lib/game';
 import { useMe } from '@/lib/useMe';
 import { colors, fonts, radius } from '@/theme/tokens';
 
@@ -20,6 +21,7 @@ export default function Compra() {
 
 function Ok({ night }: { night: boolean }) {
   const me = useMe();
+  const create = useCreateGame();
   return (
     <Screen background={colors.lime}>
       <Svg width="100%" height={200} viewBox="0 0 350 200" style={{ marginTop: 30 }} accessibilityElementsHidden>
@@ -53,7 +55,8 @@ function Ok({ night }: { night: boolean }) {
       <Text style={{ fontSize: 12, textAlign: 'center', color: colors.limeInk, opacity: 0.7, marginBottom: 10 }}>
         Recibo enviado para {me.email}
       </Text>
-      <Button variant="dark" label="Criar minha primeira partida" style={{ minHeight: 58 }} onPress={() => router.replace('/lobby')} />
+      {create.error ? <Text variant="error" style={{ marginBottom: 8, textAlign: 'center' }}>{create.error}</Text> : null}
+      <Button variant="dark" label="Criar minha primeira partida" style={{ minHeight: 58 }} loading={create.busy} onPress={create.run} />
     </Screen>
   );
 }

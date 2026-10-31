@@ -46,13 +46,19 @@ export default function Zona() {
     setCenter(c);
     return c;
   };
-  // Abre já no lugar onde o anfitrião está (a permissão veio na tela de permissões).
+  // A zona salva chega depois (o lobby carrega depois da tela abrir).
   useEffect(() => {
-    if (center) return;
-    Location.getForegroundPermissionsAsync()
-      .then(({ granted }) => (granted ? locate() : null))
-      .catch(() => {});
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!lobby?.zone || center) return;
+    setCenter({ lat: lobby.zone.lat, lng: lobby.zone.lng });
+    setMeters(lobby.zone.radius * 2);
+  }, [lobby?.zone]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Sem zona salva, abre já onde o anfitrião está. No navegador pede direto
+  // (o Safari não diz antes se a localização já está liberada).
+  useEffect(() => {
+    if (center || (id && lobby === undefined) || lobby?.zone) return;
+    locate().catch(() => {});
+  }, [lobby === undefined]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const done = async () => {
     if (!id) return router.back();

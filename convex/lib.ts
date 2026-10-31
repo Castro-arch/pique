@@ -37,6 +37,9 @@ export function features(rules: Doc<'games'>['rules']) {
 }
 export const MAX_PLAYERS = 20;
 export const FREE_HOSTED_GAMES = 3;
+// Beta sem pagamento ligado: "comprar" libera a hospedagem de graça.
+// DESLIGAR (false) quando a compra real (RevenueCat/loja) entrar.
+export const BETA_FREE_UNLOCK = true;
 export const MIN_ZONE_RADIUS = 75; // a zona encolhe até aqui (150 m de diâmetro)
 export const OUT_OF_ZONE_GRACE_MS = 30_000;
 export const CAPTURE_CONFIRM_MS = 60_000;

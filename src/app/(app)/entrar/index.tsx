@@ -11,7 +11,7 @@ import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { match } from '@/lib/demo';
 import { useDemoMode } from '@/lib/demoMode';
-import { useJoinGame } from '@/lib/game';
+import { useCreateGame, useJoinGame } from '@/lib/game';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 const CODE = /^[A-Z0-9]{6}$/;
@@ -22,6 +22,7 @@ export default function Entrar() {
   const params = useLocalSearchParams<{ codigo?: string }>();
   const demo = useDemoMode();
   const join = useJoinGame();
+  const create = useCreateGame();
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState(params.codigo ?? '');
   const [wrong, setWrong] = useState<string | null>(params.codigo && params.codigo !== match.code ? params.codigo : null);
@@ -90,7 +91,7 @@ export default function Entrar() {
           <Text style={styles.kicker}>O QUE FAZER</Text>
           <View style={{ marginTop: 8, borderTopWidth: 1, borderTopColor: colors.inkBorder }}>
             <Option icon={<QrCode size={20} color={colors.lime} />} label="Escanear o QR do lobby" onPress={() => router.push('/entrar/qr')} />
-            <Option icon={<CirclePlus size={20} color={colors.lime} />} label="Criar uma partida sua" onPress={() => router.replace('/lobby')} />
+            <Option icon={<CirclePlus size={20} color={colors.lime} />} label="Criar uma partida sua" onPress={() => (demo ? router.replace('/lobby') : create.run())} />
           </View>
           <Spacer />
           <View style={{ flexDirection: 'row', gap: 8 }}>

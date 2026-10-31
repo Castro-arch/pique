@@ -1,3 +1,4 @@
+import { useMutation } from 'convex/react';
 import { router } from 'expo-router';
 import { useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
@@ -7,16 +8,33 @@ import { Perk } from '@/components/Perk';
 import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { pricing } from '@/lib/demo';
+import { errorInfo } from '@/lib/game';
+import { api } from '../../../convex/_generated/api';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 type Plan = 'noite' | 'vitalicio';
 
 // 3.7 Desbloquear hospedagem. Preços do documento: 3 partidas grátis,
 // Passe da Noite (consumível) e Host Vitalício (compra única).
-// A compra real entra com RevenueCat; aqui o botão só simula o fluxo.
+// A compra real entra com RevenueCat; no beta o botão libera de graça.
 export default function Hospedar() {
   const [plan, setPlan] = useState<Plan>('vitalicio');
   const price = plan === 'noite' ? pricing.nightPass : pricing.lifetime;
+  const unlock = useMutation(api.games.betaUnlock);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const buy = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await unlock({ plan });
+      router.replace({ pathname: '/compra', params: { plano: plan } });
+    } catch (e) {
+      setError(errorInfo(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <Screen background={colors.lime} scroll>
@@ -58,8 +76,11 @@ export default function Hospedar() {
         variant="dark"
         label={`${plan === 'noite' ? 'Comprar passe' : 'Desbloquear para sempre'} · ${price}`}
         style={{ marginTop: 18, minHeight: 58 }}
-        onPress={() => router.replace({ pathname: '/compra', params: { plano: plan } })}
+        loading={busy}
+        onPress={buy}
       />
+      <Text style={{ marginTop: 8, textAlign: 'center', fontSize: 12, color: colors.limeInk, opacity: 0.75 }}>No beta é de graça: nada é cobrado.</Text>
+      {error ? <Text variant="error" style={{ marginTop: 6, textAlign: 'center' }}>{error}</Text> : null}
       <Pressable accessibilityRole="button" style={{ height: 44, alignItems: 'center', justifyContent: 'center', marginTop: 4 }}>
         <Text style={{ color: colors.limeInk, fontFamily: fonts.bodyStrong, fontSize: 14 }}>Restaurar compra</Text>
       </Pressable>

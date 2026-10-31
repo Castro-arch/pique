@@ -6,6 +6,7 @@ import { mutation, query, type MutationCtx } from './_generated/server';
 import {
   clamp,
   DEFAULT_RULES,
+  BETA_FREE_UNLOCK,
   FREE_HOSTED_GAMES,
   gamePlayers,
   LIMITS,
@@ -301,4 +302,20 @@ export const mine = query({
 export const clock = mutation({
   args: {},
   handler: async () => Date.now(),
+});
+
+// Beta: o botão de compra libera a hospedagem sem cobrar (ver BETA_FREE_UNLOCK).
+export const betaUnlock = mutation({
+  args: { plan: v.union(v.literal('noite'), v.literal('vitalicio')) },
+  handler: async (ctx, { plan }) => {
+    if (!BETA_FREE_UNLOCK) throw new ConvexError('A compra é feita pela loja do celular.');
+    const userId = await requireUser(ctx);
+    const ent = await ctx.db
+      .query('entitlements')
+      .withIndex('by_user', (q) => q.eq('userId', userId))
+      .unique();
+    const patch = plan === 'vitalicio' ? { lifetime: true } : { passUntil: Date.now() + 12 * 60 * MIN };
+    if (ent) await ctx.db.patch(ent._id, patch);
+    else await ctx.db.insert('entitlements', { userId, lifetime: false, ...patch });
+  },
 });
