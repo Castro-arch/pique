@@ -1,16 +1,25 @@
+import * as Haptics from 'expo-haptics';
 import { router } from 'expo-router';
 import { ChevronLeft, Flashlight } from '@/components/icons';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import Svg, { G, Path } from 'react-native-svg';
 
+import { QrCamera } from '@/components/QrCamera';
 import { Text } from '@/components/Text';
+import { codeFromQr } from '@/lib/qr';
 import { colors, fonts, radius } from '@/theme/tokens';
 
-// 4.4 Escanear QR do lobby. A câmera de verdade (expo-camera) entra junto
-// com o jogo no servidor; por ora a moldura e a linha de leitura animada.
+// 4.4 Escanear QR do lobby: a câmera lê o QR do anfitrião e abre o convite.
 export default function EscanearQR() {
   const [torch, setTorch] = useState(false);
+  const [wrong, setWrong] = useState(false);
+  const onCode = useCallback((text: string) => {
+    const code = codeFromQr(text);
+    if (!code) return setWrong(true);
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    router.replace({ pathname: '/convite/[codigo]', params: { codigo: code } });
+  }, []);
   const y = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -26,6 +35,7 @@ export default function EscanearQR() {
 
   return (
     <View style={styles.root}>
+      <QrCamera onCode={onCode} torch={torch} />
       <View style={styles.top}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.pill}>
           <ChevronLeft size={20} color={colors.paper} strokeWidth={2.4} />
@@ -57,8 +67,10 @@ export default function EscanearQR() {
         <Animated.View style={[styles.scan, { transform: [{ translateY: y.interpolate({ inputRange: [0, 1], outputRange: [12, 244] }) }] }]} />
       </View>
 
-      <Text variant="small" style={{ textAlign: 'center', marginTop: 20, fontSize: 14 }}>
-        O QR fica no topo do lobby, em <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14 }}>Mostrar QR</Text>.
+      <Text variant="small" style={[styles.hint, wrong && { color: colors.amber }]}>
+        {wrong ? 'Esse QR não é de uma partida do Pique.' : 'O QR fica no topo do lobby, em '}
+        {wrong ? null : <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14 }}>Mostrar QR</Text>}
+        {wrong ? null : '.'}
       </Text>
 
       <View style={styles.card}>
@@ -79,6 +91,17 @@ const styles = StyleSheet.create({
   round: { width: 44, height: 44, borderRadius: 22, backgroundColor: 'rgba(16,20,24,0.7)', alignItems: 'center', justifyContent: 'center' },
   title: { fontFamily: fonts.display, fontSize: 30, lineHeight: 32, letterSpacing: -1, textAlign: 'center', marginTop: 28, marginHorizontal: 20, color: colors.paper },
   frame: { alignSelf: 'center', width: 270, height: 270, marginTop: 30 },
+  hint: {
+    alignSelf: 'center',
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 14,
+    backgroundColor: 'rgba(16,20,24,0.7)',
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    overflow: 'hidden',
+  },
   scan: {
     position: 'absolute',
     left: 18,

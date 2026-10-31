@@ -107,11 +107,13 @@ const steps: Step[] = [
 
 // 2.1 a 2.4 Como jogar
 export default function ComoJogar() {
-  const { passo = '1' } = useLocalSearchParams<{ passo?: string }>();
+  // de=inicio: veio do cadastro (depois das permissões) e termina na home.
+  const { passo = '1', de } = useLocalSearchParams<{ passo?: string; de?: string }>();
+  const onboarding = de === 'inicio';
   const i = Math.min(Math.max(Number(passo) - 1 || 0, 0), steps.length - 1);
   const s = steps[i];
   const last = i === steps.length - 1;
-  const go = (n: number) => router.replace({ pathname: '/como-jogar/[passo]', params: { passo: String(n) } });
+  const go = (n: number) => router.replace({ pathname: '/como-jogar/[passo]', params: { passo: String(n), ...(onboarding ? { de } : {}) } });
 
   return (
     <Screen>
@@ -137,9 +139,9 @@ export default function ComoJogar() {
           </Pressable>
         )}
         <Button
-          label={last ? 'Escolher meu lado' : 'Próximo'}
+          label={last ? (onboarding ? 'Bora jogar' : 'Escolher meu lado') : 'Próximo'}
           style={{ flex: 1 }}
-          onPress={() => (last ? router.replace('/lado') : go(i + 2))}
+          onPress={() => (last ? router.replace(onboarding ? '/' : '/lado') : go(i + 2))}
         />
       </View>
     </Screen>

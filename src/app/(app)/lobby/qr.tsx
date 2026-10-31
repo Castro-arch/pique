@@ -8,6 +8,7 @@ import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { Text } from '@/components/Text';
 import { match } from '@/lib/demo';
+import { inviteLink } from '@/lib/qr';
 import { useLobby } from '@/lib/game';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -15,7 +16,7 @@ import { colors, fonts } from '@/theme/tokens';
 export default function QRLobby() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const code = useLobby(id)?.code ?? match.code;
-  const link = `https://pique.app/p/${code}`;
+  const link = inviteLink(code);
   return (
     <View style={{ flex: 1 }}>
       <Pressable accessibilityLabel="Fechar" style={StyleSheet.absoluteFill} onPress={() => router.back()} />

@@ -67,9 +67,10 @@ export default function Permissoes() {
     }
     setBusy(false);
   };
+  // Depois das permissões, as telas de como jogar (e de lá, a home).
   const done = async () => {
     await markPermissionsSeen();
-    router.replace('/');
+    router.replace({ pathname: '/como-jogar/[passo]', params: { passo: '1', de: 'inicio' } });
   };
 
   return (

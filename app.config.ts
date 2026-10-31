@@ -41,6 +41,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
       },
     ],
     'expo-notifications',
+    ['expo-camera', { cameraPermission: 'O Pique usa a câmera para ler o QR do anfitrião e entrar na partida.' }],
     'react-native-maps',
     '@maplibre/maplibre-react-native',
   ],
