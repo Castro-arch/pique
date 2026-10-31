@@ -464,6 +464,7 @@ export const reportCaught = mutation({
   handler: async (ctx, { gameId, hunterId }) => {
     const { game, me } = await requireMember(ctx, gameId);
     if (!playing(game) || me.role !== 'runner' || me.state !== 'active') return;
+    if (game.status !== 'hunt') throw new ConvexError('Ninguém é pego antes do caçador sair.');
     // Quem pegou (opcional): só vale se for caçador desta partida.
     const hunter = hunterId ? await ctx.db.get(hunterId) : null;
     await caught(ctx, me, hunter && hunter.gameId === gameId && hunter.role === 'hunter' ? hunter : null);

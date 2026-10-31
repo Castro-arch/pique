@@ -133,7 +133,7 @@ export function LiveGame({ id }: { id: string }) {
   };
 
   // Muda a situação (liberado, pego, preso...): os botões de baixo entram de novo.
-  const actionsKey = denied ? 'gps' : me.jailed && !justWatch ? 'preso' : caught ? 'pego' : hunter && headstart ? 'espera' : hunter ? 'caca' : 'corre';
+  const actionsKey = denied ? 'gps' : me.jailed && !justWatch ? 'preso' : caught ? 'pego' : headstart ? (hunter ? 'espera' : 'vantagem') : hunter ? 'caca' : 'corre';
   const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart) && g.features.boosts;
   const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
   // Algum aviso (fora da zona, preso, preço do boost, coração) ocupa o lugar do placar.
@@ -359,6 +359,9 @@ export function LiveGame({ id }: { id: string }) {
                     />
                   ) : null}
                 </>
+              ) : headstart ? (
+                // Ninguém é pego antes do caçador sair.
+                <Pill icon={<Lock size={16} color={colors.pink} strokeWidth={2.4} />} label={`Caçador sai em ${mmss(left)}`} />
               ) : (
                 <Pill
                   a11y="Fui pego, sistema de honra"

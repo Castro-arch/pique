@@ -435,6 +435,7 @@ describe('rodada', () => {
   test('revanche começa rodada 2 e ignora agendamentos da rodada 1', async () => {
     const s = await lobbyWith4();
     await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN); // só dá para ser pego depois da vantagem
     await s.teo.mutation(api.play.reportCaught, { gameId: s.gameId });
     await s.priya.mutation(api.play.reportCaught, { gameId: s.gameId });
     await s.host.mutation(api.play.reportCaught, { gameId: s.gameId });
@@ -452,6 +453,8 @@ describe('fui pego', () => {
     await startWithLeoHunting(s);
     const v = await viewOf(s.priya, s.gameId);
     expect(v.hunters.map((h) => h.name)).toEqual(['Leo']);
+    // na vantagem ainda não dá
+    await expect(s.priya.mutation(api.play.reportCaught, { gameId: s.gameId })).rejects.toThrow(/antes do caçador sair/);
     await advance(s.t, 3 * MIN);
     const teoId = (await viewOf(s.teo, s.gameId)).me.id;
     await s.teo.mutation(api.play.reportCaught, { gameId: s.gameId, hunterId: teoId });
@@ -482,6 +485,7 @@ describe('radio', () => {
   test('quem foi pego não fala se a regra não deixar', async () => {
     const s = await lobbyWith4();
     await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
     await s.priya.mutation(api.play.reportCaught, { gameId: s.gameId });
     await expect(s.priya.mutation(api.radio.sendQuick, { gameId: s.gameId, text: 'Tô indo' })).rejects.toThrow(/só assiste/);
   });
