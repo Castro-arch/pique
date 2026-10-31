@@ -16,6 +16,7 @@ import {
   gamePlayers,
   HEARTBEAT_M,
   lastPosition,
+  memberOrNull,
   requireMember,
   RESCUE_HOLD_MS,
   RESCUE_M,
@@ -180,7 +181,9 @@ type Seen = {
 export const view = query({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const { game, me } = await requireMember(ctx, gameId);
+    const member = await memberOrNull(ctx, gameId);
+    if (!member) return null; // saiu da partida: a tela volta para o início
+    const { game, me } = member;
     const players = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left' && p.role);
     const iHunt = me.role === 'hunter' && me.state === 'active';
     const seen: Seen[] = [];

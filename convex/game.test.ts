@@ -46,6 +46,12 @@ async function startWithLeoHunting(s: Awaited<ReturnType<typeof lobbyWith4>>) {
   await s.host.mutation(api.rounds.start, { gameId: s.gameId });
 }
 
+// O lobby, para quem está na partida (null é para quem saiu).
+const lobbyOf = (as: As, gameId: Id<'games'>) => as.query(api.games.lobby, { gameId }).then((l) => l!);
+
+// A tela do jogo. Nestes testes a pessoa sempre está na partida (null é para quem saiu).
+const viewOf = (as: As, gameId: Id<'games'>) => as.query(api.play.view, { gameId }).then((v) => v!);
+
 const move = (as: As, gameId: Id<'games'>, pos: { lat: number; lng: number }) =>
   as.mutation(api.play.sendPosition, { gameId, ...pos, accuracy: 8 });
 
@@ -61,10 +67,10 @@ describe('lobby', () => {
   test('criar, entrar pelo código e ver o lobby', async () => {
     const { host, priya, gameId, code } = await lobbyWith4();
     expect(code).toMatch(/^[A-HJ-NP-Z2-9]{6}$/);
-    const lobby = await priya.query(api.games.lobby, { gameId });
+    const lobby = await lobbyOf(priya, gameId);
     expect(lobby.players.map((p) => p.name)).toEqual(['Castro', 'Leo', 'Priya', 'Teo']);
     expect(lobby.isHost).toBe(false);
-    expect((await host.query(api.games.lobby, { gameId })).isHost).toBe(true);
+    expect((await lobbyOf(host, gameId)).isHost).toBe(true);
   });
 
   test('código errado e partida já começada', async () => {
@@ -78,7 +84,7 @@ describe('lobby', () => {
   test('quem não está na partida não vê o lobby', async () => {
     const s = await lobbyWith4();
     const stranger = await s.t.run((ctx) => ctx.db.insert('users', { name: 'X' }));
-    await expect(s.t.withIdentity({ subject: `${stranger}|x` }).query(api.games.lobby, { gameId: s.gameId })).rejects.toThrow();
+    expect(await s.t.withIdentity({ subject: `${stranger}|x` }).query(api.games.lobby, { gameId: s.gameId })).toBeNull();
   });
 
   test('só o anfitrião muda regras; valores fora do limite são corrigidos', async () => {
@@ -86,7 +92,7 @@ describe('lobby', () => {
     const rules = { durationMin: 999, headStartMin: 0, pingEveryMin: 2, hunters: 9, shrink: true, shrinkEveryMin: 5, spectatorsHelp: true };
     await expect(s.leo.mutation(api.games.setRules, { gameId: s.gameId, rules })).rejects.toThrow(/anfitrião/);
     await s.host.mutation(api.games.setRules, { gameId: s.gameId, rules });
-    const lobby = await s.host.query(api.games.lobby, { gameId: s.gameId });
+    const lobby = await lobbyOf(s.host, s.gameId);
     expect(lobby.rules).toMatchObject({ durationMin: 60, headStartMin: 1, hunters: 5 });
   });
 
@@ -99,7 +105,7 @@ describe('lobby', () => {
   test('anfitrião sai do lobby e quem chegou primeiro assume', async () => {
     const s = await lobbyWith4();
     await s.host.mutation(api.games.leave, { gameId: s.gameId });
-    expect((await s.leo.query(api.games.lobby, { gameId: s.gameId })).isHost).toBe(true);
+    expect((await lobbyOf(s.leo, s.gameId)).isHost).toBe(true);
   });
 });
 
@@ -134,30 +140,30 @@ describe('rodada', () => {
     await move(s.host, gameId, north(40));
 
     // Corredor vê o próprio time ao vivo e nunca o caçador.
-    let runnerView = await s.priya.query(api.play.view, { gameId });
+    let runnerView = await viewOf(s.priya, gameId);
     expect(runnerView.game.status).toBe('headstart');
     expect(runnerView.people.map((p) => p.name).sort()).toEqual(['Castro', 'Priya', 'Teo']);
 
     // Na vantagem o caçador não vê nenhum corredor.
-    let hunterView = await s.leo.query(api.play.view, { gameId });
+    let hunterView = await viewOf(s.leo, gameId);
     expect(hunterView.people.map((p) => p.name)).toEqual(['Leo']);
 
     await advance(t, 3 * MIN); // fim da vantagem
-    expect((await s.leo.query(api.play.view, { gameId })).game.status).toBe('hunt');
+    expect((await viewOf(s.leo, gameId)).game.status).toBe('hunt');
 
     await advance(t, 2 * MIN); // primeiro ping
-    hunterView = await s.leo.query(api.play.view, { gameId });
+    hunterView = await viewOf(s.leo, gameId);
     const seen = hunterView.people.filter((p) => !p.isMe);
     expect(seen).toHaveLength(3);
     expect(seen.every((p) => p.kind === 'ping')).toBe(true);
 
     // Depois do ping o corredor se mexe; o caçador continua vendo a posição velha.
     await move(s.priya, gameId, north(150));
-    hunterView = await s.leo.query(api.play.view, { gameId });
+    hunterView = await viewOf(s.leo, gameId);
     const priyaSeen = hunterView.people.find((p) => p.name === 'Priya')!;
     expect(priyaSeen.lat).toBeCloseTo(north(80).lat, 6);
 
-    runnerView = await s.priya.query(api.play.view, { gameId });
+    runnerView = await viewOf(s.priya, gameId);
     expect(runnerView.people.some((p) => p.role === 'hunter')).toBe(false);
   });
 
@@ -169,16 +175,16 @@ describe('rodada', () => {
 
     await move(s.priya, s.gameId, north(300)); // raio é 210 m
     await advance(s.t, 10_000);
-    let priya = (await s.leo.query(api.play.view, { gameId: s.gameId })).people.find((p) => p.name === 'Priya');
+    let priya = (await viewOf(s.leo, s.gameId)).people.find((p) => p.name === 'Priya');
     expect(priya).toBeUndefined(); // ainda não houve ping e não passou 30 s
 
     await advance(s.t, 21_000);
-    priya = (await s.leo.query(api.play.view, { gameId: s.gameId })).people.find((p) => p.name === 'Priya');
+    priya = (await viewOf(s.leo, s.gameId)).people.find((p) => p.name === 'Priya');
     expect(priya?.kind).toBe('live');
 
     // Voltou para dentro: some de novo.
     await move(s.priya, s.gameId, north(100));
-    priya = (await s.leo.query(api.play.view, { gameId: s.gameId })).people.find((p) => p.name === 'Priya');
+    priya = (await viewOf(s.leo, s.gameId)).people.find((p) => p.name === 'Priya');
     expect(priya).toBeUndefined();
   });
 
@@ -197,10 +203,10 @@ describe('rodada', () => {
     const s = await lobbyWith4();
     await startWithLeoHunting(s);
     await advance(s.t, 3 * MIN + 4 * MIN); // aviso: 1 min antes dos 5 min
-    let view = await s.priya.query(api.play.view, { gameId: s.gameId });
+    let view = await viewOf(s.priya, s.gameId);
     expect(view.game.nextZoneRadius).toBe(151);
     await advance(s.t, MIN);
-    view = await s.priya.query(api.play.view, { gameId: s.gameId });
+    view = await viewOf(s.priya, s.gameId);
     expect(view.game.zone?.radius).toBe(151);
     expect(view.game.nextZoneRadius).toBeNull();
   });
@@ -212,32 +218,32 @@ describe('rodada', () => {
     await move(s.leo, gameId, CENTER);
     for (const [p, m] of [[s.priya, 10], [s.teo, 12], [s.host, 20]] as const) await move(p, gameId, north(m));
 
-    const ids = Object.fromEntries((await s.leo.query(api.games.lobby, { gameId })).players.map((p) => [p.name, p.id]));
+    const ids = Object.fromEntries((await lobbyOf(s.leo, gameId)).players.map((p) => [p.name, p.id]));
     await expect(s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya })).rejects.toThrow(/vantagem/);
     await advance(s.t, 3 * MIN);
 
     // Priya confirma.
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya });
-    const pending = (await s.priya.query(api.play.view, { gameId })).capture!;
+    const pending = (await viewOf(s.priya, gameId)).capture!;
     expect(pending.other).toBe('Leo');
     await s.priya.mutation(api.play.answerCapture, { captureId: pending.id, caught: true });
-    expect((await s.priya.query(api.play.view, { gameId })).me.state).toBe('caught');
+    expect((await viewOf(s.priya, gameId)).me.state).toBe('caught');
 
     // Teo contesta.
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Teo });
-    const teoCapture = (await s.teo.query(api.play.view, { gameId })).capture!;
+    const teoCapture = (await viewOf(s.teo, gameId)).capture!;
     await s.teo.mutation(api.play.answerCapture, { captureId: teoCapture.id, caught: false });
-    expect((await s.leo.query(api.play.view, { gameId })).disputed).not.toBeNull();
-    expect((await s.teo.query(api.play.view, { gameId })).me.state).toBe('active');
+    expect((await viewOf(s.leo, gameId)).disputed).not.toBeNull();
+    expect((await viewOf(s.teo, gameId)).me.state).toBe('active');
 
     // Castro não responde em 60 s: conta como pego.
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Castro });
     await advance(s.t, 61_000);
-    expect((await s.host.query(api.play.view, { gameId })).me.state).toBe('caught');
+    expect((await viewOf(s.host, gameId)).me.state).toBe('caught');
 
     // Teo se entrega: acabou, caçador vence.
     await s.teo.mutation(api.play.reportCaught, { gameId });
-    const end = await s.leo.query(api.play.view, { gameId });
+    const end = await viewOf(s.leo, gameId);
     expect(end.game).toMatchObject({ status: 'ended', winner: 'hunter', endedReason: 'all_tagged' });
   });
 
@@ -247,7 +253,7 @@ describe('rodada', () => {
     await move(s.leo, s.gameId, CENTER);
     await move(s.priya, s.gameId, north(150));
     await advance(s.t, 3 * MIN);
-    const ids = Object.fromEntries((await s.leo.query(api.games.lobby, { gameId: s.gameId })).players.map((p) => [p.name, p.id]));
+    const ids = Object.fromEntries((await lobbyOf(s.leo, s.gameId)).players.map((p) => [p.name, p.id]));
     await expect(s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya })).rejects.toThrow(/150 m/);
   });
 
@@ -257,20 +263,20 @@ describe('rodada', () => {
     await startWithLeoHunting(s);
     await move(s.leo, gameId, CENTER);
     await move(s.priya, gameId, north(20));
-    expect((await s.priya.query(api.play.view, { gameId })).me.heartbeat).toBe(false); // ainda na vantagem
+    expect((await viewOf(s.priya, gameId)).me.heartbeat).toBe(false); // ainda na vantagem
 
     await advance(s.t, 3 * MIN);
     await move(s.leo, gameId, CENTER);
     await move(s.priya, gameId, north(20));
     await move(s.teo, gameId, north(45));
-    expect((await s.priya.query(api.play.view, { gameId })).me.heartbeat).toBe(true);
-    expect((await s.teo.query(api.play.view, { gameId })).me.heartbeat).toBe(false);
-    expect((await s.leo.query(api.play.view, { gameId })).me.heartbeat).toBe(false); // caçador não sabe
+    expect((await viewOf(s.priya, gameId)).me.heartbeat).toBe(true);
+    expect((await viewOf(s.teo, gameId)).me.heartbeat).toBe(false);
+    expect((await viewOf(s.leo, gameId)).me.heartbeat).toBe(false); // caçador não sabe
 
     // Posição do caçador velha não conta.
     vi.advanceTimersByTime(61_000);
     await move(s.priya, gameId, north(21));
-    expect((await s.priya.query(api.play.view, { gameId })).me.heartbeat).toBe(false);
+    expect((await viewOf(s.priya, gameId)).me.heartbeat).toBe(false);
   });
 
   test('grito: acerta o corredor mais perto, só gasta se acertar, 3 por rodada', async () => {
@@ -288,9 +294,9 @@ describe('rodada', () => {
     await move(s.teo, gameId, north(50));
     await move(s.host, gameId, north(40));
     expect(await s.leo.mutation(api.play.shout, { gameId })).toEqual({ hit: true, left: 2 });
-    expect((await s.host.query(api.play.view, { gameId })).me.shoutedAt).not.toBeNull();
-    expect((await s.teo.query(api.play.view, { gameId })).me.shoutedAt).toBeNull();
-    expect((await s.leo.query(api.play.view, { gameId })).me.shoutsLeft).toBe(2);
+    expect((await viewOf(s.host, gameId)).me.shoutedAt).not.toBeNull();
+    expect((await viewOf(s.teo, gameId)).me.shoutedAt).toBeNull();
+    expect((await viewOf(s.leo, gameId)).me.shoutsLeft).toBe(2);
 
     await s.leo.mutation(api.play.shout, { gameId });
     await s.leo.mutation(api.play.shout, { gameId });
@@ -303,8 +309,8 @@ describe('rodada', () => {
     await startWithLeoHunting(s);
     await advance(t, 3 * MIN); // fim da vantagem
     await advance(t, MIN); // 1 min de caça: primeira onda
-    expect((await s.priya.query(api.play.view, { gameId })).boosts).toHaveLength(3);
-    const hunterView = await s.leo.query(api.play.view, { gameId });
+    expect((await viewOf(s.priya, gameId)).boosts).toHaveLength(3);
+    const hunterView = await viewOf(s.leo, gameId);
     expect(hunterView.boosts).toHaveLength(0); // caçador não vê onde estão
     expect(hunterView.boostsOnMap).toBe(3);
 
@@ -320,10 +326,10 @@ describe('rodada', () => {
       vi.advanceTimersByTime(2_500);
       await move(s.priya, gameId, north(m));
     };
-    const priyaSeen = async () => (await s.leo.query(api.play.view, { gameId })).people.find((p) => p.name === 'Priya');
+    const priyaSeen = async () => (await viewOf(s.leo, gameId)).people.find((p) => p.name === 'Priya');
 
     await step(100);
-    let v = await s.priya.query(api.play.view, { gameId });
+    let v = await viewOf(s.priya, gameId);
     expect(v.me.boosts.map((b) => b.kind)).toEqual(['sombra']);
     expect(v.me.revealUntil).not.toBeNull();
     expect((await priyaSeen())?.kind).toBe('live'); // o preço: 5 s ao vivo
@@ -333,7 +339,7 @@ describe('rodada', () => {
     await step(120);
     await advance(t, 2_000);
     await step(140); // já tem 2: o Escudo fica travado
-    v = await s.priya.query(api.play.view, { gameId });
+    v = await viewOf(s.priya, gameId);
     expect(v.me.boosts.map((b) => b.kind)).toEqual(['sombra', 'despiste']);
     expect(v.me.blockedBoost).toBe('Escudo');
 
@@ -351,10 +357,10 @@ describe('rodada', () => {
     // Abriu espaço: pega o Escudo e fica protegida da pega.
     await step(141);
     await advance(t, 9_000);
-    v = await s.priya.query(api.play.view, { gameId });
+    v = await viewOf(s.priya, gameId);
     expect(v.me.boosts.map((b) => b.kind)).toEqual(['escudo']);
     await s.priya.mutation(api.play.useBoost, { boostId: v.me.boosts[0].id });
-    const ids = Object.fromEntries((await s.leo.query(api.games.lobby, { gameId })).players.map((p) => [p.name, p.id]));
+    const ids = Object.fromEntries((await lobbyOf(s.leo, gameId)).players.map((p) => [p.name, p.id]));
     await expect(s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya })).rejects.toThrow(/Escudo/);
     await expect(s.priya.mutation(api.play.useBoost, { boostId: v.me.boosts[0].id })).rejects.toThrow();
   });
@@ -363,7 +369,7 @@ describe('rodada', () => {
     const s = await lobbyWith4();
     await startWithLeoHunting(s);
     await advance(s.t, 33 * MIN);
-    const view = await s.priya.query(api.play.view, { gameId: s.gameId });
+    const view = await viewOf(s.priya, s.gameId);
     expect(view.game).toMatchObject({ status: 'ended', winner: 'runner', endedReason: 'time' });
     const stats = await s.t.run((ctx) => ctx.db.query('match_stats').collect());
     expect(stats).toHaveLength(1);
@@ -377,7 +383,7 @@ describe('rodada', () => {
     await s.host.mutation(api.play.reportCaught, { gameId: s.gameId });
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
     await advance(s.t, 3 * MIN);
-    const view = await s.priya.query(api.play.view, { gameId: s.gameId });
+    const view = await viewOf(s.priya, s.gameId);
     expect(view.game).toMatchObject({ round: 2, status: 'hunt' });
     expect(view.me.state).toBe('active');
   });
@@ -418,10 +424,10 @@ describe('salvar o amigo', () => {
     await s.priya.mutation(api.play.reportCaught, { gameId });
 
     // Todo mundo vê onde ela está presa, inclusive o caçador.
-    const seen = (await s.leo.query(api.play.view, { gameId })).people.find((p) => p.name === 'Priya');
+    const seen = (await viewOf(s.leo, gameId)).people.find((p) => p.name === 'Priya');
     expect(seen).toMatchObject({ kind: 'live', state: 'caught' });
     expect(Math.round(distanceBetween(seen!, north(100)))).toBe(0);
-    expect((await s.priya.query(api.play.view, { gameId })).me.jailed).toBe(true);
+    expect((await viewOf(s.priya, gameId)).me.jailed).toBe(true);
 
     // O preso pode pedir ajuda mesmo quando pego só assiste.
     await s.priya.mutation(api.radio.sendQuick, { gameId, text: 'Me salva!' });
@@ -429,14 +435,14 @@ describe('salvar o amigo', () => {
     // Teo chega a 5 m: começa o resgate; 3 s depois, os dois estão no jogo.
     vi.advanceTimersByTime(2_500);
     await move(s.teo, gameId, north(105));
-    expect((await s.teo.query(api.play.view, { gameId })).me.rescue?.name).toBe('Priya');
+    expect((await viewOf(s.teo, gameId)).me.rescue?.name).toBe('Priya');
     vi.advanceTimersByTime(3_500);
     await move(s.teo, gameId, north(104));
-    const priya = await s.priya.query(api.play.view, { gameId });
+    const priya = await viewOf(s.priya, gameId);
     expect(priya.me.state).toBe('active');
     expect(priya.me.jailed).toBe(false);
     expect(priya.me.shieldUntil).not.toBeNull(); // protegida por 30 s
-    expect((await s.teo.query(api.play.view, { gameId })).me.rescue).toBeNull();
+    expect((await viewOf(s.teo, gameId)).me.rescue).toBeNull();
   });
 
   test('sair do círculo recomeça o resgate', async () => {
@@ -453,7 +459,7 @@ describe('salvar o amigo', () => {
     await move(s.teo, gameId, north(130)); // saiu
     vi.advanceTimersByTime(2_500);
     await move(s.teo, gameId, north(106)); // recomeça do zero
-    expect((await s.priya.query(api.play.view, { gameId })).me.state).toBe('caught');
+    expect((await viewOf(s.priya, gameId)).me.state).toBe('caught');
   });
 });
 
@@ -476,15 +482,15 @@ describe('regras de boosts e tensão', () => {
     await move(s.leo, gameId, CENTER);
     await move(s.priya, gameId, north(10));
 
-    const priya = await s.priya.query(api.play.view, { gameId });
+    const priya = await viewOf(s.priya, gameId);
     expect(priya.boosts).toHaveLength(0); // nenhuma onda
     expect(priya.me.heartbeat).toBe(false); // caçador a 10 m, mas desligado
     expect(priya.game.features).toEqual({ boosts: false, heartbeat: false, shouts: false, rescue: false });
-    expect((await s.leo.query(api.play.view, { gameId })).me.shoutsLeft).toBeNull();
+    expect((await viewOf(s.leo, gameId)).me.shoutsLeft).toBeNull();
     await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/desligado/);
 
     await s.priya.mutation(api.play.reportCaught, { gameId });
-    expect((await s.priya.query(api.play.view, { gameId })).me.jailed).toBe(false); // sem prisão: pego é pego
+    expect((await viewOf(s.priya, gameId)).me.jailed).toBe(false); // sem prisão: pego é pego
   });
 
   test('quantidade de boosts por onda', async () => {
@@ -496,8 +502,24 @@ describe('regras de boosts e tensão', () => {
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
     await advance(s.t, 3 * MIN);
     await advance(s.t, MIN);
-    const runner = (await Promise.all([s.host, s.leo, s.priya, s.teo].map((p) => p.query(api.play.view, { gameId: s.gameId })))).find((v) => v.me.role === 'runner')!;
+    const runner = (await Promise.all([s.host, s.leo, s.priya, s.teo].map((p) => viewOf(p, s.gameId)))).find((v) => v.me.role === 'runner')!;
     expect(runner.boosts).toHaveLength(5);
+  });
+});
+
+describe('sair da partida', () => {
+  test('quem sai recebe tela vazia, não erro, e a partida segue', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    await s.priya.mutation(api.games.leave, { gameId });
+    // As telas que ficam abertas por baixo não podem quebrar.
+    expect(await s.priya.query(api.play.view, { gameId })).toBeNull();
+    expect(await s.priya.query(api.games.lobby, { gameId })).toBeNull();
+    expect((await s.priya.query(api.radio.list, { gameId })).messages).toEqual([]);
+    expect(await s.priya.query(api.alerts.mine, { gameId })).toEqual([]);
+    // Os outros seguem jogando.
+    expect((await viewOf(s.teo, gameId)).game.status).toBe('headstart');
   });
 });
 
@@ -536,7 +558,7 @@ describe('avisos da partida', () => {
     await s.leo.mutation(api.play.shout, { gameId });
     expect((await kinds(s.priya, gameId))[0]).toBe('shout');
 
-    const ids = Object.fromEntries((await s.leo.query(api.games.lobby, { gameId })).players.map((p) => [p.name, p.id]));
+    const ids = Object.fromEntries((await lobbyOf(s.leo, gameId)).players.map((p) => [p.name, p.id]));
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya });
     const last = (await s.priya.query(api.alerts.mine, { gameId }))[0];
     expect(last).toMatchObject({ kind: 'capture', title: 'Leo disse que te pegou' });
@@ -551,7 +573,7 @@ describe('cosméticos', () => {
     await expect(s.host.mutation(api.cosmetics.equip, { itemId: 'gelo' })).rejects.toThrow(/não é sua/);
 
     // Compra registrada (como o webhook da loja faria).
-    const hostId = (await s.host.query(api.games.lobby, { gameId: s.gameId })).players.find((p) => p.name === 'Castro')!;
+    const hostId = (await lobbyOf(s.host, s.gameId)).players.find((p) => p.name === 'Castro')!;
     await s.t.run(async (ctx) => {
       const player = await ctx.db.get(hostId.id);
       await ctx.db.insert('cosmetics', { userId: player!.userId, itemId: 'gelo', at: Date.now() });
@@ -562,7 +584,7 @@ describe('cosméticos', () => {
     await startWithLeoHunting(s);
     await move(s.host, s.gameId, north(10));
     await move(s.priya, s.gameId, north(20));
-    const me = (await s.priya.query(api.play.view, { gameId: s.gameId })).people.find((p) => p.name === 'Castro');
+    const me = (await viewOf(s.priya, s.gameId)).people.find((p) => p.name === 'Castro');
     expect(me?.frame).toBe('gelo');
   });
 });

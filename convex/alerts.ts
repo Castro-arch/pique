@@ -3,7 +3,7 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
 import { internalMutation, internalQuery, mutation, query, type MutationCtx } from './_generated/server';
-import { requireMember, requireUser } from './lib';
+import { memberOrNull, requireUser } from './lib';
 
 // Avisos da partida. Cada jogador recebe os seus: o app Android mostra como
 // notificação quando está em segundo plano (alerts.mine), e o site recebe
@@ -23,7 +23,9 @@ export async function notify(ctx: MutationCtx, players: Doc<'players'>[], kind: 
 export const mine = query({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const { me } = await requireMember(ctx, gameId);
+    const member = await memberOrNull(ctx, gameId);
+    if (!member) return [];
+    const { me } = member;
     const rows = await ctx.db
       .query('alerts')
       .withIndex('by_player', (q) => q.eq('playerId', me._id))

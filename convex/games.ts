@@ -13,6 +13,7 @@ import {
   MIN,
   newCode,
   requireHost,
+  memberOrNull,
   requireMember,
   requireUser,
   RULES_VERSION,
@@ -136,7 +137,9 @@ export const join = mutation({
 export const lobby = query({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const { userId, game, me } = await requireMember(ctx, gameId);
+    const member = await memberOrNull(ctx, gameId);
+    if (!member) return null; // quem saiu (ou nunca entrou) não vê o lobby
+    const { userId, game, me } = member;
     const players = (await gamePlayers(ctx, gameId))
       .filter((p) => p.state !== 'left')
       .sort((a, b) => a.joinedAt - b.joinedAt);

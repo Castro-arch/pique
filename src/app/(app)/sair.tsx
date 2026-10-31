@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { Text } from '@/components/Text';
+import { stopBackgroundTracking } from '@/lib/backgroundLocation';
 import type { GameId } from '@/lib/game';
 import { colors, fonts } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
@@ -17,13 +18,15 @@ export default function Sair() {
   const lobby = de === 'lobby';
   const leaveGame = useMutation(api.games.leave);
   const [busy, setBusy] = useState(false);
-  const leave = async () => {
-    if (id) {
-      setBusy(true);
-      await leaveGame({ gameId: id as GameId }).catch(() => {});
-    }
+  // Sai na hora: para o GPS, troca de tela e avisa o servidor em seguida.
+  // Esperar a resposta antes de navegar deixava a tela do mapa (ainda aberta
+  // por baixo) esperando dados de uma partida que você já tinha deixado.
+  const leave = () => {
+    setBusy(true);
+    stopBackgroundTracking().catch(() => {});
     if (router.canDismiss()) router.dismissAll();
     router.replace(lobby ? '/' : '/saiu');
+    if (id) leaveGame({ gameId: id as GameId }).catch(() => {});
   };
   const points = lobby
     ? ['A crew continua no lobby.', 'Se você era o anfitrião, quem está há mais tempo assume.', 'Dá para voltar pelo mesmo código.']

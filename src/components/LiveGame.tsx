@@ -76,6 +76,9 @@ export function LiveGame({ id }: { id: string }) {
     return <Redirect href={{ pathname: '/fim', params: { id, lado: view.game.winner === 'hunter' ? 'cacador' : 'corredor' } }} />;
   }
 
+  // Você não está mais nesta partida (saiu por outro aparelho, por exemplo).
+  if (view === null) return <Redirect href="/" />;
+
   if (!view) {
     return (
       <View style={[styles.root, { alignItems: 'center', justifyContent: 'center' }]}>

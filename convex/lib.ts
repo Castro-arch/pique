@@ -84,6 +84,22 @@ export async function requireMember(ctx: Ctx, gameId: Id<'games'>) {
   return { userId, game, me };
 }
 
+// Como requireMember, mas devolve null para quem saiu (ou nunca entrou), em vez
+// de erro. Para as consultas que ficam abertas na tela: quem sai da partida
+// não pode derrubar o app enquanto a navegação acontece.
+export async function memberOrNull(ctx: Ctx, gameId: Id<'games'>) {
+  const userId = await getAuthUserId(ctx);
+  if (userId === null) return null;
+  const game = await ctx.db.get(gameId);
+  if (!game) return null;
+  const me = await ctx.db
+    .query('players')
+    .withIndex('by_game_user', (q) => q.eq('gameId', gameId).eq('userId', userId))
+    .unique();
+  if (!me || me.state === 'left') return null;
+  return { userId, game, me };
+}
+
 export function requireHost(game: Doc<'games'>, userId: Id<'users'>) {
   if (game.hostId !== userId) throw new ConvexError('Só o anfitrião pode fazer isso.');
 }

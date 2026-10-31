@@ -2,7 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from './_generated/dataModel';
 import { mutation, query, type MutationCtx } from './_generated/server';
-import { requireMember } from './lib';
+import { memberOrNull, requireMember } from './lib';
 
 // Sem texto livre: só estas respostas prontas e áudio curto.
 export const QUICK = [
@@ -69,7 +69,9 @@ export const sendAudio = mutation({
 export const list = query({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const { game, me } = await requireMember(ctx, gameId);
+    const member = await memberOrNull(ctx, gameId);
+    if (!member) return { team: 'runner' as const, quick: QUICK, messages: [] }; // saiu da partida
+    const { game, me } = member;
     const team = me.role ?? 'runner';
     const since = game.startedAt ?? 0;
     const rows = await ctx.db
