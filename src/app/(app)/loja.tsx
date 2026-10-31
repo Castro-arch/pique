@@ -9,6 +9,7 @@ import { Button } from '@/components/Button';
 import { Appear, Pressy, SlideUp, stagger } from '@/components/Motion';
 import { Text } from '@/components/Text';
 import { FRAME_CARD, FRAMES, RARITY } from '@/lib/cosmetics';
+import { useDemoMode } from '@/lib/demoMode';
 import { errorInfo } from '@/lib/game';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { useMe } from '@/lib/useMe';
@@ -17,17 +18,27 @@ import { api } from '../../../convex/_generated/api';
 
 type Item = { id: string; name: string; price: string | null; isNew: boolean; owned: boolean; equipped: boolean };
 
+// Modo demonstração (galeria de telas): a loja sem conta.
+const DEMO_ITEMS: Item[] = [
+  { id: 'neon', name: 'Neon', price: null, isNew: false, owned: true, equipped: false },
+  { id: 'arcoiris', name: 'Arco-íris', price: null, isNew: false, owned: true, equipped: false },
+  { id: 'gelo', name: 'Gelo', price: 'R$ 4,90', isNew: true, owned: false, equipped: false },
+  { id: 'chamas', name: 'Chamas', price: 'R$ 4,90', isNew: false, owned: true, equipped: true },
+  { id: 'ouro', name: 'Ouro', price: 'R$ 6,90', isNew: false, owned: false, equipped: false },
+];
+
 // 20.2 Loja: destaque inclinado, atalhos "Minhas" e "Em breve" e as molduras
 // em cartões coloridos. Só visual: ninguém compra vantagem.
 export default function Loja() {
-  const shop = useQuery(api.cosmetics.shop, {});
+  const demo = useDemoMode();
+  const shop = useQuery(api.cosmetics.shop, demo ? 'skip' : {});
   const me = useMe();
   const insets = useScreenInsets();
   const [open, setOpen] = useState<Item | null>(null);
   const [onlyMine, setOnlyMine] = useState(false);
   const [soon, setSoon] = useState(false);
 
-  const items: Item[] = shop?.items ?? [];
+  const items: Item[] = shop?.items ?? (demo ? DEMO_ITEMS : []);
   const owned = items.filter((i) => i.owned).length;
   // Destaque: a mais rara que a pessoa ainda não tem (ou a mais rara de todas).
   const order = ['lendaria', 'epica', 'rara', 'comum'];
@@ -55,6 +66,7 @@ export default function Loja() {
           <Appear>
             <Pressable onPress={() => setOpen(featured)} accessibilityRole="button" accessibilityLabel={`Destaque: moldura ${featured.name}`}>
               <Hero
+                height={200}
                 from={FRAME_CARD[featured.id]?.from ?? '#FFE27A'}
                 to={FRAME_CARD[featured.id]?.to ?? '#FFB020'}
                 sticker={

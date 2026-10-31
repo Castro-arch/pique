@@ -38,6 +38,9 @@ export const sections: { title: string; items: Item[] }[] = [
     title: '3 · Início e conta',
     items: [
       { n: '3.1', title: 'Home', href: '/' },
+      { n: '20.2', title: 'Loja', href: '/loja' },
+      { n: '20.3', title: 'Perfil', href: '/perfil' },
+      { n: '20.4', title: 'Crew', href: '/crew' },
       { n: '3.2', title: 'Estatísticas', href: '/estatisticas' },
       { n: '3.3', title: 'Estatísticas vazias', href: '/estatisticas?vazio=1' },
       { n: '3.4', title: 'Histórico de partidas', href: '/historico' },
