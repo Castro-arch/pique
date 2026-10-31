@@ -65,6 +65,19 @@ export function useRadioPeek(messages: Msg[] | undefined, boostLine: string | nu
 export function RadioBubble({ peek, unread, bottom, onPress }: { peek: Peek | null; unread: number; bottom: number; onPress: () => void }) {
   const grow = useRef(new Animated.Value(0)).current;
   const timer = useRef(new Animated.Value(1)).current;
+  // Mensagem nova com a bolinha fechada: ela balança e o contador pula.
+  const shake = useRef(new Animated.Value(0)).current;
+  const badge = useRef(new Animated.Value(1)).current;
+  const lastUnread = useRef(unread);
+  useEffect(() => {
+    if (unread > lastUnread.current) {
+      shake.setValue(0);
+      Animated.timing(shake, { toValue: 1, duration: 600, easing: Easing.linear, useNativeDriver: true }).start();
+      badge.setValue(0.3);
+      Animated.spring(badge, { toValue: 1, friction: 4, tension: 180, useNativeDriver: true }).start();
+    }
+    lastUnread.current = unread;
+  }, [unread, shake, badge]);
 
   useEffect(() => {
     Animated.timing(grow, { toValue: peek ? 1 : 0, duration: 260, easing: Easing.out(Easing.cubic), useNativeDriver: false }).start();
@@ -91,13 +104,16 @@ export function RadioBubble({ peek, unread, bottom, onPress }: { peek: Peek | nu
       </Animated.View>
     );
   }
+  const wiggle = shake.interpolate({ inputRange: [0, 0.15, 0.35, 0.55, 0.75, 1], outputRange: ['0deg', '-14deg', '12deg', '-8deg', '5deg', '0deg'] });
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={unread ? `Radio, ${unread} novas` : 'Radio'} onPress={onPress} style={[styles.bubble, { bottom }]}>
-      <RadioIcon size={22} color={colors.lime} strokeWidth={2.2} />
+      <Animated.View style={{ transform: [{ rotate: wiggle }] }}>
+        <RadioIcon size={22} color={colors.lime} strokeWidth={2.2} />
+      </Animated.View>
       {unread ? (
-        <View style={styles.badge}>
+        <Animated.View style={[styles.badge, { transform: [{ scale: badge }] }]}>
           <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.pinkInk }}>{unread > 9 ? '9+' : unread}</Text>
-        </View>
+        </Animated.View>
       ) : null}
     </Pressable>
   );

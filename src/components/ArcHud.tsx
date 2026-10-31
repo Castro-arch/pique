@@ -1,4 +1,5 @@
-import { Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
 import { BoostSlot, EmptySlot, useFreshBoost, type BoostKind } from '@/components/Boosts';
@@ -52,6 +53,7 @@ export function ArcHud({
   statusLabel,
   boosts,
   onBoost,
+  urgent,
 }: {
   timeLabel: string;
   time: string;
@@ -65,6 +67,7 @@ export function ArcHud({
   statusLabel: string;
   boosts?: Boost[] | null; // null = sem boosts nesta partida (ou caçador)
   onBoost?: (b: Boost) => void;
+  urgent?: boolean; // últimos segundos: o relógio pulsa
 }) {
   const { width } = useWindowDimensions();
   const insets = useScreenInsets();
@@ -73,6 +76,7 @@ export function ArcHud({
   const halos = boosts ? [EYE, ...SLOTS] : [EYE];
   const r = (RING - 7) / 2;
   const c = 2 * Math.PI * r;
+  const { pulse, eye, count, beat } = useHudMotion(progress, status, free, !!urgent);
 
   return (
     <View
@@ -104,15 +108,29 @@ export function ArcHud({
           />
         </Svg>
         <Text style={styles.small}>{timeLabel}</Text>
-        <Text style={styles.time}>{time}</Text>
+        <Animated.Text style={[styles.time, urgent && { color: colors.pink }, { transform: [{ scale: beat }] }]}>{time}</Animated.Text>
         <Text style={styles.ping}>{pingLabel}</Text>
       </View>
 
+      {/* Saiu um ping: uma onda sai do anel. */}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.wave,
+          {
+            left: CX - RING / 2,
+            top: CY - RING / 2,
+            opacity: pulse.interpolate({ inputRange: [0, 0.05, 1], outputRange: [0, 0.9, 0] }),
+            transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.45] }) }],
+          },
+        ]}
+      />
+
       <View pointerEvents="none" style={[styles.side, { left: 32 }]}>
         <Text style={styles.small}>Corredores</Text>
-        <Text style={styles.value}>
+        <Animated.Text style={[styles.value, { transform: [{ scale: count }] }]}>
           {free} de {total}
-        </Text>
+        </Animated.Text>
         {total <= 8 ? (
           <View style={{ flexDirection: 'row', gap: 4, marginTop: 6 }}>
             {Array.from({ length: total }, (_, i) => (
@@ -128,16 +146,16 @@ export function ArcHud({
         <Text style={[styles.small, { marginTop: 6 }]}>{zoneNote}</Text>
       </View>
 
-      <View
+      <Animated.View
         accessible
         accessibilityLabel={statusLabel}
-        style={[styles.dot, { left: EYE.x - DOT / 2, top: EYE.y - DOT / 2 }, status === 'hidden' ? { backgroundColor: colors.lime } : { backgroundColor: colors.inkBorder }]}>
+        style={[{ transform: [{ scale: eye }] }, styles.dot, { left: EYE.x - DOT / 2, top: EYE.y - DOT / 2 }, status === 'hidden' ? { backgroundColor: colors.lime } : { backgroundColor: colors.inkBorder }]}>
         {status === 'team' ? (
           <Eye size={17} color={colors.paper} strokeWidth={2.2} />
         ) : (
           <EyeOff size={17} color={status === 'hidden' ? colors.limeInk : colors.paperMuted} strokeWidth={2.2} />
         )}
-      </View>
+      </Animated.View>
 
       {boosts
         ? SLOTS.map((p, i) => {
@@ -153,7 +171,54 @@ export function ArcHud({
   );
 }
 
+// As animações do placar: onda quando sai o ping, olho que pula quando muda
+// quem te vê, contador de corredores que pula quando alguém é pego e o
+// relógio batendo nos últimos segundos.
+function useHudMotion(progress: number, status: ArcStatus, free: number, urgent: boolean) {
+  const pulse = useRef(new Animated.Value(0)).current;
+  const eye = useRef(new Animated.Value(1)).current;
+  const count = useRef(new Animated.Value(1)).current;
+  const beat = useRef(new Animated.Value(1)).current;
+  const last = useRef({ progress, status, free });
+
+  useEffect(() => {
+    const before = last.current;
+    last.current = { progress, status, free };
+    // O anel enche até o ping e volta para o zero: foi aí que o ping saiu.
+    if (before.progress > 0.8 && progress < 0.2) {
+      pulse.setValue(0);
+      Animated.timing(pulse, { toValue: 1, duration: 1100, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    }
+    if (before.status !== status) {
+      eye.setValue(0.4);
+      Animated.spring(eye, { toValue: 1, friction: 4, tension: 160, useNativeDriver: true }).start();
+    }
+    if (before.free !== free) {
+      count.setValue(1.35);
+      Animated.spring(count, { toValue: 1, friction: 4, tension: 140, useNativeDriver: true }).start();
+    }
+  }, [progress, status, free, pulse, eye, count]);
+
+  useEffect(() => {
+    if (!urgent) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(beat, { toValue: 1.1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(beat, { toValue: 1, duration: 860, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => {
+      loop.stop();
+      beat.setValue(1);
+    };
+  }, [urgent, beat]);
+
+  return { pulse, eye, count, beat };
+}
+
 const styles = StyleSheet.create({
+  wave: { position: 'absolute', width: RING, height: RING, borderRadius: RING / 2, borderWidth: 4, borderColor: colors.lime },
   wrap: { position: 'absolute', top: 0, width: W, height: CY + R + HALO },
   ring: { position: 'absolute', width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
   side: { position: 'absolute', top: 64, width: 84 },

@@ -2,7 +2,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
 import { Hand, Lock, Megaphone, TriangleAlert } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { ArcHud } from '@/components/ArcHud';
@@ -115,6 +115,8 @@ export function LiveGame({ id }: { id: string }) {
     }
   };
 
+  // Muda a situação (liberado, pego, preso...): os botões de baixo entram de novo.
+  const actionsKey = denied ? 'gps' : me.jailed && !justWatch ? 'preso' : caught ? 'pego' : hunter && headstart ? 'espera' : hunter ? 'caca' : 'corre';
   const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart) && g.features.boosts;
   const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
   // Algum aviso (fora da zona, preso, preço do boost, coração) ocupa o lugar do placar.
@@ -205,6 +207,7 @@ export function LiveGame({ id }: { id: string }) {
             setError(null);
             setUsing(b);
           }}
+          urgent={left > 0 && left <= 10}
         />
       )}
 
@@ -304,7 +307,7 @@ export function LiveGame({ id }: { id: string }) {
       ) : (
         <>
           {radioPeek.peek ? null : (
-            <View style={[styles.actions, { bottom: card }]}>
+            <Rise key={actionsKey} style={[styles.actions, { bottom: card }]}>
               {denied ? (
                 <Pill tone="amber" label="Libere a localização para jogar" />
               ) : me.jailed && !justWatch ? (
@@ -347,7 +350,7 @@ export function LiveGame({ id }: { id: string }) {
                   onPress={() => router.push({ pathname: '/pego', params: { id } })}
                 />
               )}
-            </View>
+            </Rise>
           )}
           <RadioBubble peek={radioPeek.peek} unread={radioPeek.unread} bottom={card} onPress={() => radioPeek.open(id)} />
         </>
@@ -372,6 +375,17 @@ function boostLineFor(me: { blockedBoost?: string | null; shieldUntil?: number |
   if (me.nextPing === 'sombra') return 'Sombra ativa: você some do próximo ping.';
   if (me.nextPing === 'despiste') return 'Despiste ativo: seu próximo ping sai no lugar errado.';
   return null;
+}
+
+// Entra subindo e aparecendo (os botões de baixo quando a situação muda).
+function Rise({ style, children }: { style: React.ComponentProps<typeof View>['style']; children: React.ReactNode }) {
+  const k = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(k, { toValue: 1, duration: 320, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  }, [k]);
+  return (
+    <Animated.View style={[style, { opacity: k, transform: [{ translateY: k.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}>{children}</Animated.View>
+  );
 }
 
 // Botão redondo da parte de baixo (17.1 e 17.3): Fui pego, Marquei, Grito...
