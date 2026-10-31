@@ -42,3 +42,4 @@ example
 /ios
 /android
 public/maplibre-gl-worker.mjs
+convex/_generated/ai/
