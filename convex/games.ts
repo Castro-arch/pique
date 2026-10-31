@@ -251,7 +251,10 @@ export const setZone = mutation({
     requireHost(game, userId);
     if (game.status === 'headstart' || game.status === 'hunt') throw new ConvexError('A rodada já começou.');
     if (Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ConvexError('Posição inválida.');
-    await ctx.db.patch(gameId, { zone: { lat, lng, radius: clamp(radius, LIMITS.zoneRadius) } });
+    const zone = { lat, lng, radius: clamp(radius, LIMITS.zoneRadius) };
+    await ctx.db.patch(gameId, { zone });
+    // Busca as ruas da zona para os boosts nascerem só nelas.
+    await ctx.scheduler.runAfter(0, internal.streets.load, { gameId, ...zone });
   },
 });
 

@@ -17,6 +17,7 @@ import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
 import { errorInfo, secondsUntil, useNow, useSendPosition, useView, type GameId } from '@/lib/game';
 import { useGameAlerts } from '@/lib/gameAlerts';
+import { useHeading } from '@/lib/heading';
 import { useHeartbeat } from '@/lib/heartbeat';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../convex/_generated/api';
@@ -32,6 +33,7 @@ export function LiveGame({ id }: { id: string }) {
   const now = useNow();
   const playing = view?.game.status === 'headstart' || view?.game.status === 'hunt';
   const { denied } = useSendPosition(id, !!playing && view?.me.state === 'active');
+  useSendHeading(id, !!playing && view?.me.state === 'active');
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const mark = useMutation(api.play.markCapture);
@@ -396,6 +398,21 @@ function boostLineFor(me: { blockedBoost?: string | null; shieldUntil?: number |
   if (me.nextPing === 'sombra') return 'Sombra ativa: você some do próximo ping.';
   if (me.nextPing === 'despiste') return 'Despiste ativo: seu próximo ping sai no lugar errado.';
   return null;
+}
+
+// Manda para onde estou virado: no máximo a cada 1,5 s e só se virar 15° ou mais.
+function useSendHeading(id: string, active: boolean) {
+  const heading = useHeading(active);
+  const send = useMutation(api.play.setHeading);
+  const last = useRef({ at: 0, deg: -999 });
+  useEffect(() => {
+    if (!active || heading === null) return;
+    const now = Date.now();
+    const diff = Math.abs(((heading - last.current.deg + 540) % 360) - 180);
+    if (now - last.current.at < 1500 || diff < 15) return;
+    last.current = { at: now, deg: heading };
+    send({ gameId: id as GameId, heading }).catch(() => {});
+  }, [heading, active, id, send]);
 }
 
 // Entra subindo e aparecendo (os botões de baixo quando a situação muda).

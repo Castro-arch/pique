@@ -1,4 +1,5 @@
 import { StyleSheet, View } from 'react-native';
+import Svg, { Path } from 'react-native-svg';
 
 import { Avatar } from '@/components/Avatar';
 import { useDock } from '@/components/Game';
@@ -12,7 +13,9 @@ import { personState, personTag, type MapPerson } from './gameMapTypes';
 export function PersonPin({ p, now, hunter, outOfZone }: { p: MapPerson; now: number; hunter: boolean; outOfZone: boolean }) {
   return (
     <View collapsable={false} style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-      <Avatar name={p.name} size={p.isMe ? 46 : 36} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
+      <Beak heading={p.heading} size={p.isMe ? 46 : 36} color={p.role === 'hunter' ? colors.pink : colors.lime}>
+        <Avatar name={p.name} size={p.isMe ? 46 : 36} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
+      </Beak>
       <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }]}>
         <Text
           style={{
@@ -23,6 +26,22 @@ export function PersonPin({ p, now, hunter, outOfZone }: { p: MapPerson; now: nu
           {personTag(p, now)}
         </Text>
       </View>
+    </View>
+  );
+}
+
+// Biquinho em volta do avatar apontando para onde a pessoa está virada.
+function Beak({ heading, size, color, children }: { heading?: number | null; size: number; color: string; children: React.ReactNode }) {
+  if (heading === null || heading === undefined) return <>{children}</>;
+  const box = size + 26;
+  return (
+    <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View pointerEvents="none" style={{ position: 'absolute', width: box, height: box, transform: [{ rotate: `${heading}deg` }] }}>
+        <Svg width={box} height={box} viewBox={`0 0 ${box} ${box}`}>
+          <Path d={`M${box / 2 - 9} 13 L${box / 2} 0 L${box / 2 + 9} 13 Z`} fill={color} stroke="#101418" strokeWidth={1.5} strokeLinejoin="round" />
+        </Svg>
+      </View>
+      {children}
     </View>
   );
 }

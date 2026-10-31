@@ -7,6 +7,7 @@ export type MapPerson = {
   state: 'active' | 'caught' | 'left';
   isMe: boolean;
   kind: 'live' | 'ping';
+  heading?: number | null; // graus, 0 = norte (só ao vivo)
   lat: number;
   lng: number;
   at: number;

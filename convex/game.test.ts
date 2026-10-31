@@ -6,6 +6,7 @@ import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { distanceM as distanceBetween } from './lib';
 import { assignRoles, planDraw } from './rounds';
+import { samplePoints } from './streets';
 import schema from './schema';
 
 const modules = import.meta.glob('./**/*.ts');
@@ -60,8 +61,15 @@ const viewOf = (as: As, gameId: Id<'games'>) => as.query(api.play.view, { gameId
 const move = (as: As, gameId: Id<'games'>, pos: { lat: number; lng: number }) =>
   as.mutation(api.play.sendPosition, { gameId, ...pos, accuracy: 8 });
 
-beforeEach(() => vi.useFakeTimers());
-afterEach(() => vi.useRealTimers());
+beforeEach(() => {
+  vi.useFakeTimers();
+  // A busca de ruas (OpenStreetMap) não sai do teste: responde "fora do ar".
+  vi.stubGlobal('fetch', async () => new Response('', { status: 503 }));
+});
+afterEach(() => {
+  vi.useRealTimers();
+  vi.unstubAllGlobals();
+});
 
 async function advance(t: Awaited<ReturnType<typeof setup>>['t'], ms: number) {
   vi.advanceTimersByTime(ms + 1_000); // +1 s: o horário agendado tem arredondamento
@@ -556,6 +564,51 @@ describe('salvar o amigo', () => {
     vi.advanceTimersByTime(2_500);
     await move(s.teo, gameId, north(106)); // recomeça do zero
     expect((await viewOf(s.priya, gameId)).me.state).toBe('caught');
+  });
+});
+
+describe('boosts nas ruas', () => {
+  test('pontos a cada ~18 m em cima da rua, só dentro da zona', () => {
+    const zone = { ...CENTER, radius: 200 };
+    // uma rua de 600 m atravessando a zona de sul a norte
+    const pts = samplePoints([[north(-300), north(300)]], zone);
+    expect(pts.length).toBeGreaterThan(15);
+    for (const p of pts) {
+      expect(Math.abs(p.lng - CENTER.lng)).toBeLessThan(1e-6);
+      expect(distanceBetween(p, CENTER)).toBeLessThanOrEqual(200 * 0.92 + 1);
+    }
+  });
+
+  test('com as ruas carregadas os boosts nascem nelas', async () => {
+    const s = await lobbyWith4();
+    const street = [north(-60), north(-20), north(30), north(70)];
+    await s.t.run(async (ctx) => {
+      const game = (await ctx.db.get(s.gameId))!;
+      await ctx.db.patch(s.gameId, { streets: { key: 'x', points: street } });
+      expect(game.zone).toBeDefined();
+    });
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    await advance(s.t, MIN);
+    const boosts = (await viewOf(s.priya, s.gameId)).boosts;
+    expect(boosts).toHaveLength(3);
+    for (const b of boosts) expect(street.some((p) => p.lat === b.lat && p.lng === b.lng)).toBe(true);
+  });
+});
+
+describe('biquinho', () => {
+  test('a direção aparece para o próprio time e some quando fica velha', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await move(s.priya, s.gameId, north(50));
+    await move(s.teo, s.gameId, north(80));
+    await s.priya.mutation(api.play.setHeading, { gameId: s.gameId, heading: 450 });
+    const teoView = await viewOf(s.teo, s.gameId);
+    expect(teoView.people.find((p) => p.name === 'Priya')?.heading).toBe(90);
+    // caçador não vê a Priya ao vivo, então não vê para onde ela olha
+    expect((await viewOf(s.leo, s.gameId)).people.find((p) => p.name === 'Priya')).toBeUndefined();
+    vi.advanceTimersByTime(31_000);
+    expect((await viewOf(s.teo, s.gameId)).people.find((p) => p.name === 'Priya')?.heading).toBeNull();
   });
 });
 

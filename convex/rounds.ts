@@ -290,9 +290,13 @@ export const spawnBoosts = internalMutation({
       await ctx.db.delete(b._id);
     }
     const count = BOOSTS_PER_WAVE[game.rules.boostAmount ?? 'normal'];
+    // Em cima das ruas (da busca no OpenStreetMap), dentro da zona de agora
+    // (ela pode ter encolhido). Sem ruas, qualquer lugar da zona.
+    const zone = game.zone;
+    const onStreet = shuffle((game.streets?.points ?? []).filter((p) => distanceM(p, zone) <= zone.radius * 0.9));
     for (let i = 0; i < count; i++) {
       // sqrt espalha por igual na área, e não amontoado no centro.
-      const at = offsetM(game.zone, game.zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
+      const at = onStreet[i] ?? offsetM(zone, zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
       await ctx.db.insert('boosts', { gameId, round, kind: randomKind(), ...at, state: 'map' });
     }
     await systemMessage(ctx, gameId, `${count} boosts apareceram. Você guarda até 2; quanto mais forte, mais tempo fica visível ao pegar.`, 'runner');

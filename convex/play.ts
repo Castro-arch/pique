@@ -116,6 +116,16 @@ export const hideAfterBoost = internalMutation({
   },
 });
 
+// Para onde a pessoa está virada (bússola). Só vale durante a rodada.
+export const setHeading = mutation({
+  args: { gameId: v.id('games'), heading: v.number() },
+  handler: async (ctx, { gameId, heading }) => {
+    const { game, me } = await requireMember(ctx, gameId);
+    if (!playing(game) || me.state !== 'active' || !Number.isFinite(heading)) return;
+    await ctx.db.patch(me._id, { heading: ((Math.round(heading) % 360) + 360) % 360, headingAt: Date.now() });
+  },
+});
+
 // Corredor usa um boost guardado.
 export const useBoost = mutation({
   args: { boostId: v.id('boosts') },
@@ -169,6 +179,7 @@ type Seen = {
   state: Doc<'players'>['state'];
   isMe: boolean;
   kind: 'live' | 'ping';
+  heading?: number | null;
   lat: number;
   lng: number;
   at: number;
@@ -209,7 +220,9 @@ export const view = query({
       }
       // O resto (eu, meu time, corredor exposto) aparece ao vivo.
       const pos = await lastPosition(ctx, p._id);
-      if (pos) seen.push({ ...base, kind: 'live', lat: pos.lat, lng: pos.lng, at: pos.at });
+      // Direção só se for recente (bússola parada há mais de 30 s não conta).
+      const heading = p.heading !== undefined && Date.now() - (p.headingAt ?? 0) < 30_000 ? p.heading : null;
+      if (pos) seen.push({ ...base, kind: 'live', lat: pos.lat, lng: pos.lng, at: pos.at, heading });
     }
 
     const runners = players.filter((p) => p.role === 'runner');

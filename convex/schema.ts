@@ -64,6 +64,8 @@ export default defineSchema({
     endedAt: v.optional(v.number()),
     winner: v.optional(role),
     endedReason: v.optional(v.union(v.literal('time'), v.literal('all_tagged'), v.literal('abandoned'))),
+    // Pontos em cima das ruas da zona (OpenStreetMap): onde os boosts nascem.
+    streets: v.optional(v.object({ key: v.string(), points: v.array(v.object({ lat: v.number(), lng: v.number() })) })),
     // Roleta de luz girando: cada passo é um celular aceso num horário.
     // stops = índices dos passos onde a luz parou (um por caçador).
     draw: v.optional(
@@ -109,6 +111,8 @@ export default defineSchema({
     jail: v.optional(v.object({ lat: v.number(), lng: v.number(), at: v.number() })),
     rescue: v.optional(v.object({ targetId: v.id('players'), since: v.number() })),
     heartbeatAlertAt: v.optional(v.number()), // último aviso de coração acelerado (não repete a cada passo)
+    heading: v.optional(v.number()), // para onde está virado (graus, 0 = norte), da bússola do celular
+    headingAt: v.optional(v.number()),
   })
     .index('by_game', ['gameId'])
     .index('by_game_user', ['gameId', 'userId'])
