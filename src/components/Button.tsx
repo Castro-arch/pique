@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
+
+import { Pressy } from '@/components/Motion';
 
 import { Text } from '@/components/Text';
 import { colors, fonts, radius, touch } from '@/theme/tokens';
@@ -43,14 +45,15 @@ export function Button({
   const p = palette[variant];
   const height = variant === 'link' ? touch : size === 'lg' ? 56 : 48;
   return (
-    <Pressable
+    <Pressy
+      scaleTo={variant === 'link' ? 0.94 : 0.96}
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: !!inactive, busy: !!loading }}
       onPress={onPress}
       disabled={inactive}
-      style={({ pressed }) => [
+      style={[
         styles.base,
         {
           minHeight: height,
@@ -59,7 +62,6 @@ export function Button({
         },
         p.border ? { borderWidth: 1, borderColor: p.border } : null,
         inactive && styles.inactive,
-        pressed && styles.pressed,
         style,
       ]}>
       {loading ? (
@@ -77,7 +79,7 @@ export function Button({
           </Text>
         </View>
       )}
-    </Pressable>
+    </Pressy>
   );
 }
 
@@ -85,5 +87,4 @@ const styles = StyleSheet.create({
   base: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 20 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   inactive: { opacity: 0.4 },
-  pressed: { transform: [{ scale: 0.98 }], opacity: 0.92 },
 });

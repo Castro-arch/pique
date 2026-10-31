@@ -6,6 +6,7 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { Appear, stagger } from '@/components/Motion';
 import type { Side } from '@/components/RoleTag';
 import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
@@ -108,12 +109,12 @@ export default function Lobby() {
           <Text variant="label">{`${people.filter((p) => p.ready).length} de ${people.length} prontos · ${rules.hunters} ${rules.hunters === 1 ? 'caçador' : 'caçadores'} na roleta`}</Text>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-          {people.map((p) => (
-            <View key={p.key} style={{ alignItems: 'center', width: 52 }}>
+          {people.map((p, i) => (
+            <Appear key={p.key} delay={stagger(i)} style={{ alignItems: 'center', width: 52 }}>
               <Avatar source={p.photo} name={p.fullName} size={42} state={p.ready ? 'runner' : 'draw'} />
               <Text style={{ fontSize: 11, marginTop: 4 }} numberOfLines={1}>{p.name}</Text>
               <Text style={{ fontSize: 10, color: p.ready ? colors.lime : colors.paperMuted }}>{p.ready ? 'pronto' : 'entrando'}</Text>
-            </View>
+            </Appear>
           ))}
         </View>
       </Pressable>

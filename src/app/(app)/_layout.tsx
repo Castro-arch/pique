@@ -7,7 +7,7 @@ export const unstable_settings = { initialRouteName: 'index' };
 
 export default function AppLayout() {
   return (
-    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
+    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink }, animation: 'slide_from_right' }}>
       {/* Folhas e diálogos sobem por cima da tela anterior */}
       {['lobby/regras', 'lobby/qr', 'jogador/[id]', 'anfitriao', 'sair', 'denunciar', 'pego', 'confirmando', 'contestado', 'menu', 'grito'].map(
         (name) => (

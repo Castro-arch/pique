@@ -5,6 +5,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { AvatarStack } from '@/components/Avatar';
 import { Button } from '@/components/Button';
+import { PopIn } from '@/components/Motion';
 import { Logo } from '@/components/Nav';
 import { RoleDot } from '@/components/RoleTag';
 import { Screen, Spacer } from '@/components/Screen';
@@ -45,6 +46,7 @@ export default function Papel() {
       </View>
 
       <Spacer />
+      <PopIn delay={120}>
       <Text
         accessibilityRole="header"
         numberOfLines={hunter ? 2 : 1}
@@ -53,6 +55,7 @@ export default function Papel() {
         {hunter ? 'Você\npega' : 'Corra'}
         <Text style={{ color: colors.paper }}>.</Text>
       </Text>
+      </PopIn>
       <Spacer />
 
       <Text style={[styles.brief, { color: ink }]}>

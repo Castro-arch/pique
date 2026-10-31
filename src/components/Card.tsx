@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View, type ViewStyle } from 'react-native';
+import { Pressy } from '@/components/Motion';
 import { ChevronRight } from '@/components/icons';
 
 import { Text } from '@/components/Text';
@@ -70,13 +71,9 @@ export function ListRow({
   );
   if (!onPress) return content;
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title}
-      onPress={onPress}
-      style={({ pressed }) => pressed && { opacity: 0.7 }}>
+    <Pressy scaleTo={0.98} accessibilityRole="button" accessibilityLabel={subtitle ? `${title}. ${subtitle}` : title} onPress={onPress}>
       {content}
-    </Pressable>
+    </Pressy>
   );
 }
 

@@ -7,6 +7,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Hand } from '@/components/icons';
+import { PopIn, SlideUp } from '@/components/Motion';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
 import { useView, type GameId } from '@/lib/game';
@@ -40,6 +41,7 @@ function Claimed({ id, captura }: { id?: string; captura?: string }) {
   return (
     <View style={styles.root}>
       <Pressable accessibilityLabel="Fechar" style={StyleSheet.absoluteFill} onPress={() => router.back()} />
+      <PopIn>
       <View accessibilityRole="alert" accessibilityViewIsModal style={styles.dialog}>
         {id ? (
           <Avatar name={hunterName ?? '?'} size={64} state="hunter" label={hunterName ? `${hunterName}, caçador` : 'Caçador'} />
@@ -55,6 +57,7 @@ function Claimed({ id, captura }: { id?: string; captura?: string }) {
           <Button variant="danger" label="Sim, me acharam" style={{ flex: 1.3 }} onPress={yes} />
         </View>
       </View>
+      </PopIn>
     </View>
   );
 }
@@ -86,6 +89,7 @@ function SelfReport({ id }: { id: string }) {
   return (
     <View style={[styles.root, { justifyContent: 'flex-end', padding: 0 }]}>
       <Pressable accessibilityLabel="Fechar" style={StyleSheet.absoluteFill} onPress={() => router.back()} />
+      <SlideUp>
       <View accessibilityRole="alert" accessibilityViewIsModal style={[styles.sheet, { paddingBottom: Math.max(insets.bottom, 20) + 14 }]}>
         <View style={styles.grip} />
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 }}>
@@ -123,6 +127,7 @@ function SelfReport({ id }: { id: string }) {
         <Button variant="danger" label={chosen ? `Sim, o ${chosen.name} me pegou` : 'Sim, fui pego'} loading={sending} style={{ marginTop: 16 }} onPress={yes} />
         <Button variant="link" label="Não, voltar" style={{ marginTop: 6 }} onPress={() => router.back()} />
       </View>
+      </SlideUp>
     </View>
   );
 }

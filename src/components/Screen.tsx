@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import {
+  Animated,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -9,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useEntrance } from '@/components/Motion';
 import { colors, spacing } from '@/theme/tokens';
 
 type Props = {
@@ -26,6 +28,7 @@ type Props = {
 // `scroll` fica por compatibilidade: hoje toda tela rola.
 export function Screen({ children, background = colors.ink, scroll: _scroll, padded = true, style }: Props) {
   const insets = useSafeAreaInsets();
+  const enter = useEntrance({ distance: 18 });
   const pad: ViewStyle = padded
     ? {
         paddingTop: Math.max(insets.top + 12, spacing.screenTop),
@@ -40,7 +43,7 @@ export function Screen({ children, background = colors.ink, scroll: _scroll, pad
       contentContainerStyle={[styles.grow, pad, style]}
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}>
-      {children}
+      <Animated.View style={[styles.grow, enter]}>{children}</Animated.View>
     </ScrollView>
   );
 

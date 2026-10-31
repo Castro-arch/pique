@@ -11,6 +11,7 @@ import { Bar, CardAction, GameTabs, mmss, useDock } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { GO_MS, HuntGo, HunterLocked } from '@/components/HunterWait';
+import { Appear, Pressy } from '@/components/Motion';
 import { RadioBubble, useRadioPeek } from '@/components/RadioBubble';
 import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
@@ -241,7 +242,7 @@ export function LiveGame({ id }: { id: string }) {
       ) : null}
 
       {picking ? (
-        <View style={[styles.picker, { bottom: card }]}>
+        <Appear style={[styles.picker, { bottom: card }]}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Quem você pegou?</Text>
           <Text variant="small" style={{ marginTop: 2 }}>Ele recebe um aviso e confirma no celular dele.</Text>
           <View style={{ gap: 8, marginTop: 12 }}>
@@ -256,9 +257,9 @@ export function LiveGame({ id }: { id: string }) {
           </View>
           {error ? <Text variant="error" style={{ marginTop: 8 }}>{error}</Text> : null}
           <CardAction label="Cancelar" onPress={() => setPicking(false)} />
-        </View>
+        </Appear>
       ) : shouting ? (
-        <View style={[styles.picker, { bottom: card }]}>
+        <Appear style={[styles.picker, { bottom: card }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ fontFamily: fonts.display, fontSize: 28 }}>
               Grito<Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.pink }}>.</Text>
@@ -282,17 +283,17 @@ export function LiveGame({ id }: { id: string }) {
             <Text variant="label" style={{ marginTop: 12, textAlign: 'center' }}>Seus gritos acabaram nesta rodada.</Text>
           )}
           <CardAction label="Agora não" onPress={() => setShouting(false)} style={{ marginTop: 6, borderWidth: 0, backgroundColor: 'transparent' }} />
-        </View>
+        </Appear>
       ) : me.rescue ? (
-        <View style={[styles.picker, { bottom: card }]}>
+        <Appear style={[styles.picker, { bottom: card }]}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Soltando {me.rescue.name}: fique perto por 3 s</Text>
           <Text variant="small" style={{ marginTop: 4 }}>
             Se sair do círculo, o resgate recomeça. Os caçadores sabem onde {me.rescue.name} está preso: pode ser armadilha.
           </Text>
           <Bar value={(now - me.rescue.since) / 3000} style={{ marginTop: 12, height: 8 }} />
-        </View>
+        </Appear>
       ) : using ? (
-        <View style={[styles.picker, { bottom: card }]}>
+        <Appear style={[styles.picker, { bottom: card }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             {(() => {
               const b = BOOSTS[using.kind];
@@ -314,13 +315,13 @@ export function LiveGame({ id }: { id: string }) {
             <CardAction label="Agora não" onPress={() => setUsing(null)} style={{ flex: 1 }} />
             {g.status === 'hunt' ? <CardAction tone="lime" label="Usar agora" onPress={confirmBoost} style={{ flex: 1 }} /> : null}
           </View>
-        </View>
+        </Appear>
       ) : beating ? (
-        <View style={[styles.picker, { bottom: card }]}>
+        <Appear style={[styles.picker, { bottom: card }]}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Fique parado ou saia devagar</Text>
           <Text variant="small" style={{ marginTop: 4 }}>O aviso não diz de onde ele vem. Correr chama atenção, ficar parado pode funcionar.</Text>
           <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
-        </View>
+        </Appear>
       ) : (
         <>
           {radioPeek.peek ? null : (
@@ -413,17 +414,17 @@ function Pill({ label, tone, icon, a11y, onPress }: { label: string; tone?: 'lim
   const bg = tone === 'lime' ? colors.lime : tone === 'pink' ? colors.pink : tone === 'amber' ? colors.amber : 'rgba(26,32,39,0.96)';
   const fg = tone === 'lime' ? colors.limeInk : tone === 'amber' ? colors.amberInk : colors.paper;
   return (
-    <Pressable
+    <Pressy
       accessibilityRole={onPress ? 'button' : 'text'}
       accessibilityLabel={a11y ?? label}
       disabled={!onPress}
       onPress={onPress}
-      style={({ pressed }) => [styles.pill, { backgroundColor: bg }, !tone && styles.pillDark, pressed && { opacity: 0.85 }]}>
+      style={[styles.pill, { backgroundColor: bg }, !tone && styles.pillDark]}>
       {icon}
       <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: fonts.bodyStrong, color: fg, flexShrink: 1 }}>
         {label}
       </Text>
-    </Pressable>
+    </Pressy>
   );
 }
 

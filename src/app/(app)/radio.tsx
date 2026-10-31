@@ -9,6 +9,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
 import { GameTabs, mmss, useDock } from '@/components/Game';
+import { Appear, stagger } from '@/components/Motion';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
 import { errorInfo, secondsUntil, useNow, useView, type GameId } from '@/lib/game';
@@ -104,7 +105,9 @@ export default function Radio() {
       <ScrollView style={{ flex: 1, marginTop: 12 }} contentContainerStyle={{ paddingHorizontal: 20, gap: 10, paddingBottom: 12 }}>
         <Text variant="label" style={{ textAlign: 'center' }}>Segure uma mensagem para denunciar ou bloquear quem enviou.</Text>
         {msgs.map((m, i) => (
-          <Bubble key={i} m={m} />
+          <Appear key={i} delay={stagger(i, 30)}>
+            <Bubble m={m} />
+          </Appear>
         ))}
       </ScrollView>
 
