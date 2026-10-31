@@ -318,14 +318,15 @@ export function LiveGame({ id }: { id: string }) {
             {g.status === 'hunt' ? <CardAction tone="lime" label="Usar agora" onPress={confirmBoost} style={{ flex: 1 }} /> : null}
           </View>
         </Appear>
-      ) : beating ? (
-        <Appear style={[styles.picker, { bottom: card }]}>
-          <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Fique parado ou saia devagar</Text>
-          <Text variant="small" style={{ marginTop: 4 }}>O aviso não diz de onde ele vem. Correr chama atenção, ficar parado pode funcionar.</Text>
-          <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
-        </Appear>
       ) : (
         <>
+          {/* Coração acelerado: só a dica, logo acima dos botões de sempre. */}
+          {beating && !radioPeek.peek ? (
+            <Appear style={[styles.picker, styles.hint, { bottom: card + 68 }]}>
+              <Text style={{ fontFamily: fonts.display, fontSize: 17 }}>Fique parado ou saia devagar</Text>
+              <Text variant="small" style={{ marginTop: 2 }}>O aviso não diz de onde ele vem. Correr chama atenção.</Text>
+            </Appear>
+          ) : null}
           {radioPeek.peek ? null : (
             <Rise key={actionsKey} style={[styles.actions, { bottom: card }]}>
               {denied ? (
@@ -483,6 +484,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
   },
+  hint: { paddingVertical: 12, paddingHorizontal: 14, borderColor: colors.pink },
   actions: { position: 'absolute', left: 16, right: 84, flexDirection: 'row', gap: 8 },
   pill: { height: 56, borderRadius: 28, paddingHorizontal: 18, flexDirection: 'row', alignItems: 'center', gap: 8, flexShrink: 1 },
   pillDark: { borderWidth: 1, borderColor: colors.inkBorder },
