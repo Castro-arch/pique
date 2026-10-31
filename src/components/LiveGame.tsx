@@ -1,12 +1,13 @@
 import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
-import { EyeOff, Lock, Megaphone, TriangleAlert } from '@/components/icons';
+import { Lock, Megaphone, TriangleAlert } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
+import { ArcHud } from '@/components/ArcHud';
 import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Boosts';
-import { Bar, CardAction, GameTabs, Hud, HudClock, HudFoot, HudRunners, Legend, marks, mmss, RadioCard } from '@/components/Game';
+import { Bar, CardAction, GameTabs, mmss, RadioCard } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { ago } from '@/components/gameMapTypes';
@@ -114,6 +115,8 @@ export function LiveGame({ id }: { id: string }) {
 
   const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart) && g.features.boosts;
   const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
+  // Algum aviso (fora da zona, preso, preço do boost, coração) ocupa o lugar do placar.
+  const coveredHud = (outFor !== null && !caught) || (me.jailed && !justWatch) || (!!revealed && !caught) || beating;
   const shield = me.shieldUntil && me.shieldUntil > now ? secondsUntil(me.shieldUntil, now) : 0;
   // O que o Radio mostra para o corredor quando um boost dele está em jogo.
   const boostLine = me.blockedBoost
@@ -196,30 +199,28 @@ export function LiveGame({ id }: { id: string }) {
       ) : beating ? (
         <HeartbeatCard pulse={pulse} />
       ) : (
-        <Hud>
-          <HudClock
-            label={headstart ? (hunter ? 'Vantagem dos corredores' : 'Vantagem') : 'Tempo restante'}
-            value={mmss(left)}
-            color={headstart && !hunter ? colors.lime : colors.paper}
-            sideLabel={headstart ? 'Primeiro ping em' : 'Próximo ping em'}
-            sideValue={g.nextPingAt ? mmss(ping) : '–'}
-            sideColor={headstart ? colors.paper : colors.lime}
-            progress={headstart ? 0 : 1 - ping / pingTotal}
-          />
-          <HudRunners value={view.runners.total ? view.runners.free / view.runners.total : 0} label={`${view.runners.free} de ${view.runners.total}`} />
-          <HudFoot
-            badge={caught ? 'Sua posição não é mais enviada' : hunter ? 'Só sua equipe te vê' : 'Ninguém te vê agora'}
-            badgeTone={!hunter && !caught ? 'runner' : 'neutral'}
-            icon={<EyeOff size={14} color={!hunter && !caught ? colors.lime : colors.paper} />}
-            right={g.shrinkAt ? `Zona encolhe em ${mmss(secondsUntil(g.shrinkAt, now))}` : zone ? `Zona ${zone.radius * 2} m` : ''}
-          />
-        </Hud>
+        <ArcHud
+          timeLabel={headstart ? (hunter ? 'Vantagem deles' : 'Vantagem') : 'Tempo restante'}
+          time={mmss(left)}
+          pingLabel={g.nextPingAt ? `${headstart ? '1º ping' : 'ping'} em ${mmss(ping)}` : 'sem mais pings'}
+          progress={headstart ? 0 : 1 - ping / pingTotal}
+          free={view.runners.free}
+          total={view.runners.total}
+          zone={zone ? `${zone.radius * 2} m` : '–'}
+          zoneNote={g.shrinkAt ? `encolhe em ${mmss(secondsUntil(g.shrinkAt, now))}` : 'diâmetro'}
+          status={caught ? 'off' : hunter ? 'team' : 'hidden'}
+          statusLabel={caught ? 'Sua posição não é mais enviada' : hunter ? 'Só sua equipe te vê' : 'Ninguém te vê agora'}
+          boosts={runnerPlaying ? me.boosts : null}
+          onBoost={(b) => {
+            setError(null);
+            setUsing(b);
+          }}
+        />
       )}
 
-      <Legend
-        items={hunter ? [{ label: 'Corredor (ping)', mark: marks.runner }, { label: 'Caçador', mark: marks.hunter }] : [{ label: 'Corredor', mark: marks.runner }, { label: 'Pego', mark: marks.out }]}
-      />
-      {runnerPlaying ? (
+      {/* Um aviso (fora da zona, preço do boost, coração...) cobre o placar: as
+          bolinhas de boost seguem à vista embaixo dele, com a animação de pegar. */}
+      {runnerPlaying && coveredHud ? (
         <BoostSlots
           boosts={me.boosts}
           onPress={(b) => {

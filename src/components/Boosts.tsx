@@ -38,10 +38,10 @@ export function BoostPin({ kind }: { kind: BoostKind }) {
 
 // As 2 bolinhas dos boosts guardados, à direita da legenda. Quando entra um
 // boost novo, a bolinha estoura: cresce, solta um anel e faíscas, e assenta.
-export function BoostSlots({ boosts, onPress }: { boosts: { id: string; kind: BoostKind }[]; onPress: (b: { id: string; kind: BoostKind }) => void }) {
+// Qual boost acabou de chegar (para animar). Na primeira leitura só anota o que já tinha.
+export function useFreshBoost(boosts: { id: string }[]) {
   const known = useRef<Set<string> | null>(null);
   const [fresh, setFresh] = useState<string | null>(null);
-
   useEffect(() => {
     const ids = new Set(boosts.map((b) => b.id));
     // Na primeira vez só anota o que já tinha; anima só o que chegar depois.
@@ -54,13 +54,17 @@ export function BoostSlots({ boosts, onPress }: { boosts: { id: string; kind: Bo
     }
     known.current = ids;
   }, [boosts]);
+  return fresh;
+}
 
+export function BoostSlots({ boosts, onPress }: { boosts: { id: string; kind: BoostKind }[]; onPress: (b: { id: string; kind: BoostKind }) => void }) {
+  const fresh = useFreshBoost(boosts);
   return (
     <View style={styles.slots} accessibilityLabel={`Seus boosts: ${boosts.length} de 2`}>
       {[0, 1].map((i) => {
         const b = boosts[i];
-        if (!b) return <View key={`vazio-${i}`} style={[styles.slot, styles.empty]} />;
-        return <Slot key={b.id} boost={b} pop={b.id === fresh} onPress={() => onPress(b)} />;
+        if (!b) return <EmptySlot key={`vazio-${i}`} />;
+        return <BoostSlot key={b.id} boost={b} pop={b.id === fresh} onPress={() => onPress(b)} />;
       })}
     </View>
   );
@@ -68,8 +72,14 @@ export function BoostSlots({ boosts, onPress }: { boosts: { id: string; kind: Bo
 
 const SPARKS = [0, 60, 120, 180, 240, 300];
 
-function Slot({ boost, pop, onPress }: { boost: { id: string; kind: BoostKind }; pop: boolean; onPress: () => void }) {
+export function EmptySlot({ size = 42 }: { size?: number }) {
+  return <View style={[styles.slot, styles.empty, { width: size, height: size, borderRadius: size / 2 }]} />;
+}
+
+// Uma bolinha de boost guardado. pop = acabou de pegar: estoura, solta anel e faíscas.
+export function BoostSlot({ boost, pop, onPress, size = 42 }: { boost: { id: string; kind: BoostKind }; pop: boolean; onPress: () => void; size?: number }) {
   const b = BOOSTS[boost.kind];
+  const round = { width: size, height: size, borderRadius: size / 2 };
   const scale = useRef(new Animated.Value(1)).current;
   const burst = useRef(new Animated.Value(1)).current;
 
@@ -94,6 +104,7 @@ function Slot({ boost, pop, onPress }: { boost: { id: string; kind: BoostKind };
             pointerEvents="none"
             style={[
               styles.ring,
+              round,
               { borderColor: b.color, opacity: burst.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0, 1, 0] }), transform: [{ scale: burst.interpolate({ inputRange: [0, 1], outputRange: [1, 2.6] }) }] },
             ]}
           />
@@ -104,6 +115,8 @@ function Slot({ boost, pop, onPress }: { boost: { id: string; kind: BoostKind };
               style={[
                 styles.spark,
                 {
+                  left: size / 2 - 2,
+                  top: size / 2 - 2,
                   backgroundColor: b.color,
                   opacity: burst.interpolate({ inputRange: [0, 0.1, 1], outputRange: [0, 1, 0] }),
                   transform: [{ rotate: `${deg}deg` }, { translateY: burst.interpolate({ inputRange: [0, 1], outputRange: [0, -32] }) }],
@@ -113,8 +126,8 @@ function Slot({ boost, pop, onPress }: { boost: { id: string; kind: BoostKind };
           ))}
         </>
       ) : null}
-      <Animated.View style={[styles.slot, { backgroundColor: b.tint, borderColor: b.color, transform: [{ scale }] }]}>
-        <b.Icon size={20} color={b.color} strokeWidth={2.2} />
+      <Animated.View style={[styles.slot, round, { backgroundColor: b.tint, borderColor: b.color, transform: [{ scale }] }]}>
+        <b.Icon size={Math.round(size * 0.48)} color={b.color} strokeWidth={2.2} />
       </Animated.View>
     </Pressable>
   );
