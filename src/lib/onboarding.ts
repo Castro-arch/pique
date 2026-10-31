@@ -3,7 +3,8 @@ import { Platform } from 'react-native';
 
 // Marca, neste aparelho, que a pessoa já passou pela tela de permissões.
 // Assim ela aparece uma vez depois do nome, e não a cada abertura.
-const KEY = 'pique.permissionsSeen';
+// Trocar o sufixo (v2, v3…) faz todo mundo ver a tela de novo.
+const KEY = 'pique.permissionsSeen.v2';
 
 export async function permissionsSeen() {
   try {
