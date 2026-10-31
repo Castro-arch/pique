@@ -12,8 +12,8 @@ import { colors, fonts, radius } from '@/theme/tokens';
 
 const SOUND = require('../../../assets/sounds/grito.wav');
 
-// 10.6 Um caçador gritou e meu celular está tocando. O som dura 2 s e toca
-// mesmo no silencioso; o caçador escuta e vem atrás.
+// 10.6 Um caçador gritou e meu celular está tocando. O som (e a vibração) fica
+// repetindo até o corredor tocar em Voltar ao mapa; toca mesmo no silencioso.
 export default function Grito() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const view = useView(id);
@@ -24,12 +24,35 @@ export default function Grito() {
     (async () => {
       await setAudioModeAsync({ playsInSilentMode: true }).catch(() => {});
       player.volume = 1;
+      player.loop = true;
       player.seekTo(0);
       player.play();
     })();
-    if (Platform.OS !== 'web') Vibration.vibrate([0, 400, 150, 400, 150, 400]);
-    else if ('vibrate' in navigator) navigator.vibrate([400, 150, 400, 150, 400]);
+    // A vibração repete junto até sair da tela.
+    let buzz: ReturnType<typeof setInterval> | null = null;
+    if (Platform.OS !== 'web') Vibration.vibrate([0, 400, 150, 400, 150, 400, 600], true);
+    else if ('vibrate' in navigator) {
+      navigator.vibrate([400, 150, 400, 150, 400]);
+      buzz = setInterval(() => navigator.vibrate([400, 150, 400, 150, 400]), 2100);
+    }
+    return () => {
+      if (buzz) clearInterval(buzz);
+      if (Platform.OS !== 'web') Vibration.cancel();
+      else if ('vibrate' in navigator) navigator.vibrate(0);
+      try {
+        player.pause();
+      } catch {}
+    };
   }, [player]);
+
+  const stop = () => {
+    try {
+      player.loop = false;
+      player.pause();
+    } catch {}
+    if (Platform.OS !== 'web') Vibration.cancel();
+    router.back();
+  };
 
   const left = view ? secondsUntil(view.game.endsAt, now) : 0;
   return (
@@ -59,10 +82,10 @@ export default function Grito() {
       <View style={styles.tip}>
         <Info size={18} color={colors.pinkInk} strokeWidth={2.2} />
         <Text style={{ flex: 1, fontSize: 13, lineHeight: 19, fontFamily: fonts.bodyStrong, color: colors.pinkInk }}>
-          O som toca mesmo no silencioso. Deixe o volume baixo, não desligado.
+          O som fica tocando até você voltar ao mapa, mesmo no silencioso. Deixe o volume baixo, não desligado.
         </Text>
       </View>
-      <Button variant="dark" size="lg" label="Voltar ao mapa" onPress={() => router.back()} style={{ marginTop: 18, backgroundColor: colors.pinkInk }} />
+      <Button variant="dark" size="lg" label="Voltar ao mapa" onPress={stop} style={{ marginTop: 18, backgroundColor: colors.pinkInk }} />
     </View>
   );
 }

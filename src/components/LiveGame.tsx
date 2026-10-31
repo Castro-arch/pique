@@ -270,7 +270,7 @@ export function LiveGame({ id }: { id: string }) {
             </View>
           </View>
           <Text variant="muted" style={{ marginTop: 8 }}>
-            O celular do corredor mais perto toca um som por 2 segundos, se ele estiver a até 60 m de você. Escute de onde vem.
+            O celular do corredor mais perto começa a tocar um som (até ele desligar), se ele estiver a até 60 m de você. Escute de onde vem.
           </Text>
           <View style={styles.note}>
             <TriangleAlert size={16} color={colors.amber} />
