@@ -2,12 +2,12 @@ import { useMutation, useQuery } from 'convex/react';
 import { Redirect, router } from 'expo-router';
 import { Lock, Megaphone, TriangleAlert } from '@/components/icons';
 import { useEffect, useRef, useState } from 'react';
-import { Platform, Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { ArcHud } from '@/components/ArcHud';
 import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Boosts';
-import { Bar, CARD_BOTTOM, CardAction, GameTabs, mmss, RadioCard } from '@/components/Game';
+import { Bar, CardAction, GameTabs, mmss, RadioCard, useDock } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { ago } from '@/components/gameMapTypes';
@@ -24,6 +24,7 @@ import type { Id } from '../../convex/_generated/dataModel';
 // satélite no celular, desenhado no navegador.
 export function LiveGame({ id }: { id: string }) {
   const view = useView(id);
+  const { card } = useDock();
   const radio = useQuery(api.radio.list, { gameId: id as GameId });
   const now = useNow();
   const playing = view?.game.status === 'headstart' || view?.game.status === 'hunt';
@@ -231,7 +232,7 @@ export function LiveGame({ id }: { id: string }) {
       ) : null}
 
       {picking ? (
-        <View style={styles.picker}>
+        <View style={[styles.picker, { bottom: card }]}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Quem você pegou?</Text>
           <Text variant="small" style={{ marginTop: 2 }}>Ele recebe um aviso e confirma no celular dele.</Text>
           <View style={{ gap: 8, marginTop: 12 }}>
@@ -248,7 +249,7 @@ export function LiveGame({ id }: { id: string }) {
           <CardAction label="Cancelar" onPress={() => setPicking(false)} />
         </View>
       ) : shouting ? (
-        <View style={styles.picker}>
+        <View style={[styles.picker, { bottom: card }]}>
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
             <Text style={{ fontFamily: fonts.display, fontSize: 28 }}>
               Grito<Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.pink }}>.</Text>
@@ -274,7 +275,7 @@ export function LiveGame({ id }: { id: string }) {
           <CardAction label="Agora não" onPress={() => setShouting(false)} style={{ marginTop: 6, borderWidth: 0, backgroundColor: 'transparent' }} />
         </View>
       ) : me.rescue ? (
-        <View style={styles.picker}>
+        <View style={[styles.picker, { bottom: card }]}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Soltando {me.rescue.name}: fique perto por 3 s</Text>
           <Text variant="small" style={{ marginTop: 4 }}>
             Se sair do círculo, o resgate recomeça. Os caçadores sabem onde {me.rescue.name} está preso: pode ser armadilha.
@@ -282,7 +283,7 @@ export function LiveGame({ id }: { id: string }) {
           <Bar value={(now - me.rescue.since) / 3000} style={{ marginTop: 12, height: 8 }} />
         </View>
       ) : using ? (
-        <View style={styles.picker}>
+        <View style={[styles.picker, { bottom: card }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             {(() => {
               const b = BOOSTS[using.kind];
@@ -306,7 +307,7 @@ export function LiveGame({ id }: { id: string }) {
           </View>
         </View>
       ) : beating ? (
-        <View style={styles.picker}>
+        <View style={[styles.picker, { bottom: card }]}>
           <Text style={{ fontFamily: fonts.display, fontSize: 20 }}>Fique parado ou saia devagar</Text>
           <Text variant="small" style={{ marginTop: 4 }}>O aviso não diz de onde ele vem. Correr chama atenção, ficar parado pode funcionar.</Text>
           <CardAction label="Fui pego" hint="sistema de honra" onPress={() => router.push({ pathname: '/pego', params: { id } })} />
@@ -333,12 +334,12 @@ export function LiveGame({ id }: { id: string }) {
             </View>
           ) : caught ? (
             <View style={styles.locked}>
-              <Text style={{ fontFamily: fonts.display, fontSize: 18 }}>Você foi pego</Text>
+              <Text style={{ fontFamily: fonts.display, fontSize: 16 }}>Você foi pego</Text>
               <Text variant="label">Assista até o fim da rodada</Text>
             </View>
           ) : hunter && headstart ? (
             <View style={styles.locked}>
-              <Text style={{ fontFamily: fonts.display, fontSize: 18 }}>Os corredores estão se escondendo</Text>
+              <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.display, fontSize: 16, paddingHorizontal: 12 }}>Os corredores estão se escondendo</Text>
               <Text variant="label">Você é liberado em {mmss(left)}</Text>
             </View>
           ) : hunter ? (
@@ -371,7 +372,7 @@ export function LiveGame({ id }: { id: string }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.inkSunken },
   tag: { borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8, backgroundColor: colors.inkRaised },
-  hud: { position: 'absolute', left: 16, right: 16, top: Platform.OS === 'web' ? 16 : 52, borderRadius: radius.xl, padding: 16 },
+  hud: { position: 'absolute', left: 16, right: 16, top: 52, borderRadius: radius.xl, padding: 16 },
   amber: { backgroundColor: colors.amber },
   locked: {
     marginTop: 12,
@@ -387,7 +388,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 16,
     right: 16,
-    bottom: CARD_BOTTOM,
     backgroundColor: 'rgba(26,32,39,0.98)',
     borderWidth: 1,
     borderColor: colors.inkBorder,

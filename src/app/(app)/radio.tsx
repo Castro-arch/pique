@@ -8,7 +8,7 @@ import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
-import { DOCK, GameTabs, mmss } from '@/components/Game';
+import { GameTabs, mmss, useDock } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { photos } from '@/lib/demo';
 import { errorInfo, secondsUntil, useNow, useView, type GameId } from '@/lib/game';
@@ -37,6 +37,7 @@ const initial: Msg[] = [
 export default function Radio() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const insets = useSafeAreaInsets();
+  const { dock } = useDock();
   const live = useQuery(api.radio.list, id ? { gameId: id as GameId } : 'skip');
   const view = useView(id);
   const now = useNow();
@@ -107,7 +108,7 @@ export default function Radio() {
         ))}
       </ScrollView>
 
-      <View style={{ paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, DOCK) + 72 }}>
+      <View style={{ paddingHorizontal: 16, paddingBottom: dock + 72 }}>
         {error || talk.error ? <Text variant="error" style={{ marginBottom: 8 }}>{error ?? talk.error}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
           {quick.map((q) => (
@@ -129,7 +130,7 @@ export default function Radio() {
         </Pressable>
       </View>
 
-      <GameTabs tab="radio" bottom={Math.max(insets.bottom, DOCK)} />
+      <GameTabs tab="radio" bottom={dock} />
     </View>
   );
 }

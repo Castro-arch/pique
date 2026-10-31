@@ -4,6 +4,7 @@ import Svg, { Circle, Path } from 'react-native-svg';
 import { BoostSlot, EmptySlot, useFreshBoost, type BoostKind } from '@/components/Boosts';
 import { Eye, EyeOff } from '@/components/icons';
 import { Text } from '@/components/Text';
+import { useScreenInsets } from '@/lib/screenInsets';
 import { colors, fonts } from '@/theme/tokens';
 
 // Placar da partida (tela 13.12): barra no topo com o relógio num meio-círculo
@@ -12,8 +13,6 @@ import { colors, fonts } from '@/theme/tokens';
 // Medidas no espaço de 390 px do design; em celular mais estreito, encolhe junto.
 
 const W = 390;
-// No navegador não há barra de status: o placar sobe até perto do topo.
-const LIFT = Platform.OS === 'web' ? 32 : 0;
 const BAR_TOP = 44;
 const BAR_BOTTOM = 150;
 const CX = 195;
@@ -65,6 +64,7 @@ export function ArcHud({
   onBoost?: (b: Boost) => void;
 }) {
   const { width } = useWindowDimensions();
+  const insets = useScreenInsets();
   const scale = Math.min(1, width / W);
   const fresh = useFreshBoost(boosts ?? []);
   const halos = boosts ? [EYE, ...SLOTS] : [EYE];
@@ -74,7 +74,7 @@ export function ArcHud({
   return (
     <View
       pointerEvents="box-none"
-      style={[styles.wrap, { top: -LIFT * scale, left: width > W ? (width - W) / 2 : 0, transform: [{ scale }], transformOrigin: 'top left' }]}>
+      style={[styles.wrap, { top: Platform.OS === 'web' ? insets.top + 10 - BAR_TOP * scale : 0, left: width > W ? (width - W) / 2 : 0, transform: [{ scale }], transformOrigin: 'top left' }]}>
       <Svg width={W} height={CY + R + HALO} style={StyleSheet.absoluteFill} pointerEvents="none">
         {halos.map((h, i) => (
           <Circle key={`b${i}`} cx={h.x} cy={h.y} r={HALO} fill={FILL} stroke={LINE} strokeWidth={1} />
