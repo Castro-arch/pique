@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
-import { ChevronLeft } from '@/components/icons';
+import { Check, ChevronLeft } from '@/components/icons';
 import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, Share, StyleSheet, View } from 'react-native';
 
@@ -169,10 +169,18 @@ export default function Lobby() {
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', rowGap: 12, columnGap: 3 }}>
             {people.map((p, i) => (
               <Appear key={p.key} delay={stagger(i)} style={{ alignItems: 'center', width: 48 }}>
-                <Avatar source={p.photo} name={p.fullName} size={44} state={p.ready ? p.side : 'draw'} frame={p.frame} />
+                {/* pronto = certinho verde; entrando = apagado */}
+                <View style={{ opacity: p.ready ? 1 : 0.45 }}>
+                  <Avatar source={p.photo} name={p.fullName} size={44} state={p.ready ? p.side : 'draw'} frame={p.frame} label={`${p.name}, ${p.ready ? 'pronto' : 'entrando'}`} />
+                  {p.ready ? (
+                    <View style={styles.ready}>
+                      <Check size={11} color={BENTO.ink} strokeWidth={3.6} />
+                    </View>
+                  ) : null}
+                </View>
                 <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, marginTop: 5 }} numberOfLines={1}>{p.name}</Text>
                 <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: !p.ready ? BENTO.muted : p.side === 'hunter' ? colors.pink : p.side === 'runner' ? colors.lime : BENTO.muted }}>
-                  {!p.ready ? 'entrando' : p.side === 'hunter' ? 'caçador' : p.side === 'runner' ? 'corredor' : 'sorteio'}
+                  {!p.ready ? 'entrando…' : p.side === 'hunter' ? 'caçador' : p.side === 'runner' ? 'corredor' : 'sorteio'}
                 </Text>
               </Appear>
             ))}
@@ -261,5 +269,6 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
+  ready: { position: 'absolute', right: -3, bottom: -2, width: 18, height: 18, borderRadius: 9, backgroundColor: colors.lime, borderWidth: 2, borderColor: BENTO.ink, alignItems: 'center', justifyContent: 'center' },
   invite: { width: 44, height: 44, borderRadius: 22, borderWidth: 2.5, borderStyle: 'dashed', borderColor: '#55606B', alignItems: 'center', justifyContent: 'center' },
 });

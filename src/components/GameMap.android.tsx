@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { BoostPin } from '@/components/Boosts';
-import { MapCredit, PersonPin } from '@/components/MapPins';
+import { MapCredit, PersonPin, pinSize } from '@/components/MapPins';
 import { MAP_PADDING, streetStyle, zoneBounds } from '@/lib/mapStyle';
 
 import type { GameMapProps } from './gameMapTypes';
@@ -37,7 +37,7 @@ export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, 
           </Marker>
         ))}
         {people.map((p) => (
-          <Marker key={p.id} id={`p-${p.id}`} lngLat={[p.lng, p.lat]} anchor="left" offset={[-(p.isMe ? 23 : 18), 0]}>
+          <Marker key={p.id} id={`p-${p.id}`} lngLat={[p.lng, p.lat]} anchor="left" offset={[-pinSize(p.isMe) / 2, 0]}>
             <PersonPin p={p} now={now} hunter={hunter} outOfZone={outOfZone} />
           </Marker>
         ))}

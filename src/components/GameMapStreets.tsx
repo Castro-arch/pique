@@ -7,7 +7,7 @@ import { createPortal } from 'react-dom';
 import { StyleSheet, View } from 'react-native';
 
 import { BoostPin } from '@/components/Boosts';
-import { MapCredit, PersonPin } from '@/components/MapPins';
+import { MapCredit, PersonPin, pinSize } from '@/components/MapPins';
 import { MAP_PADDING, streetStyle, zoneBounds, zoneShapes } from '@/lib/mapStyle';
 import { colors } from '@/theme/tokens';
 
@@ -85,7 +85,7 @@ export function StreetMap({
         : null}
       {map
         ? people.map((p) => (
-            <Marker key={p.id} map={map} lat={p.lat} lng={p.lng} anchor="left" offset={[-(p.isMe ? 23 : 18), 0]} zIndex={p.isMe ? 10 : 1}>
+            <Marker key={p.id} map={map} lat={p.lat} lng={p.lng} anchor="left" offset={[-pinSize(p.isMe) / 2, 0]} zIndex={p.isMe ? 10 : 1}>
               <PersonPin p={p} now={now} hunter={hunter} outOfZone={outOfZone} />
             </Marker>
           ))
