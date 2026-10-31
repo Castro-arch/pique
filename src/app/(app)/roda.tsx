@@ -9,7 +9,7 @@ import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
 import { Vibrate } from '@/components/icons';
 import { Text } from '@/components/Text';
-import { errorInfo, useFollowRound, useLobby, type GameId } from '@/lib/game';
+import { errorInfo, revealedEarly, useFollowRound, useLobby, type GameId } from '@/lib/game';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
@@ -56,6 +56,16 @@ export default function Roda() {
   const mine = !!meId && lit === meId;
   useBuzz(mine ? String(k) : null, stopped && mine);
 
+  // A luz parou em mim: direto para "Você pega". Parou de vez em outra
+  // pessoa (último caçador): quem sobrou vai direto para "Corra".
+  const finalStop = !!draw && k === draw.steps.length - 1;
+  const papel = stopped && mine ? 'hunter' : finalStop && meId && !chosen.includes(meId) ? 'runner' : null;
+  useEffect(() => {
+    if (!papel) return;
+    revealedEarly(id);
+    router.replace({ pathname: '/papel', params: { id, papel } });
+  }, [papel, id]);
+
   const go = async () => {
     setError(null);
     setSpinning(true);
@@ -83,17 +93,6 @@ export default function Roda() {
       </View>
     );
   }
-  // Parou em mim: rosa até a rodada começar (aí vem a revelação 5.9).
-  if (mine && stopped) {
-    return (
-      <View style={[styles.full, { backgroundColor: colors.pink }]}>
-        <Text style={[styles.big, { color: colors.pinkInk, fontSize: 96, lineHeight: 92, textAlign: 'center' }]}>
-          Parou{'\n'}em você<Text style={[styles.big, { color: colors.paper, fontSize: 96 }]}>.</Text>
-        </Text>
-        <Text style={{ marginTop: 16, fontSize: 15, fontFamily: fonts.bodyStrong, color: colors.pinkInk }}>Você caça nesta rodada</Text>
-      </View>
-    );
-  }
 
   const ready = players.filter((p) => p.ready || p.isHost).length;
   return (
@@ -108,11 +107,10 @@ export default function Roda() {
       {draw ? (
         <View style={{ alignItems: 'center' }}>
           <Text style={[styles.title, { textAlign: 'center' }]}>
-            {stopped && lit ? `${nameOf(lit)} caça!` : 'Olha a luz'}
-            <Text style={[styles.title, { color: stopped ? colors.pink : colors.lime }]}>{stopped ? '' : '…'}</Text>
+            Olha a luz<Text style={[styles.title, { color: colors.lime }]}>…</Text>
           </Text>
           <Text variant="muted" style={{ marginTop: 8, textAlign: 'center', maxWidth: 290 }}>
-            {stopped ? 'A luz parou. Se tiver mais caçador, ela gira de novo.' : 'Cada vez mais devagar. Seu celular acende quando ela passar por ele.'}
+            {stopped ? 'Tem mais caçador: ela vai girar de novo.' : 'Cada vez mais devagar. Seu celular acende quando ela passar por ele.'}
           </Text>
         </View>
       ) : (

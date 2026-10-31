@@ -103,7 +103,9 @@ export function planDraw(order: Id<'players'>[], wanted: number, t0: number) {
       }
     }
     stops.push(steps.length - 1);
-    t += DRAW_PAUSE_MS;
+    // Entre um caçador e outro todo mundo vê onde parou; depois do último a
+    // rodada começa logo (cada um já foi para a própria revelação).
+    t += k < hunters.length - 1 ? DRAW_PAUSE_MS : 800;
     pool = pool.filter((p) => p !== target);
   });
   return { startAt: t0, endAt: Math.round(t), order, steps, stops, hunters };

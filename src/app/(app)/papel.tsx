@@ -18,7 +18,9 @@ export default function Papel() {
   const params = useLocalSearchParams<{ id?: string; papel?: 'runner' | 'hunter' }>();
   const { id } = params;
   const lobby = useLobby(id);
-  const papel = lobby?.me.role ?? params.papel ?? 'runner';
+  // Vindo da roleta o papel chega pela tela (a rodada ainda está começando).
+  const papel = params.papel ?? lobby?.me.role ?? 'runner';
+  const starting = !!id && lobby?.status !== 'headstart' && lobby?.status !== 'hunt';
   const hunter = papel === 'hunter';
   const bg = hunter ? colors.pink : colors.lime;
   const ink = hunter ? colors.pinkInk : colors.limeInk;
@@ -84,8 +86,9 @@ export default function Papel() {
       </Text>
 
       <Button
+        disabled={starting}
         variant="dark"
-        label="Bora"
+        label={starting ? 'Começando a rodada…' : 'Bora'}
         style={{ marginTop: 18, backgroundColor: ink }}
         onPress={() =>
           router.replace({ pathname: '/jogo', params: id ? { id } : { estado: hunter ? 'cacador-espera' : 'corredor-vantagem' } })

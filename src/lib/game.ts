@@ -61,13 +61,21 @@ export function useJoinGame() {
 export const useLobby = (id?: string) => useQuery(api.games.lobby, id ? { gameId: id as GameId } : 'skip');
 export const useView = (id?: string) => useQuery(api.play.view, id ? { gameId: id as GameId } : 'skip');
 
+// A roleta já abriu a revelação antes da rodada começar: quando ela começar,
+// as telas de baixo (lobby, espera) não abrem a revelação de novo.
+const revealedAt: Record<string, number> = {};
+export function revealedEarly(id: string) {
+  revealedAt[id] = Date.now();
+}
+
 // Quando o anfitrião começa a rodada, todo mundo vai para a revelação do papel.
 export function useFollowRound(id: string | undefined, status: string | undefined) {
   const seen = useRef(status);
   useEffect(() => {
     if (!id || !status) return;
     if (seen.current === 'lobby' || seen.current === 'ended') {
-      if (status === 'headstart') router.replace({ pathname: '/papel', params: { id } });
+      const early = Date.now() - (revealedAt[id] ?? 0) < 20_000;
+      if (status === 'headstart' && !early) router.replace({ pathname: '/papel', params: { id } });
     }
     seen.current = status;
   }, [id, status]);
