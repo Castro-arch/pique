@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 import { AccessibilityInfo, Animated, Easing, Platform, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
-import { BENTO, BentoBackground, Sticker, type StickerKind } from '@/components/Bento';
+import { setStatusBarStyle } from 'expo-status-bar';
+
+import { BENTO, Sticker, type StickerKind } from '@/components/Bento';
 import { Button } from '@/components/Button';
 import { Appear, Pressy } from '@/components/Motion';
 import { Logo } from '@/components/Nav';
@@ -17,9 +19,9 @@ import { useMe } from '@/lib/useMe';
 import { colors, fonts } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
 
-// 22.4 Início: a mãozinha acena (é o "oi"), o nome vem grande com contorno de
-// figurinha, e os dois botões (criar ou entrar pelo QR). No topo, figurinhas
-// levam para Loja, Crew e Perfil.
+// 22.5 Início (verde): a mãozinha acena (é o "oi"), o nome vem grande com
+// contorno de figurinha e, embaixo, as figurinhas de Loja, Crew e Perfil em
+// cima dos dois botões (criar, preto; entrar pelo QR, branco).
 export default function Home() {
   const me = useMe();
   const demo = useDemoMode();
@@ -37,6 +39,13 @@ export default function Home() {
         router.replace({ pathname: '/jogo', params: { id: current.gameId } });
       }
     }, [current?.gameId, current?.status]), // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // Fundo verde: relógio e bateria em preto só enquanto o Início está na frente.
+  useFocusEffect(
+    useCallback(() => {
+      setStatusBarStyle('dark');
+      return () => setStatusBarStyle('light');
+    }, []),
   );
   // Primeira vez aqui depois do nome: a tela única de permissões.
   useEffect(() => {
@@ -65,18 +74,12 @@ export default function Home() {
   const newGame = () => (demo ? router.push('/lobby') : create.run());
 
   return (
-    <View style={{ flex: 1, backgroundColor: BENTO.ink }}>
-      <BentoBackground glow="rgba(200,242,60,0.12)" />
+    <View style={{ flex: 1, backgroundColor: colors.lime }}>
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1, paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 20) + 14 }}
+        contentContainerStyle={{ flexGrow: 1, paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 20, paddingBottom: Math.max(insets.bottom, 12) + 4 }}
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Logo />
-          <View style={{ flexDirection: 'row', gap: 8 }}>
-            <TopSticker kind="bag" color={colors.pink} label="Loja" onPress={() => router.push('/loja')} />
-            <TopSticker kind="ghost" color="#B57CFF" label={requests ? `Crew, ${requests} pedidos` : 'Crew'} dot={requests > 0} onPress={() => router.push('/crew')} />
-            <TopSticker kind="cup" color="#FFC23D" label="Perfil" onPress={() => router.push('/perfil')} />
-          </View>
+          <Logo ink color={BENTO.ink} />
         </View>
 
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 24 }}>
@@ -112,22 +115,24 @@ export default function Home() {
           </Appear>
         ) : null}
 
+        <Appear delay={140} style={styles.tops}>
+          <TopSticker kind="bag" color={colors.pink} label="Loja" onPress={() => router.push('/loja')} />
+          <TopSticker kind="ghost" color="#B57CFF" label={requests ? `Crew, ${requests} pedidos` : 'Crew'} dot={requests > 0} onPress={() => router.push('/crew')} />
+          <TopSticker kind="cup" color="#FFC23D" label="Perfil" onPress={() => router.push('/perfil')} />
+        </Appear>
         <Appear delay={160} style={{ gap: 10 }}>
-          <Button label="Criar partida" loading={create.busy} onPress={newGame} />
+          <Button label="Criar partida" variant="dark" loading={create.busy} onPress={newGame} style={styles.create} />
           {create.error ? <Text variant="error">{create.error}</Text> : null}
           <Pressy accessibilityRole="button" accessibilityLabel="Entrar com QR Code" onPress={() => router.push('/entrar/qr')} style={styles.qr}>
             <View style={{ marginTop: -4 }}>
               <Sticker kind="qr" color={colors.lime} size={34} tilt={-8} />
             </View>
-            <Text style={{ fontSize: 16, fontFamily: fonts.bodyStrong }}>Entrar com QR Code</Text>
+            <Text style={{ fontSize: 16, fontFamily: fonts.bodyStrong, color: BENTO.ink }}>Entrar com QR Code</Text>
           </Pressy>
           <Text onPress={() => router.push('/entrar')} style={styles.link}>
             ou digite o código
           </Text>
         </Appear>
-        <Text onPress={() => router.push('/treino')} style={[styles.link, { marginTop: 6 }]}>
-          Rodada de treino com bots
-        </Text>
       </ScrollView>
     </View>
   );
@@ -254,7 +259,7 @@ function OutlinedName({ name }: { name: string }) {
         {layer(w * 0.9, w * 1.3, 'r')}
         {RING.map(([x, y], i) => layer(x * w, y * w, 'c' + i))}
         <Text numberOfLines={1} selectable={false} style={[styles.name, { fontSize: size, lineHeight: size * 1.05 }]}>
-          {text(colors.lime)}
+          {text(colors.pink)}
         </Text>
       </View>
     </View>
@@ -264,26 +269,28 @@ function OutlinedName({ name }: { name: string }) {
 // Sem seleção de texto nem menu do toque longo (iPhone e Android, no site).
 const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none', touchAction: 'manipulation' } as object) : null;
 
-// Botão do topo com a figurinha (Loja, Crew, Perfil).
+// Figurinha solta que leva para Loja, Crew ou Perfil.
 function TopSticker({ kind, color, label, dot, onPress }: { kind: StickerKind; color: string; label: string; dot?: boolean; onPress: () => void }) {
   return (
     <Pressy accessibilityRole="button" accessibilityLabel={label} onPress={onPress} style={styles.top}>
-      <Sticker kind={kind} color={color} size={30} tilt={kind === 'cup' ? -8 : 8} />
+      <Sticker kind={kind} color={color} size={40} tilt={kind === 'cup' ? -8 : 8} />
       {dot ? <View style={styles.dot} /> : null}
     </Pressy>
   );
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 48 },
-  top: { width: 48, height: 48, borderRadius: 16, backgroundColor: BENTO.tile, borderWidth: 1, borderColor: BENTO.line, alignItems: 'center', justifyContent: 'center' },
-  dot: { position: 'absolute', right: 6, top: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.pink, borderWidth: 2, borderColor: BENTO.tile },
+  head: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', height: 48 },
+  tops: { flexDirection: 'row', justifyContent: 'center', gap: 22, marginBottom: 18 },
+  top: { width: 52, height: 52, alignItems: 'center', justifyContent: 'center' },
+  dot: { position: 'absolute', right: 4, top: 2, width: 12, height: 12, borderRadius: 6, backgroundColor: colors.pink, borderWidth: 2, borderColor: BENTO.ink },
+  create: { minHeight: 60, borderRadius: 24, backgroundColor: BENTO.ink, boxShadow: '0 10px 24px rgba(11,15,19,0.25)' },
   name: { fontFamily: fonts.display, letterSpacing: -3, color: colors.paper },
-  pow: { position: 'absolute', right: 10, top: 70, fontFamily: fonts.display, fontSize: 46, color: '#FFC23D', textShadowColor: '#000', textShadowOffset: { width: 3, height: 4 }, textShadowRadius: 0 },
-  sub: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25, letterSpacing: -0.4, color: '#C9C7BF', marginTop: 14, textAlign: 'center' },
-  current: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, backgroundColor: '#1E2A12', borderWidth: 1, borderColor: colors.lime, borderRadius: 20, padding: 14 },
+  pow: { position: 'absolute', right: 10, top: 70, fontFamily: fonts.display, fontSize: 46, color: '#FFFFFF', textShadowColor: '#000', textShadowOffset: { width: 3, height: 4 }, textShadowRadius: 0 },
+  sub: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25, letterSpacing: -0.4, color: BENTO.ink, opacity: 0.78, marginTop: 14, textAlign: 'center' },
+  current: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, backgroundColor: BENTO.ink, borderRadius: 20, padding: 14 },
   liveDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.lime, boxShadow: '0 0 0 6px rgba(200,242,60,0.2)' },
   leave: { fontSize: 12, color: BENTO.muted, marginTop: 2, textDecorationLine: 'underline' },
-  qr: { height: 60, borderRadius: 24, backgroundColor: BENTO.tile, borderWidth: 1, borderColor: BENTO.line, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
-  link: { textAlign: 'center', fontSize: 14, fontFamily: fonts.bodyStrong, color: BENTO.muted, paddingVertical: 4 },
+  qr: { height: 60, borderRadius: 24, backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: BENTO.ink, boxShadow: '3px 4px 0 #0B0F13', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12 },
+  link: { textAlign: 'center', fontSize: 14, fontFamily: fonts.bodyStrong, color: BENTO.ink, opacity: 0.65, paddingVertical: 4 },
 });

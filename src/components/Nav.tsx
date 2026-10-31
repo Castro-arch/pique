@@ -53,14 +53,16 @@ export function TopBar({ left, title, right }: { left?: ReactNode; title?: strin
 
 // Logo "● pique".
 const MARK = require('../../assets/images/logo-mark.png');
+// Mesma marca com o quadrado preto e o boneco verde, para fundos verdes.
+const MARK_INK = require('../../assets/images/logo-mark-ink.png');
 
 // A marca: o ícone do app (bonequinho correndo) + "pique". Em fundo verde
 // (dot de outra cor) o ícone sumiria, então fica a bolinha de antes.
-export function Logo({ size = 24, color = colors.paper, dot = colors.lime }: { size?: number; color?: string; dot?: string }) {
+export function Logo({ size = 24, color = colors.paper, dot = colors.lime, ink }: { size?: number; color?: string; dot?: string; ink?: boolean }) {
   return (
     <View accessibilityLabel="Pique" style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
       {dot === colors.lime ? (
-        <Image source={MARK} style={{ width: size * 1.15, height: size * 1.15 }} accessibilityIgnoresInvertColors />
+        <Image source={ink ? MARK_INK : MARK} style={{ width: size * 1.15, height: size * 1.15 }} accessibilityIgnoresInvertColors />
       ) : (
         <View style={{ width: size * 0.58, height: size * 0.58, borderRadius: size, backgroundColor: dot }} />
       )}
