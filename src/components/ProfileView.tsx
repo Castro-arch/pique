@@ -3,7 +3,7 @@ import { router } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
-import { ArrowPill, BENTO, BentoBackground, BottomNav, Hero, NAV_SPACE, Sticker, Tile, TileHead, type StickerKind } from '@/components/Bento';
+import { ArrowPill, BENTO, BentoBackground, Hero, Sticker, Tile, TileHead, type StickerKind } from '@/components/Bento';
 import { Button } from '@/components/Button';
 import { Appear } from '@/components/Motion';
 import { BackButton } from '@/components/Nav';
@@ -49,10 +49,10 @@ export function ProfileView({ p }: { p: Profile }) {
     <View style={{ flex: 1, backgroundColor: BENTO.ink }}>
       <BentoBackground glow="rgba(255,42,85,0.18)" />
       <ScrollView
-        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 16, paddingBottom: (p.isMe ? NAV_SPACE : 24) + Math.max(insets.bottom, 12) }}
+        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 20) + 14 }}
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          {p.isMe ? <Text style={styles.title}>Perfil</Text> : <BackButton />}
+          <BackButton />
           {p.isMe ? (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <Tile onPress={() => router.push('/editar-perfil')} style={styles.chip}>
@@ -163,13 +163,13 @@ export function ProfileView({ p }: { p: Profile }) {
 
         {p.isMe ? (
           <Appear delay={240}>
-            <Tile onPress={() => router.replace('/crew')} style={{ marginTop: 10 }}>
+            <Tile onPress={() => router.push('/crew')} style={{ marginTop: 10 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                 <Sticker kind="crew" color={colors.lime} size={40} tilt={-6} />
                 <View style={{ flex: 1 }}>
                   <TileHead title={`${p.friends} ${p.friends === 1 ? 'amigo' : 'amigos'}`} sub="ver a crew" />
                 </View>
-                <ArrowPill label="Crew" bg={colors.lime} fg={BENTO.ink} onPress={() => router.replace('/crew')} />
+                <ArrowPill label="Crew" bg={colors.lime} fg={BENTO.ink} onPress={() => router.push('/crew')} />
               </View>
             </Tile>
           </Appear>
@@ -184,7 +184,6 @@ export function ProfileView({ p }: { p: Profile }) {
           </View>
         )}
       </ScrollView>
-      {p.isMe ? <BottomNav /> : null}
     </View>
   );
 }

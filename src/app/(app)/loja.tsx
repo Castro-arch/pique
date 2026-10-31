@@ -4,7 +4,8 @@ import { useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
-import { ArrowPill, BENTO, BentoBackground, BottomNav, Hero, NAV_SPACE, Sticker, Tile, TileHead } from '@/components/Bento';
+import { ArrowPill, BENTO, BentoBackground, Hero, Sticker, Tile, TileHead } from '@/components/Bento';
+import { BackButton } from '@/components/Nav';
 import { Button } from '@/components/Button';
 import { Appear, Pressy, SlideUp, stagger } from '@/components/Motion';
 import { Text } from '@/components/Text';
@@ -50,23 +51,25 @@ export default function Loja() {
     <View style={{ flex: 1, backgroundColor: BENTO.ink }}>
       <BentoBackground glow="rgba(255,194,61,0.16)" />
       <ScrollView
-        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 16, paddingBottom: NAV_SPACE + Math.max(insets.bottom, 12) }}
+        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 20) + 14 }}
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Text style={styles.title}>
-            Loja<Text style={[styles.title, { color: colors.lime }]}>.</Text>
-          </Text>
+          <BackButton />
           <View style={styles.count}>
             <LinearGradient colors={FRAMES.ouro.colors} style={{ width: 24, height: 24, borderRadius: 12 }} />
             <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong }}>{`${owned}/${items.length || 5}`}</Text>
           </View>
         </View>
 
+        <Text style={[styles.title, { marginTop: 4 }]}>
+          Loja<Text style={[styles.title, { color: colors.lime }]}>.</Text>
+        </Text>
+
         {featured ? (
           <Appear>
             <Pressable onPress={() => setOpen(featured)} accessibilityRole="button" accessibilityLabel={`Destaque: moldura ${featured.name}`}>
               <Hero
-                height={200}
+                height={214}
                 from={FRAME_CARD[featured.id]?.from ?? '#FFE27A'}
                 to={FRAME_CARD[featured.id]?.to ?? '#FFB020'}
                 sticker={
@@ -128,7 +131,6 @@ export default function Loja() {
           ))}
         </View>
       </ScrollView>
-      <BottomNav />
       {open ? <ItemSheet item={items.find((i) => i.id === open.id) ?? open} name={me.name || '?'} onClose={() => setOpen(null)} /> : null}
     </View>
   );
@@ -235,7 +237,7 @@ function ItemSheet({ item, name, onClose }: { item: Item; name: string; onClose:
 
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 44 },
-  title: { fontFamily: fonts.display, fontSize: 26, letterSpacing: -0.5, color: colors.paper },
+  title: { fontFamily: fonts.display, fontSize: 40, lineHeight: 42, letterSpacing: -1.4, color: colors.paper },
   count: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BENTO.tile, borderWidth: 1, borderColor: BENTO.line, borderRadius: 999, paddingVertical: 6, paddingLeft: 6, paddingRight: 12 },
   heroTitle: { fontFamily: fonts.display, fontSize: 40, lineHeight: 40, letterSpacing: -1.6, color: BENTO.ink, marginTop: 12 },
   heroBody: { fontSize: 13, fontFamily: fonts.bodyStrong, color: BENTO.ink, opacity: 0.75, marginTop: 4, width: 150 },

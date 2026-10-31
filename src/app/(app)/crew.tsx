@@ -5,7 +5,8 @@ import { Modal, Pressable, ScrollView, Share, StyleSheet, TextInput, View } from
 import QRCode from 'react-native-qrcode-svg';
 
 import { Avatar } from '@/components/Avatar';
-import { ArrowPill, BENTO, BentoBackground, BottomNav, Hero, NAV_SPACE, Sticker, Tile, TileHead } from '@/components/Bento';
+import { ArrowPill, BENTO, BentoBackground, Hero, Sticker, Tile, TileHead } from '@/components/Bento';
+import { BackButton } from '@/components/Nav';
 import { Button } from '@/components/Button';
 import { Appear, SlideUp, stagger } from '@/components/Motion';
 import { Text } from '@/components/Text';
@@ -54,12 +55,10 @@ export default function Crew() {
       <BentoBackground />
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 16, paddingBottom: NAV_SPACE + Math.max(insets.bottom, 12) }}
+        contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 14, paddingHorizontal: 16, paddingBottom: Math.max(insets.bottom, 20) + 14 }}
         showsVerticalScrollIndicator={false}>
         <View style={styles.head}>
-          <Text style={styles.title}>
-            Crew<Text style={[styles.title, { color: colors.lime }]}>.</Text>
-          </Text>
+          <BackButton />
           {data?.incoming.length ? (
             <View style={styles.badgeChip}>
               <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong }}>Pedidos</Text>
@@ -69,6 +68,10 @@ export default function Crew() {
             </View>
           ) : null}
         </View>
+
+        <Text style={[styles.title, { marginTop: 4 }]}>
+          Crew<Text style={[styles.title, { color: colors.lime }]}>.</Text>
+        </Text>
 
         <Appear>
           <Hero from="#E6FF5A" to="#86D63C" sticker={<View style={{ position: 'absolute', right: 8, top: -22 }}><Sticker kind="qr" color={colors.lime} size={86} tilt={12} /></View>}>
@@ -203,7 +206,6 @@ export default function Crew() {
           </Tile>
         )}
       </ScrollView>
-      <BottomNav />
 
       {qr ? (
         <Modal transparent animationType="fade" onRequestClose={() => setQr(false)}>
@@ -237,7 +239,7 @@ export default function Crew() {
 
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 44 },
-  title: { fontFamily: fonts.display, fontSize: 26, letterSpacing: -0.5, color: colors.paper },
+  title: { fontFamily: fonts.display, fontSize: 40, lineHeight: 42, letterSpacing: -1.4, color: colors.paper },
   badgeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: BENTO.tile, borderWidth: 1, borderColor: BENTO.line, borderRadius: 14, paddingVertical: 10, paddingHorizontal: 12 },
   badge: { backgroundColor: colors.pink, borderRadius: 999, paddingHorizontal: 7, paddingVertical: 1 },
   kicker: { fontSize: 12, fontFamily: fonts.bodyStrong, letterSpacing: 0.9, color: BENTO.ink, opacity: 0.7 },
