@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type ReactNode } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 import Svg, { Circle, Line, Path } from 'react-native-svg';
 
@@ -26,6 +26,9 @@ const PAPER = colors.paper;
 const LIME = colors.lime;
 const PINK = colors.pink;
 const INK = BENTO.ink;
+
+// Espaço livre para o desenho: entre o topo (barrinha, placar, seletor) e o cartão.
+const Free = createContext({ top: 200, bottom: 600 });
 
 const zoneCircle = (r = 150, cy = 430) => <Circle cx={195} cy={cy} r={r} fill="rgba(200,242,60,0.10)" stroke={LIME} strokeWidth={4} strokeDasharray="14 10" />;
 
@@ -327,7 +330,7 @@ const steps: Step[] = [
     dim: 0.5,
     face: { kicker: 'SUA VEZ', tone: '#5E8C00', title: 'Bora jogar?', body: 'Junte 3 ou mais amigos. Um cria a partida e os outros entram pelo QR.', sticker: ['run', LIME] },
     art: () => (
-      <Layer svg={zoneCircle(150, 380)}>
+      <Layer svg={zoneCircle(150, 380)} cy={380}>
         {(at) => (
           <Spot at={at(195, 360)}>
             <Sticker kind="hand" color={PINK} size={90} tilt={-12} />
@@ -342,7 +345,7 @@ export default function ComoJogar() {
   const { passo = '1' } = useLocalSearchParams<{ passo?: string; de?: string }>();
   const insets = useScreenInsets();
   const create = useCreateGame();
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const [i, setI] = useState(() => Math.min(Math.max(Number(passo) - 1 || 0, 0), steps.length - 1));
   const [side, setSide] = useState<Side>(steps[i].side ?? 'runner');
   const [tick, setTick] = useState(0);
@@ -361,12 +364,13 @@ export default function ComoJogar() {
     setSide(steps[k].side ?? 'runner');
   };
   const leave = () => router.replace('/');
+  const [free, setFree] = useState({ top: 200, bottom: 600 });
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.inkSunken }}>
       <MapBackdrop fades={false} dim={s.dim ?? 0.15} />
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
-        {s.art(side, tick)}
+        <Free.Provider value={free}>{s.art(side, tick)}</Free.Provider>
       </View>
 
       {/* toque na tela: no terço esquerdo volta, no resto avança */}
@@ -377,7 +381,13 @@ export default function ComoJogar() {
         style={StyleSheet.absoluteFill}
       />
 
-      <View style={[styles.top, { paddingTop: Math.max(insets.top, 20) + 8 }]} pointerEvents="box-none">
+      <View
+        style={[styles.top, { paddingTop: Math.max(insets.top, 20) + 8 }]}
+        pointerEvents="box-none"
+        onLayout={(e) => {
+          const { y, height } = e.nativeEvent.layout;
+          setFree((f) => ({ ...f, top: y + height }));
+        }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }} pointerEvents="box-none">
           <View accessibilityRole="progressbar" accessibilityLabel={`Passo ${i + 1} de ${steps.length}`} style={{ flex: 1, flexDirection: 'row', gap: 4 }} pointerEvents="none">
             {steps.map((_, k) => (
@@ -388,7 +398,7 @@ export default function ComoJogar() {
             <Text style={{ fontSize: 14, fontFamily: fonts.bodyStrong }}>{last ? 'OK' : 'Pular'}</Text>
           </Pressable>
         </View>
-        {face.hud ? (
+        {face.hud && height >= 640 ? (
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }} pointerEvents="none">
             {face.hud.map(([label, value, tone]) => (
               <View key={label} style={styles.hud}>
@@ -416,7 +426,14 @@ export default function ComoJogar() {
         ) : null}
       </View>
 
-      <Appear key={`${i}-${side}`} style={[styles.card, { bottom: Math.max(insets.bottom, 16) + 12, pointerEvents: last ? "auto" : "none" }]}>
+      <View
+        style={[styles.cardBox, { bottom: Math.max(insets.bottom, 16) + 12 }]}
+        pointerEvents={last ? 'box-none' : 'none'}
+        onLayout={(e) => {
+          const y = e.nativeEvent.layout.y;
+          setFree((f) => ({ ...f, bottom: y - 34 }));
+        }}>
+        <Appear key={`${i}-${side}`} style={styles.card}>
         <View style={styles.cardSticker} pointerEvents="none">
           <Sticker kind={face.sticker[0]} color={face.sticker[1]} size={56} tilt={-8} />
         </View>
@@ -443,22 +460,26 @@ export default function ComoJogar() {
         ) : (
           <Text style={styles.more}>toque para continuar ›</Text>
         )}
-      </Appear>
+        </Appear>
+      </View>
     </View>
   );
 }
 
-// Camada do desenho: um Svg no espaço 390 x 844 do design (igual ao
-// MapBackdrop, cobrindo a tela) e as peças posicionadas por cima.
-function Layer({ svg, children }: { svg: ReactNode; children: (at: (x: number, y: number) => At) => ReactNode }) {
-  const { width: W, height: H } = useWindowDimensions();
-  const k = Math.max(W / 390, H / 844);
-  const ox = (W - 390 * k) / 2;
-  const oy = (H - 844 * k) / 2;
+// Camada do desenho: coordenadas do design (390 de largura, zona em volta de
+// cy) encaixadas no espaço livre entre o topo e o cartão, para nada ficar
+// por baixo deles em telas baixas. As peças vão por cima do Svg.
+function Layer({ svg, children, cy = 430 }: { svg: ReactNode; children: (at: (x: number, y: number) => At) => ReactNode; cy?: number }) {
+  const { width: W } = useWindowDimensions();
+  const free = useContext(Free);
+  const room = Math.max(160, free.bottom - free.top);
+  const k = Math.min(1.1, W / 370, room / 350);
+  const ox = W / 2 - 195 * k;
+  const oy = free.top + room / 2 - cy * k;
   const at = (x: number, y: number): At => ({ left: ox + x * k, top: oy + y * k });
   return (
     <>
-      <Svg width={390 * k} height={844 * k} viewBox="0 0 390 844" style={{ position: "absolute", left: ox, top: oy }}>
+      <Svg width={390 * k} height={844 * k} viewBox="0 0 390 844" style={{ position: 'absolute', left: ox, top: oy }}>
         {svg}
       </Svg>
       {children(at)}
@@ -505,7 +526,7 @@ function Who({ at, l, kind = 'runner', label }: { at: At; l: string; kind?: 'run
 // A roda: seis celulares em volta e a luz passando por eles.
 function Roda({ lit }: { lit: number }) {
   return (
-    <Layer svg={null}>
+    <Layer svg={null} cy={330}>
       {(at) => (
         <>
           {Array.from({ length: 6 }, (_, k) => {
@@ -540,10 +561,8 @@ const styles = StyleSheet.create({
   hudValue: { fontFamily: fonts.display, fontSize: 24, lineHeight: 28 },
   toggle: { flexDirection: 'row', alignSelf: 'center', marginTop: 14, backgroundColor: INK, borderWidth: 2, borderColor: BENTO.line, borderRadius: 999, padding: 4 },
   toggleBtn: { paddingVertical: 8, paddingHorizontal: 16, borderRadius: 999 },
+  cardBox: { position: 'absolute', left: 16, right: 16 },
   card: {
-    position: 'absolute',
-    left: 16,
-    right: 16,
     backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: INK,

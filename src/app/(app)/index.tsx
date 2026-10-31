@@ -130,8 +130,8 @@ export default function Home() {
             </View>
             <Text style={{ fontSize: 16, fontFamily: fonts.bodyStrong, color: BENTO.ink }}>Entrar com QR Code</Text>
           </Pressy>
-          <Text onPress={() => router.push('/entrar')} style={styles.link}>
-            ou digite o código
+          <Text onPress={() => router.push('/como-jogar/1')} style={styles.link}>
+            Como jogar?
           </Text>
         </Appear>
       </ScrollView>
