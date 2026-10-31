@@ -12,6 +12,7 @@ import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
 import { errorInfo, secondsUntil, useNow, useSendPosition, useView, type GameId } from '@/lib/game';
+import { useGameAlerts } from '@/lib/gameAlerts';
 import { useHeartbeat } from '@/lib/heartbeat';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../convex/_generated/api';
@@ -41,6 +42,8 @@ export function LiveGame({ id }: { id: string }) {
   // 10.4 Coração acelerado: caçador a menos de 30 m. Vibra no ritmo tum-tum.
   const beating = !!view && view.game.status === 'hunt' && view.me.role === 'runner' && view.me.state === 'active' && view.me.heartbeat;
   const pulse = useHeartbeat(beating);
+  // Avisos da partida com o app em segundo plano (no site, via push).
+  useGameAlerts(id);
 
   // Saiu da prisão: na próxima vez o "Me salva!" e o "Só assistir" voltam.
   useEffect(() => {

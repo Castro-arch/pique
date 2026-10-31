@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { notify } from './alerts';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
@@ -72,6 +73,7 @@ export const sendPosition = mutation({
       await pickUpBoost(ctx, game, me, { lat, lng });
       await tryRescue(ctx, me, { lat, lng }, now);
     }
+    if (game.status === 'hunt' && features(game.rules).heartbeat) await heartbeatAlerts(ctx, me, { lat, lng }, now);
     return { accepted: true as const };
   },
 });
@@ -156,6 +158,7 @@ async function tryRescue(ctx: MutationCtx, me: Doc<'players'>, at: { lat: number
   });
   await ctx.db.patch(me._id, { rescue: undefined });
   await systemMessage(ctx, me.gameId, `${me.name} soltou ${target.name}! Os dois voltaram para o jogo.`);
+  await notify(ctx, [target], 'rescued', 'Você foi solto!', `${me.name} te salvou. Corra: 30 s sem poder ser marcado.`);
 }
 
 type Seen = {
@@ -288,6 +291,34 @@ export const view = query({
 // ── Coração acelerado e grito ──────────────────────────────────────────
 
 // Algum caçador ativo, com posição recente, a até `m` metros do jogador?
+// Aviso de coração acelerado com o celular no bolso. Quem se mexe pode ser o
+// corredor (chegou perto de um caçador) ou o caçador (chegou perto dele).
+// No máximo um aviso por minuto para cada corredor.
+const HEARTBEAT_ALERT_EVERY_MS = 60_000;
+async function heartbeatAlerts(ctx: MutationCtx, me: Doc<'players'>, at: { lat: number; lng: number }, now: number) {
+  if (me.state !== 'active' || !me.role) return;
+  const players = await gamePlayers(ctx, me.gameId);
+  const runners =
+    me.role === 'runner'
+      ? (await hunterWithin(ctx, players, me._id, HEARTBEAT_M))
+        ? [me]
+        : []
+      : await (async () => {
+          const near = [];
+          for (const r of players) {
+            if (r.role !== 'runner' || r.state !== 'active') continue;
+            const pos = await lastPosition(ctx, r._id);
+            if (pos && now - pos.at <= FRESH_POSITION_MS && distanceM(pos, at) <= HEARTBEAT_M) near.push(r);
+          }
+          return near;
+        })();
+  for (const r of runners) {
+    if (now - (r.heartbeatAlertAt ?? 0) < HEARTBEAT_ALERT_EVERY_MS) continue;
+    await ctx.db.patch(r._id, { heartbeatAlertAt: now });
+    await notify(ctx, [r], 'heartbeat', 'Coração acelerado', 'Um caçador está a menos de 30 m. Ele não sabe que você sabe.');
+  }
+}
+
 async function hunterWithin(ctx: QueryCtx, players: Doc<'players'>[], runnerId: Id<'players'>, m: number) {
   const mine = await lastPosition(ctx, runnerId);
   if (!mine || Date.now() - mine.at > FRESH_POSITION_MS) return false;
@@ -323,6 +354,8 @@ export const shout = mutation({
     }
     if (!target) return { hit: false as const, left };
     await ctx.db.patch(target.id, { shoutedAt: Date.now() });
+    const runner = await ctx.db.get(target.id);
+    if (runner) await notify(ctx, [runner], 'shout', 'Seu celular gritou!', 'Um caçador está a menos de 60 m e ouviu. Saia daí.');
     await ctx.db.patch(me._id, { shoutsLeft: left - 1 });
     return { hit: true as const, left: left - 1 };
   },
@@ -381,6 +414,7 @@ export const markCapture = mutation({
 
     const now = Date.now();
     const id = await ctx.db.insert('captures', { gameId, hunterId: me._id, runnerId, status: 'pending', distanceM: dist, createdAt: now, expiresAt: now + CAPTURE_CONFIRM_MS });
+    await notify(ctx, [runner], 'capture', `${me.name} disse que te pegou`, 'Confirme no Pique em até 60 s.');
     await ctx.scheduler.runAfter(CAPTURE_CONFIRM_MS, internal.play.expireCapture, { captureId: id });
     return id;
   },

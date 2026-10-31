@@ -1,5 +1,6 @@
 import { ConvexError, v } from 'convex/values';
 
+import { notify } from './alerts';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, type MutationCtx } from './_generated/server';
@@ -23,6 +24,17 @@ import {
 // Cada evento agendado leva o número da rodada: se a rodada mudou
 // (revanche) ou acabou, o evento velho é ignorado.
 const roundArgs = { gameId: v.id('games'), round: v.number() };
+
+// Separa os jogadores ainda na rodada por papel, para os avisos.
+async function inRound(ctx: MutationCtx, gameId: Id<'games'>) {
+  const all = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left' && p.role);
+  return {
+    all,
+    runners: all.filter((p) => p.role === 'runner' && p.state === 'active'),
+    hunters: all.filter((p) => p.role === 'hunter' && p.state === 'active'),
+  };
+}
+
 
 async function liveGame(ctx: MutationCtx, gameId: Id<'games'>, round: number) {
   const game = await ctx.db.get(gameId);
@@ -110,6 +122,9 @@ export const start = mutation({
     }
     await ctx.scheduler.runAt(endsAt, internal.rounds.end, { gameId, round, reason: 'time' });
     await systemMessage(ctx, gameId, `Os corredores têm ${r.headStartMin} min de vantagem.`);
+    const who = await inRound(ctx, gameId);
+    await notify(ctx, who.runners, 'start', 'A rodada começou: você corre', `Você tem ${r.headStartMin} min de vantagem. Suma!`);
+    await notify(ctx, who.hunters, 'start', 'A rodada começou: você caça', `Os corredores têm ${r.headStartMin} min de vantagem. Espere parado.`);
     return { round };
   },
 });
@@ -121,6 +136,9 @@ export const headStartOver = internalMutation({
     if (!game || game.status !== 'headstart') return;
     await ctx.db.patch(gameId, { status: 'hunt' });
     await systemMessage(ctx, gameId, 'Acabou a vantagem. Os caçadores foram liberados.');
+    const who = await inRound(ctx, gameId);
+    await notify(ctx, who.hunters, 'hunt', 'Caçada liberada!', 'Acabou a vantagem. Vai atrás deles.');
+    await notify(ctx, who.runners, 'hunt', 'Os caçadores foram liberados', 'Fique escondido. O primeiro ping vem logo.');
     if (features(game.rules).boosts) await ctx.scheduler.runAfter(MIN, internal.rounds.spawnBoosts, { gameId, round });
   },
 });
@@ -152,6 +170,9 @@ export const ping = internalMutation({
     if (hasNext) await ctx.scheduler.runAt(next, internal.rounds.ping, { gameId, round });
     await systemMessage(ctx, gameId, `Ping! ${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`, 'hunter');
     await systemMessage(ctx, gameId, 'Ping! Sua posição foi enviada. Se mexa.', 'runner');
+    const who = await inRound(ctx, gameId);
+    await notify(ctx, who.runners, 'ping', 'Ping!', 'Sua posição foi para os caçadores. Se mexa.');
+    await notify(ctx, who.hunters, 'ping', 'Ping!', `${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`);
   },
 });
 
@@ -208,6 +229,7 @@ export const shrinkWarn = internalMutation({
     await ctx.db.patch(gameId, { nextZoneRadius: next, shrinkAt: at });
     await ctx.scheduler.runAt(at, internal.rounds.shrink, { gameId, round });
     await systemMessage(ctx, gameId, `A zona encolhe em 1 min: de ${game.zone.radius * 2} m para ${next * 2} m.`);
+    await notify(ctx, (await inRound(ctx, gameId)).runners, 'shrink', 'A zona vai encolher', `Em 1 min ela fica com ${next * 2} m. Fique dentro.`);
   },
 });
 
@@ -246,6 +268,7 @@ export const expose = internalMutation({
     if (!p || p.outOfZoneSince !== since || p.state !== 'active') return;
     await ctx.db.patch(playerId, { exposed: true });
     await systemMessage(ctx, p.gameId, `${p.name} saiu da zona e está visível ao vivo.`, 'hunter');
+    await notify(ctx, [p], 'exposed', 'Os caçadores te veem ao vivo', 'Você está fora da zona há 30 s. Volte!');
   },
 });
 
@@ -287,6 +310,13 @@ export const end = internalMutation({
       at: now,
     });
     await deleteAudio(ctx, gameId);
+    await notify(
+      ctx,
+      players.filter((p) => p.role),
+      'end',
+      winner === 'runner' ? 'Fim da rodada: corredores venceram' : 'Fim da rodada: caçadores venceram',
+      winner === 'runner' ? `${free} ${free === 1 ? 'corredor escapou' : 'corredores escaparam'}.` : 'Pegaram todo mundo.',
+    );
     await systemMessage(ctx, gameId, winner === 'runner' ? `Fim! ${free} ${free === 1 ? 'corredor escapou' : 'corredores escaparam'}.` : 'Fim! Os caçadores pegaram todo mundo.');
   },
 });
@@ -310,7 +340,7 @@ export const cleanup = internalMutation({
     for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'used')).collect()) {
       await ctx.db.delete(b._id);
     }
-    for (const table of ['messages', 'captures', 'positions', 'players'] as const) {
+    for (const table of ['messages', 'captures', 'positions', 'alerts', 'players'] as const) {
       const rows = await ctx.db
         .query(table)
         .withIndex('by_game', (q) => q.eq('gameId', gameId))

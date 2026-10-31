@@ -4,7 +4,7 @@ import { Inter_400Regular } from '@expo-google-fonts/inter/400Regular';
 import { Inter_500Medium } from '@expo-google-fonts/inter/500Medium';
 import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
-import { useConvexAuth, useQuery } from 'convex/react';
+import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -18,11 +18,14 @@ import { api } from '../../convex/_generated/api';
 import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
+import { setupNotificationChannels } from '@/lib/notifications';
+import { enablePush } from '@/lib/webPush';
 import { setupWebHead } from '@/lib/webHead';
 import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
 setupWebHead();
+setupNotificationChannels().catch(() => {});
 
 // Quanto esperamos as fontes antes de abrir com a do sistema. Rede lenta ou
 // uma fonte que falha não podem deixar o app parado na tela de carregamento.
@@ -68,6 +71,12 @@ function Routes() {
   const { isLoading, isAuthenticated } = useConvexAuth();
   const me = useQuery(api.users.me, isAuthenticated ? {} : 'skip');
   const demo = useDemoMode();
+  const saveSubscription = useMutation(api.alerts.saveSubscription);
+
+  // Site com avisos liberados: inscreve este navegador no push (renova a cada abertura).
+  useEffect(() => {
+    if (isAuthenticated && me?.username) enablePush(saveSubscription).catch(() => {});
+  }, [isAuthenticated, me?.username, saveSubscription]);
 
   // Espera saber se há sessão e, logado, se o perfil já carregou.
   if (!demo && (isLoading || (isAuthenticated && me === undefined))) return <Loading />;

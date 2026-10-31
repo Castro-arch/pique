@@ -96,6 +96,7 @@ export default defineSchema({
     // Salvar o amigo: o pego fica preso onde foi pego; um corredor perto por 3 s solta.
     jail: v.optional(v.object({ lat: v.number(), lng: v.number(), at: v.number() })),
     rescue: v.optional(v.object({ targetId: v.id('players'), since: v.number() })),
+    heartbeatAlertAt: v.optional(v.number()), // último aviso de coração acelerado (não repete a cada passo)
   })
     .index('by_game', ['gameId'])
     .index('by_game_user', ['gameId', 'userId'])
@@ -152,6 +153,31 @@ export default defineSchema({
     seconds: v.optional(v.number()),
     at: v.number(),
   }).index('by_game', ['gameId', 'at']),
+
+  // Avisos da partida para cada jogador (ping, coração acelerado, grito...).
+  // O app Android mostra como notificação quando está em segundo plano; o
+  // site recebe como push. Apagados com a partida.
+  alerts: defineTable({
+    gameId: v.id('games'),
+    playerId: v.id('players'),
+    kind: v.string(),
+    title: v.string(),
+    body: v.string(),
+    at: v.number(),
+  })
+    .index('by_player', ['playerId', 'at'])
+    .index('by_game', ['gameId']),
+
+  // Inscrições de push do site (Web Push), uma por navegador.
+  push_subscriptions: defineTable({
+    userId: v.id('users'),
+    endpoint: v.string(),
+    p256dh: v.string(),
+    auth: v.string(),
+    at: v.number(),
+  })
+    .index('by_user', ['userId'])
+    .index('by_endpoint', ['endpoint']),
 
   // Cosméticos comprados (gravados pelo webhook da loja). Os grátis não entram aqui.
   cosmetics: defineTable({

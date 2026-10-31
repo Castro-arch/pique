@@ -501,6 +501,48 @@ describe('regras de boosts e tensão', () => {
   });
 });
 
+describe('avisos da partida', () => {
+  const kinds = async (as: As, gameId: Id<'games'>) => (await as.query(api.alerts.mine, { gameId })).map((a) => a.kind);
+
+  test('começo, caçada liberada, ping e fim chegam para quem deve', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    expect(await kinds(s.priya, gameId)).toEqual(['start']);
+    expect((await s.leo.query(api.alerts.mine, { gameId }))[0].title).toMatch(/você caça/);
+
+    await advance(s.t, 3 * MIN); // fim da vantagem
+    expect(await kinds(s.leo, gameId)).toEqual(['hunt', 'start']);
+    await advance(s.t, 2 * MIN); // primeiro ping
+    expect((await kinds(s.priya, gameId))[0]).toBe('ping');
+
+    await advance(s.t, 30 * MIN); // acaba o tempo
+    expect((await kinds(s.priya, gameId))[0]).toBe('end');
+  });
+
+  test('coração acelerado avisa uma vez por minuto, grito e pega avisam o corredor', async () => {
+    const s = await lobbyWith4();
+    const { gameId } = s;
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    await move(s.priya, gameId, north(20));
+    await move(s.leo, gameId, CENTER); // o caçador chega perto
+    expect((await kinds(s.priya, gameId))[0]).toBe('heartbeat');
+    vi.advanceTimersByTime(2_500);
+    await move(s.leo, gameId, north(5)); // ainda perto: não repete
+    expect((await kinds(s.priya, gameId)).filter((k) => k === 'heartbeat')).toHaveLength(1);
+    expect(await kinds(s.teo, gameId)).not.toContain('heartbeat'); // longe
+
+    await s.leo.mutation(api.play.shout, { gameId });
+    expect((await kinds(s.priya, gameId))[0]).toBe('shout');
+
+    const ids = Object.fromEntries((await s.leo.query(api.games.lobby, { gameId })).players.map((p) => [p.name, p.id]));
+    await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya });
+    const last = (await s.priya.query(api.alerts.mine, { gameId }))[0];
+    expect(last).toMatchObject({ kind: 'capture', title: 'Leo disse que te pegou' });
+  });
+});
+
 describe('cosméticos', () => {
   test('equipa só o que tem e a moldura aparece no mapa', async () => {
     const s = await lobbyWith4();

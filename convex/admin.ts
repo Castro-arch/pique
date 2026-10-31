@@ -8,6 +8,8 @@ import { internalMutation } from './_generated/server';
 const TABLES = [
   'messages',
   'boosts',
+  'alerts',
+  'push_subscriptions',
   'cosmetics',
   'captures',
   'positions',

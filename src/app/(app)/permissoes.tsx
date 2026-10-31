@@ -1,3 +1,4 @@
+import { useMutation } from 'convex/react';
 import { router } from 'expo-router';
 import { useEffect, useState, type ComponentType } from 'react';
 import { Linking, Pressable, StyleSheet, View } from 'react-native';
@@ -8,6 +9,7 @@ import { Bell, Camera, Check, LocateFixed, Lock, Mic } from '@/components/icons'
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
 import { markPermissionsSeen } from '@/lib/onboarding';
+import { enablePush } from '@/lib/webPush';
 import {
   canOpenSettings,
   checkPermission,
@@ -18,6 +20,7 @@ import {
   type PermissionState,
 } from '@/lib/permissions';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../convex/_generated/api';
 
 type Item = { id: PermissionId; title: string; why: string; Icon: ComponentType<{ size?: number; color?: string; strokeWidth?: number }> };
 
@@ -35,6 +38,7 @@ const ITEMS: Item[] = [
 export default function Permissoes() {
   const [states, setStates] = useState<Partial<Record<PermissionId, PermissionState>>>({});
   const [busy, setBusy] = useState(false);
+  const saveSubscription = useMutation(api.alerts.saveSubscription);
 
   useEffect(() => {
     (async () => {
@@ -50,6 +54,8 @@ export default function Permissoes() {
   const ask = async (id: PermissionId) => {
     const s = await requestPermission(id).catch(() => 'denied' as const);
     setStates((x) => ({ ...x, [id]: s }));
+    // No site, avisos liberados = inscreve o navegador no push na hora.
+    if (id === 'notifications' && s === 'granted') enablePush(saveSubscription).catch(() => {});
     return s;
   };
   const askAll = async () => {
