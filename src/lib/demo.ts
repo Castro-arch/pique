@@ -51,7 +51,7 @@ export const match = {
   host: 'leo',
   rules: {
     durationMin: 30,
-    headStartMin: 3,
+    headStartMin: 1,
     pingEveryMin: 2,
     zoneMeters: 420,
     shrinkEveryMin: 5,

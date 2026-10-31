@@ -9,7 +9,7 @@ type Ctx = QueryCtx | MutationCtx;
 // Regras padrão (as mais jogadas) e limites aceitos pelo servidor.
 export const DEFAULT_RULES = {
   durationMin: 30,
-  headStartMin: 3,
+  headStartMin: 1,
   pingEveryMin: 2,
   hunters: 2,
   shrink: true,

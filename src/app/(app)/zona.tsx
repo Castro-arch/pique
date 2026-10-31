@@ -2,10 +2,11 @@ import { useMutation } from 'convex/react';
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { LocateFixed } from '@/components/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { GameMap } from '@/components/GameMap';
 import { MapBackdrop } from '@/components/MapBackdrop';
 import { Text } from '@/components/Text';
 import { match } from '@/lib/demo';
@@ -45,6 +46,14 @@ export default function Zona() {
     setCenter(c);
     return c;
   };
+  // Abre já no lugar onde o anfitrião está (a permissão veio na tela de permissões).
+  useEffect(() => {
+    if (center) return;
+    Location.getForegroundPermissionsAsync()
+      .then(({ granted }) => (granted ? locate() : null))
+      .catch(() => {});
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const done = async () => {
     if (!id) return router.back();
     setSaving(true);
@@ -64,7 +73,19 @@ export default function Zona() {
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.inkSunken }}>
-      <MapBackdrop zone={{ cx: 195, cy: 420, r }} />
+      {center ? (
+        // O mapa de ruas de verdade, com a zona desenhada em cima.
+        <GameMap
+          zone={{ lat: center.lat, lng: center.lng, radius: meters / 2 }}
+          nextZoneRadius={null}
+          people={[{ id: 'eu', name: 'Você', role: 'runner', state: 'active', isMe: true, kind: 'live', lat: center.lat, lng: center.lng, at: Date.now() }]}
+          now={Date.now()}
+          hunter={false}
+          outOfZone={false}
+        />
+      ) : (
+        <MapBackdrop zone={{ cx: 195, cy: 420, r }} />
+      )}
       <View style={[styles.bar, { paddingTop: insets.top }]}>
         <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.barBtn}>
           <Text variant="muted" style={{ fontFamily: fonts.bodyMedium }}>Cancelar</Text>
