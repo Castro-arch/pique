@@ -1,7 +1,7 @@
 import { useMutation, useQuery } from 'convex/react';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback, useEffect } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { useCallback, useEffect, useRef } from 'react';
+import { AccessibilityInfo, Animated, Easing, ScrollView, StyleSheet, View } from 'react-native';
 
 import { BENTO, BentoBackground, Sticker, type StickerKind } from '@/components/Bento';
 import { Button } from '@/components/Button';
@@ -16,8 +16,9 @@ import { useMe } from '@/lib/useMe';
 import { colors, fonts } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
 
-// 21.1 Início: nome grande, dois botões (criar ou entrar pelo QR) e o treino.
-// No topo, figurinhas levam para Loja, Crew e Perfil.
+// 22.4 Início: a mãozinha acena (é o "oi"), o nome vem grande com contorno de
+// figurinha, e os dois botões (criar ou entrar pelo QR). No topo, figurinhas
+// levam para Loja, Crew e Perfil.
 export default function Home() {
   const me = useMe();
   const demo = useDemoMode();
@@ -61,11 +62,9 @@ export default function Home() {
         </View>
 
         <View style={{ flex: 1, justifyContent: 'center', paddingVertical: 24 }}>
-          <Appear>
-            <Text accessibilityRole="header" numberOfLines={2} adjustsFontSizeToFit style={styles.hello}>
-              {`Oi,\n${me.name || 'você'}`}
-              <Text style={[styles.hello, { color: colors.lime }]}>.</Text>
-            </Text>
+          <Appear style={{ alignItems: 'center' }}>
+            <WavingHand />
+            <OutlinedName name={me.name || 'você'} />
           </Appear>
           <Appear delay={80}>
             <Text style={styles.sub}>{'Crie uma partida ou entre\npelo QR de um amigo.'}</Text>
@@ -108,6 +107,84 @@ export default function Home() {
   );
 }
 
+// A mãozinha: acena ao abrir (gira pelo pulso) e repete de leve a cada 6 s.
+function WavingHand() {
+  const turn = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    let stop = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const wave = (times: number, deg: number) =>
+      Animated.sequence(
+        Array.from({ length: times }, () => [
+          Animated.timing(turn, { toValue: deg, duration: 160, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+          Animated.timing(turn, { toValue: -deg * 0.6, duration: 160, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        ]).flat().concat(Animated.timing(turn, { toValue: 0, duration: 180, easing: Easing.out(Easing.quad), useNativeDriver: true })),
+      );
+    AccessibilityInfo.isReduceMotionEnabled().then((reduce) => {
+      if (reduce || stop) return;
+      const loop = (first: boolean) =>
+        wave(first ? 3 : 2, first ? 18 : 12).start(() => {
+          if (!stop) timer = setTimeout(() => loop(false), 6000);
+        });
+      timer = setTimeout(() => loop(true), 350);
+    });
+    return () => {
+      stop = true;
+      if (timer) clearTimeout(timer);
+      turn.stopAnimation();
+    };
+  }, [turn]);
+  return (
+    <Animated.View
+      accessible
+      accessibilityLabel="Oi"
+      style={{ marginBottom: 6, transformOrigin: '50% 85%', transform: [{ rotate: turn.interpolate({ inputRange: [-30, 30], outputRange: ['-30deg', '30deg'] }) }] }}>
+      <Sticker kind="hand" color={colors.pink} size={112} tilt={-12} />
+    </Animated.View>
+  );
+}
+
+// O nome com contorno preto e relevo, como as figurinhas. O contorno são cópias
+// pretas deslocadas em volta (funciona igual no app e no site).
+const RING = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+  [-0.7, -0.7],
+  [0.7, -0.7],
+  [-0.7, 0.7],
+  [0.7, 0.7],
+];
+function OutlinedName({ name }: { name: string }) {
+  const size = Math.max(44, Math.min(96, Math.floor(600 / (name.length + 1))));
+  const w = Math.max(3, Math.round(size * 0.055));
+  const text = (dot: string) => (
+    <>
+      {name}
+      <Text style={[styles.name, { fontSize: size, lineHeight: size * 1.05, color: dot }]}>.</Text>
+    </>
+  );
+  const layer = (dx: number, dy: number, key: string) => (
+    <Text key={key} aria-hidden style={[styles.name, { fontSize: size, lineHeight: size * 1.05, color: '#000', position: 'absolute', left: dx, top: dy }]}>
+      {text('#000')}
+    </Text>
+  );
+  return (
+    <View accessibilityRole="header" accessibilityLabel={name} style={{ paddingHorizontal: w + 4, paddingBottom: w + 4 }}>
+      <View>
+        {/* relevo: uma cópia preta deslocada para baixo e para a direita, com contorno */}
+        {RING.map(([x, y], i) => layer(w * 0.9 + x * w, w * 1.3 + y * w, 'r' + i))}
+        {layer(w * 0.9, w * 1.3, 'r')}
+        {RING.map(([x, y], i) => layer(x * w, y * w, 'c' + i))}
+        <Text numberOfLines={1} style={[styles.name, { fontSize: size, lineHeight: size * 1.05 }]}>
+          {text(colors.lime)}
+        </Text>
+      </View>
+    </View>
+  );
+}
+
 // Botão do topo com a figurinha (Loja, Crew, Perfil).
 function TopSticker({ kind, color, label, dot, onPress }: { kind: StickerKind; color: string; label: string; dot?: boolean; onPress: () => void }) {
   return (
@@ -122,8 +199,8 @@ const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 48 },
   top: { width: 48, height: 48, borderRadius: 16, backgroundColor: BENTO.tile, borderWidth: 1, borderColor: BENTO.line, alignItems: 'center', justifyContent: 'center' },
   dot: { position: 'absolute', right: 6, top: 6, width: 10, height: 10, borderRadius: 5, backgroundColor: colors.pink, borderWidth: 2, borderColor: BENTO.tile },
-  hello: { fontFamily: fonts.display, fontSize: 96, lineHeight: 84, letterSpacing: -5.5, color: colors.paper },
-  sub: { fontFamily: fonts.display, fontSize: 22, lineHeight: 26, letterSpacing: -0.5, color: colors.paper, marginTop: 18 },
+  name: { fontFamily: fonts.display, letterSpacing: -3, color: colors.paper },
+  sub: { fontFamily: fonts.display, fontSize: 21, lineHeight: 25, letterSpacing: -0.4, color: '#C9C7BF', marginTop: 14, textAlign: 'center' },
   current: { flexDirection: 'row', alignItems: 'center', gap: 12, marginBottom: 12, backgroundColor: '#1E2A12', borderWidth: 1, borderColor: colors.lime, borderRadius: 20, padding: 14 },
   liveDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: colors.lime, boxShadow: '0 0 0 6px rgba(200,242,60,0.2)' },
   leave: { fontSize: 12, color: BENTO.muted, marginTop: 2, textDecorationLine: 'underline' },
