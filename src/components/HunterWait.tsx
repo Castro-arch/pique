@@ -24,8 +24,10 @@ export function HunterLocked({
   code,
   round,
   mates,
+  onRadio,
 }: {
   id: string;
+  onRadio?: () => void;
   left: number; // segundos até liberar
   total: number; // segundos de vantagem
   code: string;
@@ -107,7 +109,7 @@ export function HunterLocked({
 
       <View style={{ flex: 1 }} />
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        <Pressable accessibilityRole="button" onPress={() => router.push({ pathname: '/radio', params: { id } })} style={styles.radio}>
+        <Pressable accessibilityRole="button" onPress={() => (onRadio ? onRadio() : router.push({ pathname: '/radio', params: { id } }))} style={styles.radio}>
           <RadioIcon size={18} color="#FF8FA8" strokeWidth={2.2} />
           <Text style={{ fontSize: 16, fontFamily: fonts.bodyStrong }}>Combinar no Radio</Text>
         </Pressable>

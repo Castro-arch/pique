@@ -13,6 +13,7 @@ import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
 import { GO_MS, HuntGo, HunterLocked } from '@/components/HunterWait';
 import { Appear, Pressy } from '@/components/Motion';
 import { RadioBubble, useRadioPeek } from '@/components/RadioBubble';
+import { RadioPanel } from '../app/(app)/radio';
 import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
 import { errorInfo, secondsUntil, useNow, useSendPosition, useView, type GameId } from '@/lib/game';
@@ -45,7 +46,13 @@ export function LiveGame({ id }: { id: string }) {
   const [justWatch, setJustWatch] = useState(false);
   const [helpSent, setHelpSent] = useState(false);
   const [using, setUsing] = useState<{ id: string; kind: BoostKind } | null>(null);
+  const [radioOpen, setRadioOpen] = useState(false);
   const radioPeek = useRadioPeek(radio?.messages, view ? boostLineFor(view.me, now) : null, view ? boostKeyFor(view.me, now) : null, view?.me.role === 'hunter');
+  // Fechou o Radio: o que chegou enquanto estava aberto já foi visto.
+  const closeRadio = () => {
+    radioPeek.seenAll();
+    setRadioOpen(false);
+  };
 
   // 10.4 Coração acelerado: caçador a menos de 30 m. Vibra no ritmo tum-tum.
   const beating = !!view && view.game.status === 'hunt' && view.me.role === 'runner' && view.me.state === 'active' && view.me.heartbeat;
@@ -117,7 +124,16 @@ export function LiveGame({ id }: { id: string }) {
   // 14.1: durante a vantagem o caçador não vê o mapa, só a contagem.
   if (hunter && headstart && !caught) {
     const mates = view.people.filter((p) => p.role === 'hunter' && !p.isMe).map((p) => p.name);
-    return <HunterLocked id={id} left={left} total={g.headStartMin * 60} code={g.code} round={g.round} mates={mates} />;
+    return (
+      <View style={styles.root}>
+        <HunterLocked id={id} left={left} total={g.headStartMin * 60} code={g.code} round={g.round} mates={mates} onRadio={() => setRadioOpen(true)} />
+        {radioOpen ? (
+          <View style={StyleSheet.absoluteFill}>
+            <RadioPanel id={id} onMap={closeRadio} />
+          </View>
+        ) : null}
+      </View>
+    );
   }
   if (hunter && goUntil > now) return <HuntGo code={g.code} endsIn={mmss(left)} />;
 
@@ -376,10 +392,25 @@ export function LiveGame({ id }: { id: string }) {
               )}
             </Rise>
           )}
-          <RadioBubble peek={radioPeek.peek} unread={radioPeek.unread} bottom={card} onPress={() => radioPeek.open(id)} />
+          <RadioBubble peek={radioPeek.peek} unread={radioPeek.unread} bottom={card} onPress={() => {
+            radioPeek.seenAll();
+            setRadioOpen(true);
+          }}
+          />
         </>
       )}
-      <GameTabs />
+      <GameTabs
+        onRadio={() => {
+          radioPeek.seenAll();
+          setRadioOpen(true);
+        }}
+      />
+      {/* Radio por cima do mapa: o mapa continua carregado embaixo. */}
+      {radioOpen ? (
+        <View style={StyleSheet.absoluteFill}>
+          <RadioPanel id={id} onMap={closeRadio} />
+        </View>
+      ) : null}
     </View>
   );
 }

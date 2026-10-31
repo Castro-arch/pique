@@ -1,4 +1,3 @@
-import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 
@@ -54,12 +53,12 @@ export function useRadioPeek(messages: Msg[] | undefined, boostLine: string | nu
     return () => clearTimeout(t);
   }, [peek]);
 
-  const open = (id: string) => {
+  // Abriu o Radio: some a mensagem e zera o contador.
+  const seenAll = () => {
     setPeek(null);
     setUnread(0);
-    router.push({ pathname: '/radio', params: { id } });
   };
-  return { peek, unread, open };
+  return { peek, unread, seenAll };
 }
 
 export function RadioBubble({ peek, unread, bottom, onPress }: { peek: Peek | null; unread: number; bottom: number; onPress: () => void }) {

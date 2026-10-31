@@ -18,6 +18,35 @@ export function useTalk(id: string | undefined) {
   const [recording, setRecording] = useState(false);
   const [opening, setOpening] = useState(false);
   const cancelled = useRef(false);
+  // Gravador já preparado (microfone aberto) esperando o toque.
+  const ready = useRef(false);
+  const warming = useRef<Promise<boolean> | null>(null);
+
+  // Pede o microfone e prepara o gravador antes do toque.
+  const warm = () => {
+    if (!id || ready.current || warming.current) return warming.current ?? Promise.resolve(ready.current);
+    warming.current = (async () => {
+      try {
+        const perm = await requestRecordingPermissionsAsync();
+        if (!perm.granted) return false;
+        await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
+        await recorder.prepareToRecordAsync();
+        ready.current = true;
+        return true;
+      } catch {
+        return false;
+      } finally {
+        warming.current = null;
+      }
+    })();
+    return warming.current;
+  };
+  // Saiu do Radio: solta o microfone.
+  const release = () => {
+    if (live.current) return;
+    ready.current = false;
+    setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true }).catch(() => {});
+  };
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const startedAt = useRef(0);
@@ -31,11 +60,10 @@ export function useTalk(id: string | undefined) {
     setOpening(true);
     cancelled.current = false;
     try {
-      const perm = await requestRecordingPermissionsAsync();
-      if (!perm.granted) return setError('Libere o microfone para falar no Radio.');
-      await setAudioModeAsync({ allowsRecording: true, playsInSilentMode: true });
-      await recorder.prepareToRecordAsync();
+      // Já preparado (o normal): grava na hora. Senão prepara agora.
+      if (!ready.current && !(await warm())) return setError('Libere o microfone para falar no Radio.');
       if (cancelled.current) return;
+      ready.current = false;
       recorder.record();
     } catch (e) {
       return setError(errorInfo(e).message);
@@ -64,7 +92,10 @@ export function useTalk(id: string | undefined) {
     await setAudioModeAsync({ allowsRecording: false, playsInSilentMode: true });
     const seconds = Math.min(MAX_SECONDS, (Date.now() - startedAt.current) / 1000);
     const uri = recorder.uri;
-    if (!uri || seconds < 0.6) return; // toque rápido sem querer não vira áudio
+    if (!uri || seconds < 0.6) {
+      void warm(); // toque rápido sem querer não vira áudio; fica pronto de novo
+      return;
+    }
     setSending(true);
     try {
       const blob = await (await fetch(uri)).blob();
@@ -76,10 +107,11 @@ export function useTalk(id: string | undefined) {
       setError(errorInfo(e).message);
     } finally {
       setSending(false);
+      void warm(); // pronto para o próximo áudio
     }
   };
 
   // Um botão só: grava ou envia.
   const toggle = () => (live.current ? stop() : opening ? stop() : start());
-  return { start, stop, toggle, recording, opening, sending, error };
+  return { start, stop, toggle, warm, release, recording, opening, sending, error };
 }

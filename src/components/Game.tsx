@@ -179,7 +179,19 @@ export function CardAction({
 }
 
 // Abas Mapa / Radio e o botão de mais opções, presos na base.
-export function GameTabs({ unread, tab = 'mapa', bottom }: { unread?: number; tab?: 'mapa' | 'radio'; bottom?: number }) {
+export function GameTabs({
+  unread,
+  tab = 'mapa',
+  bottom,
+  onMap,
+  onRadio,
+}: {
+  unread?: number;
+  tab?: 'mapa' | 'radio';
+  bottom?: number;
+  onMap?: () => void; // Radio aberto por cima do mapa: fecha o painel
+  onRadio?: () => void; // mapa da partida: abre o painel do Radio
+}) {
   const { dock } = useDock();
   // No treino com bots (?treino=1) o menu ganha os controles extras.
   // Na partida real (?id=) Radio e menu levam o id junto.
@@ -193,6 +205,7 @@ export function GameTabs({ unread, tab = 'mapa', bottom }: { unread?: number; ta
           on={tab === 'mapa'}
           onPress={() => {
             if (tab === 'mapa') return;
+            if (onMap) return onMap();
             // Depois de recarregar a página não há para onde voltar: abre o mapa da partida.
             if (router.canGoBack()) router.back();
             else router.replace(id ? { pathname: '/jogo', params: { id } } : '/jogo');
@@ -202,7 +215,11 @@ export function GameTabs({ unread, tab = 'mapa', bottom }: { unread?: number; ta
           label="Radio"
           on={tab === 'radio'}
           unread={unread}
-          onPress={() => tab !== 'radio' && router.push({ pathname: '/radio', params: id ? { id } : {} })}
+          onPress={() => {
+            if (tab === 'radio') return;
+            if (onRadio) return onRadio();
+            router.push({ pathname: '/radio', params: id ? { id } : {} });
+          }}
         />
       </View>
       <Pressable accessibilityRole="button" accessibilityLabel="Mais opções" onPress={() => router.push({ pathname: '/menu', params: extra })} style={styles.more}>

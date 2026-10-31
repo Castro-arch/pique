@@ -3,7 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useAudioPlayer, useAudioPlayerStatus } from 'expo-audio';
 import { Mic, Pause, Play } from '@/components/icons';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -37,6 +37,12 @@ const initial: Msg[] = [
 // Os áudios ficam no armazenamento do Convex e são apagados no fim da partida.
 export default function Radio() {
   const { id } = useLocalSearchParams<{ id?: string }>();
+  return <RadioPanel id={id} />;
+}
+
+// O painel do Radio. Dentro da partida ele abre por cima do mapa (onMap fecha);
+// sozinho, na rota /radio, a aba Mapa volta para a partida.
+export function RadioPanel({ id, onMap }: { id?: string; onMap?: () => void }) {
   const insets = useSafeAreaInsets();
   const { dock } = useDock();
   const live = useQuery(api.radio.list, id ? { gameId: id as GameId } : 'skip');
@@ -44,6 +50,11 @@ export default function Radio() {
   const now = useNow();
   const sendQuick = useMutation(api.radio.sendQuick);
   const talk = useTalk(id);
+  // Microfone já preparado ao abrir: tocar e começar a gravar na hora.
+  useEffect(() => {
+    talk.warm();
+    return () => talk.release();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [demoMsgs, setDemoMsgs] = useState<Msg[]>(initial);
   const [talking, setTalking] = useState(false);
   const [startedAt, setStartedAt] = useState(0);
@@ -132,7 +143,7 @@ export default function Radio() {
         </Pressable>
       </View>
 
-      <GameTabs tab="radio" bottom={dock} />
+      <GameTabs tab="radio" bottom={dock} onMap={onMap} />
     </View>
   );
 }

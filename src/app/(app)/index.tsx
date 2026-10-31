@@ -1,7 +1,7 @@
 import { useQuery } from 'convex/react';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { BarChart3, Settings, ShoppingBag } from '@/components/icons';
-import { useEffect } from 'react';
+import { useCallback, useEffect } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 
 import { AvatarStack } from '@/components/Avatar';
@@ -26,11 +26,13 @@ export default function Home() {
   // página, fechou o app, voltou demais). No lobby, o botão lá embaixo.
   const mine = useQuery(api.games.mine, demo ? 'skip' : {});
   const current = mine?.[0];
-  useEffect(() => {
-    if (current && (current.status === 'headstart' || current.status === 'hunt')) {
-      router.replace({ pathname: '/jogo', params: { id: current.gameId } });
-    }
-  }, [current?.gameId, current?.status]); // eslint-disable-line react-hooks/exhaustive-deps
+  useFocusEffect(
+    useCallback(() => {
+      if (current && (current.status === 'headstart' || current.status === 'hunt')) {
+        router.replace({ pathname: '/jogo', params: { id: current.gameId } });
+      }
+    }, [current?.gameId, current?.status]), // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   // Primeira vez aqui depois do nome: a tela única de permissões.
   useEffect(() => {
