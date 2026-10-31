@@ -295,3 +295,10 @@ export const mine = query({
     return out;
   },
 });
+
+// Hora do servidor. A roleta mede a diferença para o relógio do celular,
+// assim a luz acende na hora certa mesmo com o celular adiantado ou atrasado.
+export const clock = mutation({
+  args: {},
+  handler: async () => Date.now(),
+});

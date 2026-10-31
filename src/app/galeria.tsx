@@ -56,7 +56,6 @@ export const sections: { title: string; items: Item[] }[] = [
       { n: '4.3', title: 'Código errado', href: '/entrar?codigo=QWERTY' },
       { n: '4.4', title: 'Escanear QR', href: '/entrar/qr' },
       { n: '4.5', title: 'Partida indisponível', href: '/indisponivel' },
-      { n: '4.6', title: 'Escolher lado', href: '/lado' },
       { n: '4.7', title: 'Aguardando a partida', href: '/aguardando' },
     ],
   },

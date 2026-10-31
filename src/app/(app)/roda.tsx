@@ -29,7 +29,8 @@ export default function Roda() {
   const [error, setError] = useState<string | null>(null);
   const [spinning, setSpinning] = useState(false);
   useFollowRound(id, lobby?.status);
-  const now = useFastNow(!!lobby?.draw);
+  const offset = useServerOffset();
+  const now = useFastNow(!!lobby?.draw) + offset;
 
   const draw = lobby?.draw as Draw | null | undefined;
   const meId = lobby?.me.id;
@@ -179,6 +180,34 @@ function Wheel({ order, lit, chosen, meId, nameOf }: { order: string[]; lit: str
       })}
     </Svg>
   );
+}
+
+// Quanto o relógio do servidor está à frente do celular (ms). Mede 3 vezes
+// e fica com a ida-e-volta mais rápida, que é a mais precisa.
+function useServerOffset() {
+  const clock = useMutation(api.games.clock);
+  const [offset, setOffset] = useState(0);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      let best = { rtt: Infinity, off: 0 };
+      for (let i = 0; i < 3; i++) {
+        const t0 = Date.now();
+        try {
+          const server = await clock({});
+          const t1 = Date.now();
+          if (t1 - t0 < best.rtt) best = { rtt: t1 - t0, off: server - (t0 + t1) / 2 };
+        } catch {
+          return;
+        }
+      }
+      if (!cancelled && Number.isFinite(best.rtt)) setOffset(best.off);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [clock]);
+  return offset;
 }
 
 // Relógio rápido enquanto a roleta gira (a luz pula a cada 80 ms no começo).
