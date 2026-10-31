@@ -37,6 +37,7 @@ function FimReal({ id }: { id: string }) {
   const view = useView(id);
   const lobby = useLobby(id);
   const setReady = useMutation(api.games.setReady);
+  const leave = useMutation(api.games.leave);
   // Se o anfitrião girar a roleta (ou começar) com a pessoa ainda aqui, ela vai junto.
   useFollowRound(id, lobby?.status);
   useEffect(() => {
@@ -119,7 +120,14 @@ function FimReal({ id }: { id: string }) {
           {host ? 'A crew vai junto para a roda. Dá para mudar as regras no lobby antes.' : `Quando ${hostName} girar a roleta, você vai junto.`}
         </Text>
         {host ? <Button variant="link" label="Ir para o lobby" onPress={() => router.replace({ pathname: '/lobby', params: { id } })} /> : null}
-        <Button variant="link" label="Ir para o início (continua na crew)" onPress={() => router.replace('/')} />
+        <Button
+          variant="link"
+          label="Sair da partida"
+          onPress={async () => {
+            await leave({ gameId: id as GameId }).catch(() => {});
+            router.replace('/');
+          }}
+        />
       </View>
     </ScrollView>
   );

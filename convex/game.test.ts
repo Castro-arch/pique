@@ -658,6 +658,23 @@ describe('regras de boosts e tensão', () => {
 });
 
 describe('sair da partida', () => {
+  test('criar ou entrar numa partida nova sai das antigas paradas', async () => {
+    const s = await lobbyWith4();
+    expect((await s.priya.query(api.games.mine, {})).map((g) => g.gameId)).toEqual([s.gameId]);
+    // Priya cria a própria partida: sai da antiga e o anfitrião de lá não a vê mais
+    const { gameId: nova } = await s.priya.mutation(api.games.create, {});
+    expect((await s.priya.query(api.games.mine, {})).map((g) => g.gameId)).toEqual([nova]);
+    expect((await lobbyOf(s.host, s.gameId)).players.map((p) => p.name)).toEqual(['Castro', 'Leo', 'Teo']);
+  });
+
+  test('partida que acabou não fica na tela inicial', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    for (const p of [s.host, s.priya, s.teo]) await p.mutation(api.play.reportCaught, { gameId: s.gameId });
+    expect(await s.priya.query(api.games.mine, {})).toEqual([]);
+  });
+
   test('quem sai recebe tela vazia, não erro, e a partida segue', async () => {
     const s = await lobbyWith4();
     const { gameId } = s;

@@ -1,4 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
+import { useEffect, useRef } from 'react';
 
 import { useLobby } from '@/lib/game';
 import { StyleSheet, View } from 'react-native';
@@ -21,6 +22,21 @@ export default function Papel() {
   // Vindo da roleta o papel chega pela tela (a rodada ainda está começando).
   const papel = params.papel ?? lobby?.me.role ?? 'runner';
   const starting = !!id && lobby?.status !== 'headstart' && lobby?.status !== 'hunt';
+  const sawStart = useRef(false);
+  useEffect(() => {
+    if (!id || lobby === undefined) return;
+    if (lobby === null) return void router.replace('/'); // não está mais na partida
+    if (lobby.status === 'headstart' || lobby.status === 'hunt') sawStart.current = true;
+    // A rodada acabou com a pessoa ainda aqui: volta para o lobby da crew.
+    else if (sawStart.current) router.replace({ pathname: '/lobby', params: { id } });
+  }, [id, lobby, lobby?.status]);
+  useEffect(() => {
+    if (!id) return;
+    const t = setTimeout(() => {
+      if (!sawStart.current) router.replace({ pathname: '/lobby', params: { id } });
+    }, 8000);
+    return () => clearTimeout(t);
+  }, [id]);
   const hunter = papel === 'hunter';
   const bg = hunter ? colors.pink : colors.lime;
   const ink = hunter ? colors.pinkInk : colors.limeInk;

@@ -58,6 +58,7 @@ export const create = mutation({
       .collect();
     if (recent.length >= 5) throw new ConvexError('Calma! Espere um pouco antes de criar outra partida.');
     if (!(await canHost(ctx, userId))) throw new ConvexError({ code: 'PAYWALL' });
+    await leaveOldGames(ctx, userId);
 
     let code = newCode();
     while (await ctx.db.query('games').withIndex('by_code', (q) => q.eq('code', code)).first()) code = newCode();
@@ -125,6 +126,7 @@ export const join = mutation({
     if (players.length >= MAX_PLAYERS) throw new ConvexError({ code: 'FULL' });
 
     const name = await displayName(ctx, userId);
+    await leaveOldGames(ctx, userId, game._id);
     if (existing) {
       await ctx.db.patch(existing._id, { state: 'active', ready: false, joinedAt: Date.now(), name });
     } else {
@@ -263,22 +265,40 @@ export const leave = mutation({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
     const { userId, game, me } = await requireMember(ctx, gameId);
-    await ctx.db.patch(me._id, { state: 'left', ready: false });
-    const playing = game.status === 'headstart' || game.status === 'hunt';
-    if (playing) await systemMessage(ctx, gameId, `${me.name} saiu da partida.`);
-
-    const rest = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left').sort((a, b) => a.joinedAt - b.joinedAt);
-    if (rest.length === 0) {
-      if (playing) await ctx.runMutation(internal.rounds.end, { gameId, round: game.round, reason: 'abandoned' });
-      return;
-    }
-    if (game.hostId === userId) {
-      await ctx.db.patch(gameId, { hostId: rest[0].userId });
-      await systemMessage(ctx, gameId, `${me.name} saiu. Agora ${rest[0].name} é o anfitrião.`);
-    }
-    if (playing) await ctx.runMutation(internal.rounds.checkEnd, { gameId, round: game.round });
+    await leaveGame(ctx, game, me, userId);
   },
 });
+
+// Sai da partida: a vaga some, o anfitrião passa adiante e, se a rodada
+// estiver valendo, ela confere se acabou.
+async function leaveGame(ctx: MutationCtx, game: Doc<'games'>, me: Doc<'players'>, userId: Id<'users'>) {
+  const gameId = game._id;
+  await ctx.db.patch(me._id, { state: 'left', ready: false });
+  const playing = game.status === 'headstart' || game.status === 'hunt';
+  if (playing) await systemMessage(ctx, gameId, `${me.name} saiu da partida.`);
+
+  const rest = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left').sort((a, b) => a.joinedAt - b.joinedAt);
+  if (rest.length === 0) {
+    if (playing) await ctx.runMutation(internal.rounds.end, { gameId, round: game.round, reason: 'abandoned' });
+    return;
+  }
+  if (game.hostId === userId) {
+    await ctx.db.patch(gameId, { hostId: rest[0].userId });
+    await systemMessage(ctx, gameId, `${me.name} saiu. Agora ${rest[0].name} é o anfitrião.`);
+  }
+  if (playing) await ctx.runMutation(internal.rounds.checkEnd, { gameId, round: game.round });
+}
+
+// Quem cria ou entra numa partida sai das antigas que estão paradas (lobby
+// ou já acabadas). Rodada valendo fica como está.
+async function leaveOldGames(ctx: MutationCtx, userId: Id<'users'>, keep?: Id<'games'>) {
+  const rows = await ctx.db.query('players').withIndex('by_user', (q) => q.eq('userId', userId)).collect();
+  for (const p of rows) {
+    if (p.state === 'left' || p.gameId === keep) continue;
+    const g = await ctx.db.get(p.gameId);
+    if (g && (g.status === 'lobby' || g.status === 'ended')) await leaveGame(ctx, g, p, userId);
+  }
+}
 
 // Minhas partidas recentes (para "voltar para a partida" na Home).
 export const mine = query({
@@ -294,9 +314,7 @@ export const mine = query({
     for (const p of rows) {
       if (p.state === 'left') continue;
       const g = await ctx.db.get(p.gameId);
-      // Partida que acabou há pouco também conta: a crew pode jogar a revanche.
-      const recent = g?.status === 'ended' && Date.now() - (g.endedAt ?? 0) < 2 * 60 * MIN;
-      if (g && (g.status !== 'ended' || recent)) out.push({ gameId: g._id, code: g.code, status: g.status });
+      if (g && g.status !== 'ended') out.push({ gameId: g._id, code: g.code, status: g.status });
     }
     return out;
   },

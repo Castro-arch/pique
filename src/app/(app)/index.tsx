@@ -1,4 +1,4 @@
-import { useQuery } from 'convex/react';
+import { useMutation, useQuery } from 'convex/react';
 import { router, useFocusEffect } from 'expo-router';
 import { BarChart3, Settings, ShoppingBag } from '@/components/icons';
 import { useCallback, useEffect } from 'react';
@@ -26,6 +26,7 @@ export default function Home() {
   // página, fechou o app, voltou demais). No lobby, o botão lá embaixo.
   const mine = useQuery(api.games.mine, demo ? 'skip' : {});
   const current = mine?.[0];
+  const leave = useMutation(api.games.leave);
   useFocusEffect(
     useCallback(() => {
       if (current && (current.status === 'headstart' || current.status === 'hunt')) {
@@ -86,9 +87,12 @@ export default function Home() {
         {current ? (
           <Button
             label={`Voltar para a partida ${current.code}`}
-            // No lobby ou depois do fim: o lobby (quem não é anfitrião vai para a espera da roleta).
-            onPress={() => router.push({ pathname: current.status === 'lobby' || current.status === 'ended' ? '/lobby' : '/jogo', params: { id: current.gameId } })}
+            // No lobby: o lobby (quem não é anfitrião vai para a espera da roleta).
+            onPress={() => router.push({ pathname: current.status === 'lobby' ? '/lobby' : '/jogo', params: { id: current.gameId } })}
           />
+        ) : null}
+        {current ? (
+          <Button variant="link" label="Sair dessa partida" style={{ marginTop: -6 }} onPress={() => leave({ gameId: current.gameId }).catch(() => {})} />
         ) : null}
         <Button variant={current ? 'secondary' : 'primary'} label="Criar partida" loading={create.busy} onPress={() => (demo ? router.push('/lobby') : create.run())} />
         {create.error ? <Text variant="error">{create.error}</Text> : null}
