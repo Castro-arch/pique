@@ -2,7 +2,7 @@ import { useMutation } from 'convex/react';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect } from 'react';
 import { ImageIcon } from '@/components/icons';
-import { StyleSheet, View } from 'react-native';
+import { ScrollView, StyleSheet, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button } from '@/components/Button';
@@ -81,7 +81,8 @@ function FimReal({ id }: { id: string }) {
       ];
 
   return (
-    <View style={[styles.root, { paddingBottom: Math.max(insets.bottom, 34), paddingTop: Math.max(insets.top, 56) }]}>
+    // Rola quando não cabe (celular baixo, barra do navegador ocupando espaço).
+    <ScrollView style={styles.root} contentContainerStyle={{ flexGrow: 1, paddingBottom: Math.max(insets.bottom, 34), paddingTop: Math.max(insets.top, 40) }} showsVerticalScrollIndicator={false}>
       {won && !hunter ? (
         <Illustration source={illustrations.sobreviveu} label="Ilustração: a crew comemorando que ninguém foi achado" />
       ) : null}
@@ -92,7 +93,7 @@ function FimReal({ id }: { id: string }) {
           dot={g.winner === 'hunter' ? colors.pink : colors.lime}
           style={{ alignSelf: 'flex-start', marginBottom: 14, marginTop: won && !hunter ? 0 : 40 }}
         />
-        <Headline variant="display" dot={won ? accent : colors.paperMuted} style={{ fontSize: 64, lineHeight: 60 }}>
+        <Headline variant="display" dot={won ? accent : colors.paperMuted} style={{ fontSize: 58, lineHeight: 56 }}>
           {title}
         </Headline>
         <Text variant="muted" style={{ marginTop: 12, fontSize: 16 }}>{body}</Text>
@@ -104,7 +105,7 @@ function FimReal({ id }: { id: string }) {
             </View>
           ))}
         </View>
-        <Spacer />
+        <View style={{ flex: 1, minHeight: 24 }} />
         {won ? (
           <Button variant={hunter ? 'danger' : 'primary'} label="Compartilhar a vitória" onPress={() => router.push({ pathname: '/post', params: { lado: hunter ? 'cacador' : 'corredor' } })} />
         ) : null}
@@ -120,7 +121,7 @@ function FimReal({ id }: { id: string }) {
         {host ? <Button variant="link" label="Ir para o lobby" onPress={() => router.replace({ pathname: '/lobby', params: { id } })} /> : null}
         <Button variant="link" label="Ir para o início (continua na crew)" onPress={() => router.replace('/')} />
       </View>
-    </View>
+    </ScrollView>
   );
 }
 
