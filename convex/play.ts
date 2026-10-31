@@ -237,6 +237,8 @@ export const view = query({
       : null;
 
     return {
+      // Quem caça nesta rodada (a roleta mostrou para todo mundo).
+      hunters: players.filter((p) => p.role === 'hunter').map((p) => ({ id: p._id, name: p.name })),
       game: {
         code: game.code,
         status: game.status,
@@ -458,10 +460,12 @@ export const expireCapture = internalMutation({
 
 // Corredor: "Fui pego" por conta própria (sistema de honra).
 export const reportCaught = mutation({
-  args: { gameId: v.id('games') },
-  handler: async (ctx, { gameId }) => {
+  args: { gameId: v.id('games'), hunterId: v.optional(v.id('players')) },
+  handler: async (ctx, { gameId, hunterId }) => {
     const { game, me } = await requireMember(ctx, gameId);
     if (!playing(game) || me.role !== 'runner' || me.state !== 'active') return;
-    await caught(ctx, me, null);
+    // Quem pegou (opcional): só vale se for caçador desta partida.
+    const hunter = hunterId ? await ctx.db.get(hunterId) : null;
+    await caught(ctx, me, hunter && hunter.gameId === gameId && hunter.role === 'hunter' ? hunter : null);
   },
 });

@@ -10,6 +10,7 @@ import { BOOSTS, BoostSlots, RevealAlert, type BoostKind } from '@/components/Bo
 import { Bar, CardAction, GameTabs, mmss, useDock } from '@/components/Game';
 import { GameMap } from '@/components/GameMap';
 import { HeartbeatCard, HeartbeatVignette } from '@/components/Heartbeat';
+import { GO_MS, HuntGo, HunterLocked } from '@/components/HunterWait';
 import { RadioBubble, useRadioPeek } from '@/components/RadioBubble';
 import { ago } from '@/components/gameMapTypes';
 import { Text } from '@/components/Text';
@@ -48,6 +49,15 @@ export function LiveGame({ id }: { id: string }) {
   const pulse = useHeartbeat(beating);
   // Avisos da partida com o app em segundo plano (no site, via push).
   useGameAlerts(id);
+
+  // 14.2: a vantagem acabou e eu caço: "Vai!" por alguns segundos antes do mapa.
+  const [goUntil, setGoUntil] = useState(0);
+  const lastStatus = useRef(view?.game.status);
+  useEffect(() => {
+    const st = view?.game.status;
+    if (lastStatus.current === 'headstart' && st === 'hunt' && view?.me.role === 'hunter') setGoUntil(Date.now() + GO_MS);
+    lastStatus.current = st;
+  }, [view?.game.status]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Saiu da prisão: na próxima vez o "Me salva!" e o "Só assistir" voltam.
   useEffect(() => {
@@ -101,6 +111,13 @@ export function LiveGame({ id }: { id: string }) {
   const pingTotal = g.pingEveryMin * 60;
   const outFor = me.outOfZoneSince ? Math.max(0, 30 - Math.round((now - me.outOfZoneSince) / 1000)) : null;
   const caught = me.state === 'caught';
+  // 14.1: durante a vantagem o caçador não vê o mapa, só a contagem.
+  if (hunter && headstart && !caught) {
+    const mates = view.people.filter((p) => p.role === 'hunter' && !p.isMe).map((p) => p.name);
+    return <HunterLocked id={id} left={left} total={g.headStartMin * 60} code={g.code} round={g.round} mates={mates} />;
+  }
+  if (hunter && goUntil > now) return <HuntGo code={g.code} endsIn={mmss(left)} />;
+
   const runnersToMark = view.people.filter((p) => p.role === 'runner' && p.state === 'active');
 
   const shoutsLeft = me.shoutsLeft ?? 0;

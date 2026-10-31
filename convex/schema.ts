@@ -64,6 +64,18 @@ export default defineSchema({
     endedAt: v.optional(v.number()),
     winner: v.optional(role),
     endedReason: v.optional(v.union(v.literal('time'), v.literal('all_tagged'), v.literal('abandoned'))),
+    // Roleta de luz girando: cada passo é um celular aceso num horário.
+    // stops = índices dos passos onde a luz parou (um por caçador).
+    draw: v.optional(
+      v.object({
+        startAt: v.number(),
+        endAt: v.number(),
+        order: v.array(v.id('players')),
+        steps: v.array(v.object({ at: v.number(), p: v.id('players') })),
+        stops: v.array(v.number()),
+        hunters: v.array(v.id('players')),
+      }),
+    ),
   })
     .index('by_code', ['code'])
     .index('by_host', ['hostId']),

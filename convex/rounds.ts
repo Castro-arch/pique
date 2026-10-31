@@ -61,80 +61,154 @@ export function assignRoles(players: Pick<Doc<'players'>, '_id' | 'side'>[], wan
   return players.map((p) => ({ id: p._id, role: hunterIds.has(p._id) ? ('hunter' as const) : ('runner' as const) }));
 }
 
+// O que precisa estar certo para começar (ou girar a roleta).
+async function readyToStart(ctx: MutationCtx, gameId: Id<'games'>) {
+  const { userId, game } = await requireMember(ctx, gameId);
+  requireHost(game, userId);
+  if (game.status === 'headstart' || game.status === 'hunt') throw new ConvexError('A rodada já começou.');
+  if (!game.zone) throw new ConvexError('Marque a zona de jogo antes de começar.');
+  const players = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left');
+  if (players.length < 2) throw new ConvexError('Precisa de pelo menos 2 pessoas para jogar.');
+  // Todo mundo precisa estar pronto; senão quem estava fora fica para trás.
+  const choosing = players.filter((p) => isChoosing(p, game));
+  if (choosing.length) {
+    const names = choosing.map((p) => p.name).join(', ');
+    throw new ConvexError(`Esperando ${names} ficar${choosing.length > 1 ? 'em' : ''} pronto${choosing.length > 1 ? 's' : ''}.`);
+  }
+  return { game, players };
+}
+
+// Plano da roleta: a luz passa pelos celulares na ordem da roda, cada passo
+// mais devagar, e para no caçador sorteado. Com mais de um caçador ela gira
+// de novo, pulando quem já foi escolhido.
+export const DRAW_PAUSE_MS = 2200;
+export function planDraw(order: Id<'players'>[], wanted: number, t0: number) {
+  const count = Math.max(1, Math.min(wanted, order.length - 1));
+  const hunters = shuffle(order).slice(0, count);
+  const steps: { at: number; p: Id<'players'> }[] = [];
+  const stops: number[] = [];
+  let pool = [...order];
+  let t = t0;
+  hunters.forEach((target, k) => {
+    const n = k === 0 ? 18 : 13;
+    let d = k === 0 ? 80 : 70;
+    const grow = k === 0 ? 1.12 : 1.15;
+    const ti = pool.indexOf(target);
+    const s0 = (((ti - n) % pool.length) + pool.length) % pool.length;
+    for (let i = 0; i <= n; i++) {
+      steps.push({ at: Math.round(t), p: pool[(s0 + i) % pool.length] });
+      if (i < n) {
+        t += d;
+        d *= grow;
+      }
+    }
+    stops.push(steps.length - 1);
+    t += DRAW_PAUSE_MS;
+    pool = pool.filter((p) => p !== target);
+  });
+  return { startAt: t0, endAt: Math.round(t), order, steps, stops, hunters };
+}
+
+// 15.1 "Girar a roleta": só o anfitrião, com todo mundo pronto.
+export const spin = mutation({
+  args: { gameId: v.id('games') },
+  handler: async (ctx, { gameId }) => {
+    const { game, players } = await readyToStart(ctx, gameId);
+    if (game.draw && game.draw.endAt > Date.now()) throw new ConvexError('A roleta já está girando.');
+    const order = [...players].sort((a, b) => a.joinedAt - b.joinedAt).map((p) => p._id);
+    // 1,2 s de folga para todos os celulares receberem o plano antes da luz sair.
+    const plan = planDraw(order, game.rules.hunters, Date.now() + 1200);
+    await ctx.db.patch(gameId, { draw: plan });
+    await ctx.scheduler.runAt(plan.endAt, internal.rounds.fromDraw, { gameId, endAt: plan.endAt });
+    return { endAt: plan.endAt };
+  },
+});
+
+// A roleta parou de vez: começa a rodada com os caçadores dela.
+export const fromDraw = internalMutation({
+  args: { gameId: v.id('games'), endAt: v.number() },
+  handler: async (ctx, { gameId, endAt }) => {
+    const game = await ctx.db.get(gameId);
+    if (!game?.draw || game.draw.endAt !== endAt) return;
+    if (game.status !== 'lobby' && game.status !== 'ended') return;
+    const hunters = new Set(game.draw.hunters);
+    const players = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left');
+    await ctx.db.patch(gameId, { draw: undefined });
+    // Quem entrou durante o giro não estava na roda: vai de corredor.
+    const roles = players.map((p) => ({ id: p._id, role: hunters.has(p._id) ? ('hunter' as const) : ('runner' as const) }));
+    if (!roles.some((r) => r.role === 'hunter') || roles.every((r) => r.role === 'hunter')) return;
+    await beginRound(ctx, game, roles);
+  },
+});
+
 export const start = mutation({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    const { userId, game } = await requireMember(ctx, gameId);
-    requireHost(game, userId);
-    if (game.status === 'headstart' || game.status === 'hunt') throw new ConvexError('A rodada já começou.');
-    if (!game.zone) throw new ConvexError('Marque a zona de jogo antes de começar.');
-    const players = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left');
-    if (players.length < 2) throw new ConvexError('Precisa de pelo menos 2 pessoas para jogar.');
-    // Todo mundo precisa ter escolhido o lado; senão quem estava escolhendo fica para trás.
-    const choosing = players.filter((p) => isChoosing(p, game));
-    if (choosing.length) {
-      const names = choosing.map((p) => p.name).join(', ');
-      throw new ConvexError(`Esperando ${names} escolher${choosing.length > 1 ? 'em' : ''} o lado.`);
-    }
-
-    const round = game.round + 1;
-    for (const { id, role } of assignRoles(players, game.rules.hunters)) {
-      await ctx.db.patch(id, {
-        role,
-        state: 'active',
-        ready: false,
-        ping: undefined,
-        outOfZoneSince: undefined,
-        exposed: undefined,
-        caughtAt: undefined,
-        caughtBy: undefined,
-        distanceM: 0,
-        shoutsLeft: role === 'hunter' ? SHOUTS_PER_ROUND : undefined,
-        shoutedAt: undefined,
-        revealed: undefined,
-        revealUntil: undefined,
-        nextPing: undefined,
-        shieldUntil: undefined,
-        jail: undefined,
-        rescue: undefined,
-      });
-    }
-    await clearBoosts(ctx, gameId);
-
-    const now = Date.now();
-    const r = game.rules;
-    const headStartEndsAt = now + r.headStartMin * MIN;
-    const endsAt = headStartEndsAt + r.durationMin * MIN;
-    const nextPingAt = headStartEndsAt + r.pingEveryMin * MIN;
-    await ctx.db.patch(gameId, {
-      status: 'headstart',
-      round,
-      startedAt: now,
-      headStartEndsAt,
-      endsAt,
-      nextPingAt,
-      lastPingAt: undefined,
-      shrinkAt: undefined,
-      nextZoneRadius: undefined,
-      endedAt: undefined,
-      winner: undefined,
-      endedReason: undefined,
-    });
-
-    await ctx.scheduler.runAt(headStartEndsAt, internal.rounds.headStartOver, { gameId, round });
-    if (nextPingAt < endsAt) await ctx.scheduler.runAt(nextPingAt, internal.rounds.ping, { gameId, round });
-    if (r.shrink) {
-      const warnAt = headStartEndsAt + r.shrinkEveryMin * MIN - MIN;
-      if (warnAt < endsAt) await ctx.scheduler.runAt(warnAt, internal.rounds.shrinkWarn, { gameId, round });
-    }
-    await ctx.scheduler.runAt(endsAt, internal.rounds.end, { gameId, round, reason: 'time' });
-    await systemMessage(ctx, gameId, `Os corredores têm ${r.headStartMin} min de vantagem.`);
-    const who = await inRound(ctx, gameId);
-    await notify(ctx, who.runners, 'start', 'A rodada começou: você corre', `Você tem ${r.headStartMin} min de vantagem. Suma!`);
-    await notify(ctx, who.hunters, 'start', 'A rodada começou: você caça', `Os corredores têm ${r.headStartMin} min de vantagem. Espere parado.`);
-    return { round };
+    const { game, players } = await readyToStart(ctx, gameId);
+    return beginRound(ctx, game, assignRoles(players, game.rules.hunters));
   },
 });
+
+async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<'players'>; role: 'hunter' | 'runner' }[]) {
+  const gameId = game._id;
+  if (game.status === 'headstart' || game.status === 'hunt') throw new ConvexError('A rodada já começou.');
+  const round = game.round + 1;
+  for (const { id, role } of roles) {
+    await ctx.db.patch(id, {
+      role,
+      state: 'active',
+      ready: false,
+      ping: undefined,
+      outOfZoneSince: undefined,
+      exposed: undefined,
+      caughtAt: undefined,
+      caughtBy: undefined,
+      distanceM: 0,
+      shoutsLeft: role === 'hunter' ? SHOUTS_PER_ROUND : undefined,
+      shoutedAt: undefined,
+      revealed: undefined,
+      revealUntil: undefined,
+      nextPing: undefined,
+      shieldUntil: undefined,
+      jail: undefined,
+      rescue: undefined,
+    });
+  }
+  await clearBoosts(ctx, gameId);
+
+  const now = Date.now();
+  const r = game.rules;
+  const headStartEndsAt = now + r.headStartMin * MIN;
+  const endsAt = headStartEndsAt + r.durationMin * MIN;
+  const nextPingAt = headStartEndsAt + r.pingEveryMin * MIN;
+  await ctx.db.patch(gameId, {
+    status: 'headstart',
+    round,
+    startedAt: now,
+    headStartEndsAt,
+    endsAt,
+    nextPingAt,
+    lastPingAt: undefined,
+    shrinkAt: undefined,
+    nextZoneRadius: undefined,
+    endedAt: undefined,
+    winner: undefined,
+    endedReason: undefined,
+  });
+
+  await ctx.scheduler.runAt(headStartEndsAt, internal.rounds.headStartOver, { gameId, round });
+  if (nextPingAt < endsAt) await ctx.scheduler.runAt(nextPingAt, internal.rounds.ping, { gameId, round });
+  if (r.shrink) {
+    const warnAt = headStartEndsAt + r.shrinkEveryMin * MIN - MIN;
+    if (warnAt < endsAt) await ctx.scheduler.runAt(warnAt, internal.rounds.shrinkWarn, { gameId, round });
+  }
+  await ctx.scheduler.runAt(endsAt, internal.rounds.end, { gameId, round, reason: 'time' });
+  await systemMessage(ctx, gameId, `Os corredores têm ${r.headStartMin} min de vantagem.`);
+  const who = await inRound(ctx, gameId);
+  await notify(ctx, who.runners, 'start', 'A rodada começou: você corre', `Você tem ${r.headStartMin} min de vantagem. Suma!`);
+  await notify(ctx, who.hunters, 'start', 'A rodada começou: você caça', `Os corredores têm ${r.headStartMin} min de vantagem. Espere parado.`);
+  return { round };
+}
 
 export const headStartOver = internalMutation({
   args: roundArgs,

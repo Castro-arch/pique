@@ -151,6 +151,16 @@ export const lobby = query({
       rules: game.rules,
       zone: game.zone ?? null,
       isHost: game.hostId === userId,
+      // Roleta girando: todo mundo acende o próprio celular na hora certa.
+      draw: game.draw
+        ? {
+            startAt: game.draw.startAt,
+            endAt: game.draw.endAt,
+            order: game.draw.order,
+            steps: game.draw.steps.map((s) => ({ at: s.at, id: s.p })),
+            stops: game.draw.stops,
+          }
+        : null,
       me: { id: me._id, side: me.side, role: me.role ?? null, ready: me.ready, state: me.state },
       players: players.map((p) => ({
         id: p._id,

@@ -1,5 +1,5 @@
 import { router, useLocalSearchParams } from 'expo-router';
-import { ChevronLeft, Eye, Lock } from '@/components/icons';
+import { ArrowRight, ChevronLeft, Lock } from '@/components/icons';
 import type { ReactNode } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
@@ -7,105 +7,144 @@ import Svg, { Path } from 'react-native-svg';
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
 import { Chip } from '@/components/Chip';
-import { CodeInput } from '@/components/CodeInput';
 import { StepBars } from '@/components/Controls';
 import { MapBackdrop, MapPin } from '@/components/MapBackdrop';
 import { CloseButton } from '@/components/Nav';
 import { Screen, Spacer } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
-import { photos } from '@/lib/demo';
 import { colors, fonts, radius } from '@/theme/tokens';
 
 type Step = { kicker: string; title: string; body: string; art: () => ReactNode; extra?: () => ReactNode };
 
+// Linha 16 do design: primeiro o que o jogo É, depois uma regra por tela.
 const steps: Step[] = [
   {
-    kicker: '01 · Anfitrião',
-    title: 'Monte a arena',
-    body: 'Quem cria a partida marca a zona no mapa, escolhe o tempo da rodada e de quanto em quanto sai o ping. Depois manda o código para a crew.',
+    kicker: 'O que é o Pique',
+    title: 'Pique-esconde de verdade, na rua.',
+    body: 'Você e seus amigos saem pelo bairro: uns se escondem, outros procuram. O celular é só o juiz: mostra o mapa, conta o tempo e avisa quem foi pego.',
     art: () => (
       <ArtBox>
-        <MapBackdrop zone={{ cx: 195, cy: 380, r: 260 }} fades={false} />
-        <Chip label="Você é o anfitrião" tone="dark" style={{ position: 'absolute', left: 14, top: 14 }} />
-        <View style={styles.codeCard}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.limeInk }}>CÓDIGO DA PARTIDA</Text>
-            <Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.limeInk, letterSpacing: -0.5 }}>TACO42</Text>
+        <MapBackdrop fades={false} />
+        <Svg width="100%" height="100%" viewBox="0 0 350 330" style={StyleSheet.absoluteFill}>
+          <Path d="M96 205 C140 170 185 135 222 100" stroke={colors.pink} strokeWidth={3} strokeLinecap="round" strokeDasharray="2 8" fill="none" />
+        </Svg>
+        <Chip label="3 a 20 pessoas · ao ar livre" tone="dark" style={{ position: 'absolute', left: 14, top: 14 }} />
+        <Who x={70} y={470} name="Leo" role="hunter" note="procurando…" />
+        <Who x={240} y={170} name="Priya" role="runner" note="escondida" />
+        <Who x={300} y={600} name="Teo" role="runner" />
+      </ArtBox>
+    ),
+  },
+  {
+    kicker: 'Dois times',
+    title: 'Uns fogem, outros caçam.',
+    body: 'No começo da partida, um sorteio decide quem é caçador. Todo o resto é corredor.',
+    art: () => (
+      <ArtBox>
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <Team hunter title="Caçadores" body="Procuram e pegam os corredores." names={['Leo', 'Teo']} />
+          <Team title="Corredores" body="Se escondem e tentam não ser pegos." names={['Priya', 'Sasha', 'Jonah', 'Vic']} />
+        </View>
+      </ArtBox>
+    ),
+  },
+  {
+    kicker: 'A área do jogo',
+    title: 'Todo mundo fica dentro do círculo.',
+    body: 'Quem cria a partida desenha um círculo no mapa: um quarteirão, uma praça, um parque. Sair dele não vale.',
+    art: () => (
+      <ArtBox>
+        <MapBackdrop zone={{ cx: 195, cy: 380, r: 150 }} fades={false} />
+        <Who x={130} y={280} name="Priya" role="runner" />
+        <Who x={225} y={440} name="Leo" role="hunter" />
+        <Chip label="dentro vale · fora não vale" tone="dark" dot={colors.lime} style={{ position: 'absolute', left: 14, bottom: 14 }} />
+      </ArtBox>
+    ),
+  },
+  {
+    kicker: 'Os primeiros minutos',
+    title: 'Primeiro, os corredores somem.',
+    body: 'Assim que começa, os corredores têm uns minutos para se esconder. A tela dos caçadores fica travada até o tempo acabar.',
+    art: () => (
+      <ArtBox>
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 18 }}>
+          <View style={[styles.mini, { backgroundColor: colors.lime }]}>
+            <Text style={{ fontFamily: fonts.display, fontSize: 28, color: colors.limeInk }}>Corra!</Text>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.limeInk }}>corredor</Text>
           </View>
-          <View style={styles.share}><Text style={{ color: colors.paper, fontFamily: fonts.bodyStrong, fontSize: 13 }}>Compartilhar</Text></View>
+          <View style={[styles.mini, { backgroundColor: colors.inkRaised, borderWidth: 2, borderColor: colors.pink }]}>
+            <Lock size={28} color={colors.pink} strokeWidth={2.4} />
+            <Text style={{ fontFamily: fonts.display, fontSize: 28 }}>2:03</Text>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.pink }}>caçador travado</Text>
+          </View>
         </View>
       </ArtBox>
     ),
   },
   {
-    kicker: '02 · Todo mundo',
-    title: 'Escolha um lado',
-    body: 'A crew entra com o código de 6 letras e escolhe ser caçador ou corredor. Em dúvida? O sorteio completa o time que estiver menor.',
-    art: () => (
-      <ArtBox plain>
-        <Text variant="label">Entrar com código</Text>
-        <View style={{ marginTop: 8 }} pointerEvents="none">
-          <CodeInput label="Código de exemplo" value="TACO42" onChange={() => {}} kind="alphanumeric" />
-        </View>
-        <View style={{ gap: 8, marginTop: 16 }}>
-          <RolePick photo={photos.leo} name="Leo" role="hunter" />
-          <RolePick photo={photos.priya} name="Priya" role="runner" />
-          <RolePick photo={photos.jonah} name="Jonah" role="draw" />
-        </View>
-      </ArtBox>
-    ),
-  },
-  {
-    kicker: '03 · Vantagem',
-    title: 'Espalhe e se esconda',
-    body: 'Os corredores têm alguns minutos de vantagem para sumir dentro da zona. Os caçadores esperam parados, sem espiar.',
+    kicker: 'O segredo',
+    title: 'O mapa só mostra de vez em quando.',
+    body: 'Os caçadores não veem ninguém ao vivo. A cada 2 minutos o mapa mostra onde cada corredor estava naquela hora. Aí é correr atrás.',
     art: () => (
       <ArtBox>
-        <MapBackdrop zone={{ cx: 195, cy: 422, r: 300 }} fades={false} />
-        <Chip label="Ninguém vê os corredores agora" tone="dark" dot={colors.lime} style={{ position: 'absolute', left: 14, top: 14 }} />
-        <MapPin x={70} y={170}><Avatar source={photos.priya} size={36} state="runner" /></MapPin>
-        <MapPin x={290} y={220}><Avatar source={photos.sasha} size={36} state="runner" /></MapPin>
-        <MapPin x={90} y={600}><Avatar source={photos.teo} size={36} state="runner" /></MapPin>
-        <MapPin x={270} y={600}><Avatar source={photos.jonah} size={36} state="runner" /></MapPin>
-        <MapPin x={177} y={390}><Avatar source={photos.leo} size={36} state="hunter" /></MapPin>
-        <MapPin x={135} y={480}>
-          <Chip label="esperando 3:00" tone="dark" icon={<Lock size={11} color={colors.pink} strokeWidth={2.6} />} />
-        </MapPin>
+        <MapBackdrop fades={false} />
+        <Who x={240} y={170} name="Priya" role="runner" tag="estava aqui" />
+        <Who x={80} y={460} name="Leo" role="hunter" />
+        <View style={styles.pingBar}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong }}>próximo ping</Text>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.lime }}>0:42</Text>
+          </View>
+          <View style={{ marginTop: 8, height: 6, borderRadius: 3, backgroundColor: colors.inkBorder }}>
+            <View style={{ width: '65%', height: 6, borderRadius: 3, backgroundColor: colors.lime }} />
+          </View>
+        </View>
       </ArtBox>
     ),
   },
   {
-    kicker: '04 · Caça',
-    title: 'Ping. Corre',
-    body: 'Não é rastreio ao vivo: a cada ping, os caçadores veem onde os corredores estavam. Pega é na vida real, e o corredor confirma no celular.',
+    kicker: 'Pegou!',
+    title: 'Encostou, pegou. Quem ganha?',
+    body: 'O caçador encosta no corredor de verdade e o corredor confirma no celular.',
     art: () => (
       <ArtBox height={290}>
-        <MapBackdrop zone={{ cx: 260, cy: 280, r: 120 }} fades={false} />
-        <Svg width="100%" height="100%" viewBox="0 0 350 290" style={StyleSheet.absoluteFill}>
-          <Path d="M98 222 C130 196 170 170 210 128" stroke={colors.pink} strokeWidth={3} strokeLinecap="round" strokeDasharray="2 8" fill="none" />
-        </Svg>
-        <Chip label="Ping a cada 2 min" tone="hunterSolid" icon={<Eye size={14} color={colors.paper} />} style={{ position: 'absolute', left: 14, top: 14 }} />
-        <View style={{ position: 'absolute', left: 216, top: 84 }}><Avatar source={photos.priya} size={40} state="runner" glow /></View>
-        <View style={{ position: 'absolute', left: 192, top: 134 }}><Chip label="Priya · 0:28 atrás" tone="runnerSolid" /></View>
-        <View style={{ position: 'absolute', left: 78, top: 204 }}><Avatar source={photos.leo} size={40} state="hunter" /></View>
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            <Avatar name="Leo" size={56} state="hunter" />
+            <ArrowRight size={34} color={colors.paper} strokeWidth={2.6} />
+            <Avatar name="Priya" size={56} state="runner" />
+          </View>
+          <View style={styles.ask}>
+            <Text variant="small">No celular da Priya</Text>
+            <Text style={{ fontFamily: fonts.display, fontSize: 22, marginTop: 2 }}>O Leo te pegou?</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+              <View style={[styles.askBtn, { backgroundColor: colors.pink }]}>
+                <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, color: colors.pinkInk }}>Fui pega</Text>
+              </View>
+              <View style={[styles.askBtn, { borderWidth: 1, borderColor: colors.inkBorder }]}>
+                <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong }}>Não</Text>
+              </View>
+            </View>
+          </View>
+        </View>
       </ArtBox>
     ),
     extra: () => (
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
         <View style={[styles.win, { backgroundColor: colors.limeTint, borderColor: colors.lime }]}>
           <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.lime }}>CORREDORES VENCEM</Text>
-          <Text style={{ fontSize: 13, marginTop: 3 }}>se alguém ainda estiver livre no fim</Text>
+          <Text style={{ fontSize: 13, marginTop: 3 }}>se alguém estiver livre quando o tempo acabar</Text>
         </View>
-        <View style={[styles.win, { backgroundColor: '#2A0E16', borderColor: colors.pink }]}>
+        <View style={[styles.win, { backgroundColor: colors.pinkTint, borderColor: colors.pink }]}>
           <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.pink }}>CAÇADORES VENCEM</Text>
-          <Text style={{ fontSize: 13, marginTop: 3 }}>se pegarem todos antes do tempo</Text>
+          <Text style={{ fontSize: 13, marginTop: 3 }}>se pegarem todo mundo antes</Text>
         </View>
       </View>
     ),
   },
 ];
 
-// 2.1 a 2.4 Como jogar
+// 16.1 a 16.6 Como jogar
 export default function ComoJogar() {
   // de=inicio: veio do cadastro (depois das permissões) e termina na home.
   const { passo = '1', de } = useLocalSearchParams<{ passo?: string; de?: string }>();
@@ -126,24 +165,31 @@ export default function ComoJogar() {
       </View>
       {s.art()}
       <Text style={{ fontFamily: fonts.display, fontSize: 15, color: colors.lime, marginTop: 22 }}>{s.kicker}</Text>
-      <Headline style={{ marginTop: 6 }}>{s.title}</Headline>
+      <Headline mark={s.title.endsWith("?") ? "?" : "."} style={{ marginTop: 6 }}>
+        {s.title.replace(/[.?]$/, "")}
+      </Headline>
       <Text variant="muted" style={{ marginTop: 10, fontSize: last ? 15 : 16 }}>{s.body}</Text>
       {s.extra?.()}
       <Spacer />
       <View style={{ flexDirection: 'row', gap: 10 }}>
-        {i === 0 ? (
-          <Button label="Pular" variant="secondary" style={{ paddingHorizontal: 20 }} onPress={() => router.replace('/')} />
-        ) : (
+        {i === 0 ? null : (
           <Pressable accessibilityRole="button" accessibilityLabel="Passo anterior" onPress={() => go(i)} style={styles.backBtn}>
             <ChevronLeft size={20} color={colors.paper} strokeWidth={2.4} />
           </Pressable>
         )}
         <Button
-          label={last ? (onboarding ? 'Bora jogar' : 'Escolher meu lado') : 'Próximo'}
+          label={last ? 'Entendi, bora jogar' : i === 0 ? 'Como funciona?' : 'Próximo'}
           style={{ flex: 1 }}
-          onPress={() => (last ? router.replace(onboarding ? '/' : '/lado') : go(i + 2))}
+          onPress={() => (last ? router.replace('/') : go(i + 2))}
         />
       </View>
+      {i === 0 ? (
+        <Pressable accessibilityRole="button" onPress={() => router.replace('/')} style={{ alignSelf: 'center', marginTop: 10, padding: 4 }}>
+          <Text variant="small">
+            Já jogou antes? <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, textDecorationLine: 'underline' }}>Pular explicação</Text>
+          </Text>
+        </Pressable>
+      ) : null}
     </Screen>
   );
 }
@@ -161,14 +207,39 @@ function ArtBox({ children, plain, height = 330 }: { children: ReactNode; plain?
   );
 }
 
-function RolePick({ photo, name, role }: { photo: number; name: string; role: 'runner' | 'hunter' | 'draw' }) {
-  const label = role === 'runner' ? 'Corredor' : role === 'hunter' ? 'Caçador' : 'Sorteio';
-  const color = role === 'runner' ? colors.lime : role === 'hunter' ? colors.pink : colors.paperMuted;
+// Uma pessoa no mapinha das artes, com a etiqueta embaixo.
+function Who({ x, y, name, role, note, tag }: { x: number; y: number; name: string; role: 'runner' | 'hunter'; note?: string; tag?: string }) {
+  const color = role === 'runner' ? colors.lime : colors.pink;
   return (
-    <View style={styles.pick}>
-      <Avatar source={photo} size={36} state={role} />
-      <Text style={{ flex: 1, fontSize: 15 }}>{name}</Text>
-      <Text style={{ color, fontFamily: fonts.bodyStrong, fontSize: 13 }}>{label}</Text>
+    <MapPin x={x} y={y}>
+      <View style={{ alignItems: 'center', gap: 4 }}>
+        <Avatar name={name} size={42} state={role} />
+        {note ? <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color }}>{note}</Text> : null}
+        {tag ? (
+          <View style={{ backgroundColor: colors.lime, borderRadius: 999, paddingVertical: 3, paddingHorizontal: 8 }}>
+            <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: colors.limeInk }}>{tag}</Text>
+          </View>
+        ) : null}
+      </View>
+    </MapPin>
+  );
+}
+
+// Metade da arte dos dois times.
+function Team({ hunter, title, body, names }: { hunter?: boolean; title: string; body: string; names: string[] }) {
+  const color = hunter ? colors.pink : colors.lime;
+  return (
+    <View style={{ flex: 1, backgroundColor: hunter ? colors.pinkTint : colors.limeTint, padding: 16 }}>
+      <View style={{ flexDirection: 'row' }}>
+        {names.map((n, k) => (
+          <Avatar key={n} name={n} size={32} state={hunter ? 'hunter' : 'runner'} style={{ marginLeft: k ? -8 : 0 }} />
+        ))}
+      </View>
+      <Spacer />
+      <Text numberOfLines={1} adjustsFontSizeToFit style={{ fontFamily: fonts.display, fontSize: 24, color }}>
+        {title}
+      </Text>
+      <Text style={{ fontSize: 14, lineHeight: 19, marginTop: 6 }}>{body}</Text>
     </View>
   );
 }
@@ -176,6 +247,10 @@ function RolePick({ photo, name, role }: { photo: number; name: string; role: 'r
 const styles = StyleSheet.create({
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 44, marginTop: 8 },
   art: { marginTop: 8, borderRadius: radius.xxl, overflow: 'hidden', backgroundColor: colors.inkSunken },
+  mini: { width: 120, height: 210, borderRadius: 24, alignItems: 'center', justifyContent: 'center', gap: 6 },
+  pingBar: { position: 'absolute', left: 14, right: 14, bottom: 14, backgroundColor: colors.inkRaised, borderRadius: radius.md, paddingVertical: 10, paddingHorizontal: 12 },
+  ask: { backgroundColor: colors.inkRaised, borderWidth: 1, borderColor: colors.inkBorder, borderRadius: 18, paddingVertical: 12, paddingHorizontal: 16, width: 250 },
+  askBtn: { flex: 1, alignItems: 'center', borderRadius: 12, paddingVertical: 8 },
   codeCard: {
     position: 'absolute',
     left: 14,

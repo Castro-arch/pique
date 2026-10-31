@@ -34,11 +34,11 @@ export default function Convite() {
   }, [demo, real, codigo]);
 
   async function enter() {
-    if (demo) return router.replace('/lado');
+    if (demo) return router.replace('/aguardando');
     setBusy(true);
     const r = await join(codigo);
     setBusy(false);
-    if (r.ok) router.replace({ pathname: '/lado', params: { id: r.gameId } });
+    if (r.ok) router.replace({ pathname: '/aguardando', params: { id: r.gameId } });
     else router.replace({ pathname: '/indisponivel', params: { codigo } });
   }
 

@@ -42,7 +42,7 @@ export default function Entrar() {
       setBusy(true);
       const r = await join(c);
       setBusy(false);
-      if (r.ok) return router.replace({ pathname: '/lado', params: { id: r.gameId } });
+      if (r.ok) return router.replace({ pathname: '/aguardando', params: { id: r.gameId } });
       if (r.code === 'IN_PROGRESS' || r.code === 'FULL') return router.replace({ pathname: '/indisponivel', params: { codigo: c } });
       return setWrong(c);
     }

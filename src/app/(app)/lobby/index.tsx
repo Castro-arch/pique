@@ -1,4 +1,3 @@
-import { useMutation } from 'convex/react';
 import * as Clipboard from 'expo-clipboard';
 import { router, useLocalSearchParams, type Href } from 'expo-router';
 import { ChevronLeft, QrCode } from '@/components/icons';
@@ -7,28 +6,21 @@ import { Pressable, Share, StyleSheet, View } from 'react-native';
 
 import { Avatar } from '@/components/Avatar';
 import { Button } from '@/components/Button';
-import { SidePicker, type Side } from '@/components/RoleTag';
+import type { Side } from '@/components/RoleTag';
 import { Screen, Spacer } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { match, players as demoPlayers } from '@/lib/demo';
-import { errorInfo, useFollowRound, useLobby, type GameId } from '@/lib/game';
+import { useFollowRound, useLobby } from '@/lib/game';
 import { inviteLink } from '@/lib/qr';
 import { colors, fonts, radius } from '@/theme/tokens';
-import { api } from '../../../../convex/_generated/api';
 
-const roleWord = { runner: 'corredor', hunter: 'caçador', draw: 'sorteio' } as const;
-const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 
 // 5.1 Lobby do anfitrião. Com ?id= usa a partida real; sem, a demonstração.
 export default function Lobby() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const lobby = useLobby(id);
-  const saveSide = useMutation(api.games.setSide);
-  const start = useMutation(api.rounds.start);
-  const [demoSide, setDemoSide] = useState<Side>('runner');
+  const [demoSide] = useState<Side>('runner');
   const [copied, setCopied] = useState(false);
-  const [starting, setStarting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   useFollowRound(id, lobby?.status);
 
   // Quem não é o anfitrião espera na outra tela.
@@ -39,14 +31,11 @@ export default function Lobby() {
   const code = lobby?.code ?? match.code;
   const rules = lobby?.rules ?? match.rules;
   const zoneMeters = lobby ? (lobby.zone ? lobby.zone.radius * 2 : null) : match.rules.zoneMeters;
-  const side = lobby?.me.side ?? demoSide;
-  const setSide = (s: Side) => (id ? saveSide({ gameId: id as GameId, side: s }) : setDemoSide(s));
   const withId = (pathname: string): Href => (id ? ({ pathname, params: { id } } as Href) : (pathname as Href));
 
   const people = lobby
-    ? lobby.players.map((p) => ({ key: p.id, name: p.isMe ? 'Você' : p.name, fullName: p.name, side: p.side, photo: undefined }))
-    : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.id === 'castro' ? demoSide : p.role, photo: p.photo }));
-  const count = (s: Side) => people.filter((p) => p.side === s).length;
+    ? lobby.players.map((p) => ({ key: p.id, name: p.isMe ? 'Você' : p.name, fullName: p.name, side: p.side, ready: p.ready || p.isHost, photo: undefined }))
+    : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.id === 'castro' ? demoSide : p.role, ready: true, photo: p.photo }));
 
   const share = () => Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link ${inviteLink(code)}` });
   const copy = async () => {
@@ -54,20 +43,10 @@ export default function Lobby() {
     setCopied(true);
     setTimeout(() => setCopied(false), 1600);
   };
-  // Quem entrou e ainda não confirmou o lado trava o começar.
+  // Quem entrou e ainda não está pronto trava o começar.
   const choosing = lobby?.players.filter((p) => p.choosing).length ?? 0;
-  const begin = async () => {
-    if (!id) return router.push('/sorteio');
-    setError(null);
-    setStarting(true);
-    try {
-      await start({ gameId: id as GameId });
-    } catch (e) {
-      setError(errorInfo(e).message);
-    } finally {
-      setStarting(false);
-    }
-  };
+  // Linha 15: quem caça sai da roleta de luz, com todo mundo junto.
+  const begin = () => (id ? router.push({ pathname: '/roda', params: { id } }) : router.push('/sorteio'));
 
   return (
     <Screen scroll>
@@ -123,39 +102,32 @@ export default function Lobby() {
         {zoneMeters ? `A zona encolhe de ${zoneMeters} m para 150 m depois da vantagem.` : 'Marque a zona no mapa antes de começar.'}
       </Text>
 
-      <Text variant="small" style={styles.label}>Você joga como</Text>
-      <SidePicker value={side} onChange={setSide} />
-
       <Pressable accessibilityRole="button" accessibilityLabel="Ver jogadores" onPress={() => router.push(withId('/lobby/jogadores'))}>
         <View style={[styles.label, { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' }]}>
           <Text variant="small">Jogadores</Text>
-          <Text variant="label">{`${plural(count('hunter'), 'caçador', 'caçadores')} · ${plural(count('runner'), 'corredor', 'corredores')} · ${count('draw')} sorteio`}</Text>
+          <Text variant="label">{`${people.filter((p) => p.ready).length} de ${people.length} prontos · ${rules.hunters} ${rules.hunters === 1 ? 'caçador' : 'caçadores'} na roleta`}</Text>
         </View>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {people.map((p) => (
             <View key={p.key} style={{ alignItems: 'center', width: 52 }}>
-              <Avatar source={p.photo} name={p.fullName} size={42} state={p.side === 'draw' ? 'draw' : p.side} />
+              <Avatar source={p.photo} name={p.fullName} size={42} state={p.ready ? 'runner' : 'draw'} />
               <Text style={{ fontSize: 11, marginTop: 4 }} numberOfLines={1}>{p.name}</Text>
-              <Text style={{ fontSize: 10, color: p.side === 'runner' ? colors.lime : p.side === 'hunter' ? colors.pink : colors.paperMuted }}>
-                {roleWord[p.side]}
-              </Text>
+              <Text style={{ fontSize: 10, color: p.ready ? colors.lime : colors.paperMuted }}>{p.ready ? 'pronto' : 'entrando'}</Text>
             </View>
           ))}
         </View>
       </Pressable>
 
       <Spacer />
-      {error ? <Text variant="error" style={{ marginTop: 16 }}>{error}</Text> : null}
       <Button
         label={
           lobby && people.length < 2
             ? 'Esperando a crew entrar…'
             : choosing > 0
-              ? `Esperando ${choosing} escolher${choosing > 1 ? 'em' : ''} o lado…`
-              : 'Começar partida'
+              ? `Esperando ${choosing} ficar${choosing > 1 ? 'em' : ''} pronto${choosing > 1 ? 's' : ''}…`
+              : 'Ir para a roleta'
         }
         disabled={!!lobby && (people.length < 2 || choosing > 0)}
-        loading={starting}
         style={{ marginTop: 20 }}
         onPress={begin}
       />

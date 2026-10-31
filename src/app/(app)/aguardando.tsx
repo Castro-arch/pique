@@ -28,8 +28,11 @@ export default function Aguardando() {
   const [localReady, setLocalReady] = useState(false);
   const [dots, setDots] = useState(1);
   useFollowRound(id, lobby?.status);
+  // O anfitrião girou a roleta: todo mundo vai para a roda.
+  useEffect(() => {
+    if (id && lobby?.draw) router.replace({ pathname: '/roda', params: { id } });
+  }, [id, lobby?.draw]);
 
-  const lado = lobby?.me.side ?? params.lado ?? 'runner';
   const ready = lobby ? lobby.me.ready : localReady;
   const host = lobby?.players.find((p) => p.isHost)?.name ?? 'Leo';
   const total = lobby?.players.length ?? 6;
@@ -47,8 +50,6 @@ export default function Aguardando() {
     return () => clearInterval(t);
   }, []);
 
-  const color = lado === 'hunter' ? colors.pink : lado === 'draw' ? colors.paper : colors.lime;
-
   return (
     <View style={[styles.root, { paddingBottom: Math.max(insets.bottom, 34) }]}>
       <View style={{ marginTop: Math.max(insets.top, 30) }}>
@@ -64,8 +65,7 @@ export default function Aguardando() {
         <Chip label={`${lobby?.code ?? 'TACO42'} · lobby de ${host}`} dot={colors.lime} style={{ alignSelf: 'flex-start', marginBottom: 14 }} />
         <Headline variant="display" style={{ fontSize: 48, lineHeight: 46 }}>Você tá dentro</Headline>
         <Text variant="muted" style={{ marginTop: 12, fontSize: 16 }}>
-          Agora é esperar {lobby?.isHost ? 'você mesmo' : host} começar. Você vai como{' '}
-          <Text style={{ color, fontFamily: fonts.bodyStrong, fontSize: 16 }}>{sideName[lado] ?? 'corredor'}</Text>. Aproveita para se alongar.
+          Quem caça sai na roleta de luz: quando {lobby?.isHost ? 'você' : host} chamar, juntem os celulares no meio da roda. Aproveita para se alongar.
         </Text>
 
         <View style={styles.card}>
@@ -111,12 +111,6 @@ export default function Aguardando() {
         ) : (
           <Button label="Estou pronto" icon={<Check size={18} color={colors.limeInk} strokeWidth={3} />} onPress={() => toggleReady(true)} />
         )}
-        <Button
-          variant="link"
-          label="Trocar de lado"
-          style={{ marginTop: 6 }}
-          onPress={() => router.replace(id ? { pathname: '/lado', params: { id } } : '/lado')}
-        />
       </View>
     </View>
   );

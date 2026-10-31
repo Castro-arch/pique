@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import { distanceM as distanceBetween } from './lib';
-import { assignRoles } from './rounds';
+import { assignRoles, planDraw } from './rounds';
 import schema from './schema';
 
 const modules = import.meta.glob('./**/*.ts');
@@ -78,14 +78,14 @@ describe('lobby', () => {
     expect((await lobbyOf(host, gameId)).isHost).toBe(true);
   });
 
-  test('só começa depois que todo mundo escolhe o lado', async () => {
+  test('só começa depois que todo mundo fica pronto', async () => {
     const s = await lobbyWith4();
     const lobby = await lobbyOf(s.host, s.gameId);
     expect(lobby.players.filter((p) => p.choosing).map((p) => p.name)).toEqual(['Leo', 'Priya', 'Teo']);
-    await expect(s.host.mutation(api.rounds.start, { gameId: s.gameId })).rejects.toThrow(/Esperando Leo, Priya, Teo escolherem/);
+    await expect(s.host.mutation(api.rounds.start, { gameId: s.gameId })).rejects.toThrow(/Esperando Leo, Priya, Teo ficarem prontos/);
     await s.leo.mutation(api.games.setSide, { gameId: s.gameId, side: 'hunter' });
     await s.priya.mutation(api.games.setSide, { gameId: s.gameId, side: 'runner' });
-    await expect(s.host.mutation(api.rounds.start, { gameId: s.gameId })).rejects.toThrow(/Esperando Teo escolher o lado/);
+    await expect(s.host.mutation(api.rounds.start, { gameId: s.gameId })).rejects.toThrow(/Esperando Teo ficar pronto/);
     await s.teo.mutation(api.games.setSide, { gameId: s.gameId, side: 'draw' });
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
     expect((await viewOf(s.teo, s.gameId)).game.status).toBe('headstart');
@@ -144,6 +144,44 @@ describe('sorteio', () => {
   test('sempre sobra pelo menos 1 corredor', () => {
     const ps = [{ _id: 'a', side: 'hunter' }, { _id: 'b', side: 'hunter' }] as never[];
     expect(assignRoles(ps, 5).filter((r) => r.role === 'runner')).toHaveLength(1);
+  });
+});
+
+describe('roleta de luz', () => {
+  test('a luz para em quem caça, pula quem já foi e cada passo é mais lento', () => {
+    const order = ['a', 'b', 'c', 'd', 'e'] as unknown as Id<'players'>[];
+    for (let i = 0; i < 20; i++) {
+      const plan = planDraw(order, 2, 1000);
+      expect(plan.hunters).toHaveLength(2);
+      expect(new Set(plan.hunters).size).toBe(2);
+      expect(plan.stops.map((k) => plan.steps[k].p)).toEqual(plan.hunters);
+      // no segundo giro a luz não passa pelo primeiro caçador
+      expect(plan.steps.slice(plan.stops[0] + 1).some((st) => st.p === plan.hunters[0])).toBe(false);
+      const gaps = plan.steps.slice(1, plan.stops[0] + 1).map((st, k) => st.at - plan.steps[k].at);
+      expect(gaps.every((g, k) => k === 0 || g >= gaps[k - 1])).toBe(true);
+      expect(plan.endAt).toBeGreaterThan(plan.steps[plan.steps.length - 1].at);
+    }
+  });
+
+  test('anfitrião gira, todo mundo vê o plano e a rodada começa com os caçadores dela', async () => {
+    const s = await lobbyWith4();
+    await expect(s.host.mutation(api.rounds.spin, { gameId: s.gameId })).rejects.toThrow(/prontos/);
+    await everyoneChooses(s);
+    await expect(s.leo.mutation(api.rounds.spin, { gameId: s.gameId })).rejects.toThrow();
+    await s.host.mutation(api.rounds.spin, { gameId: s.gameId });
+    const lobby = await lobbyOf(s.priya, s.gameId);
+    expect(lobby.draw).not.toBeNull();
+    expect(lobby.draw!.order).toHaveLength(4);
+    await expect(s.host.mutation(api.rounds.spin, { gameId: s.gameId })).rejects.toThrow(/girando/);
+    const stopsAt = lobby.draw!.stops.map((k) => lobby.draw!.steps[k].id);
+    await advance(s.t, lobby.draw!.endAt - Date.now());
+    const after = await lobbyOf(s.host, s.gameId);
+    expect(after.status).toBe('headstart');
+    expect(after.draw).toBeNull();
+    const hunters = await s.t.run(async (ctx) =>
+      (await ctx.db.query('players').collect()).filter((p) => p.role === 'hunter').map((p) => p._id as string),
+    );
+    expect(hunters.sort()).toEqual([...stopsAt].sort());
   });
 });
 
@@ -405,6 +443,24 @@ describe('rodada', () => {
     const view = await viewOf(s.priya, s.gameId);
     expect(view.game).toMatchObject({ round: 2, status: 'hunt' });
     expect(view.me.state).toBe('active');
+  });
+});
+
+describe('fui pego', () => {
+  test('o corredor diz quem pegou; caçador de mentira é ignorado', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    const v = await viewOf(s.priya, s.gameId);
+    expect(v.hunters.map((h) => h.name)).toEqual(['Leo']);
+    await advance(s.t, 3 * MIN);
+    const teoId = (await viewOf(s.teo, s.gameId)).me.id;
+    await s.teo.mutation(api.play.reportCaught, { gameId: s.gameId, hunterId: teoId });
+    await s.priya.mutation(api.play.reportCaught, { gameId: s.gameId, hunterId: v.hunters[0].id });
+    const rows = await s.t.run((ctx) => ctx.db.query('players').collect());
+    expect(rows.find((p) => p.name === 'Priya')!.caughtBy).toBe(v.hunters[0].id);
+    expect(rows.find((p) => p.name === 'Teo')!.caughtBy).toBeUndefined();
+    const radio = await s.host.query(api.radio.list, { gameId: s.gameId });
+    expect(radio.messages.some((m) => m.text?.startsWith('Leo pegou Priya'))).toBe(true);
   });
 });
 
