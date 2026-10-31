@@ -19,8 +19,8 @@ import { api } from '../../../convex/_generated/api';
 
 type Msg =
   | { kind: 'system'; at: string; text: string }
-  | { kind: 'text'; name: string; mine: boolean; text: string; playerId?: string }
-  | { kind: 'audio'; name: string; mine: boolean; seconds: number; playerId?: string; url?: string | null };
+  | { kind: 'text'; name: string; mine: boolean; text: string; playerId?: string; frame?: string | null }
+  | { kind: 'audio'; name: string; mine: boolean; seconds: number; playerId?: string; url?: string | null; frame?: string | null };
 
 // Respostas prontas: sem texto livre no Radio (decisão de produto).
 const demoQuick = ['Achei um!', 'Cubram o canal', 'Onde você está?', 'Tô indo', 'Perdi de vista'];
@@ -72,7 +72,7 @@ export function RadioPanel({ id, onMap }: { id?: string; onMap?: () => void }) {
           const left = endsAt ? Math.max(0, Math.round((endsAt - m.at) / 1000)) : 0;
           return { kind: 'system', at: mmss(left), text: m.text ?? '' };
         }
-        const base = { name: m.from.name, mine: m.from.isMe, playerId: m.from.id };
+        const base = { name: m.from.name, mine: m.from.isMe, playerId: m.from.id, frame: m.from.frame };
         return m.kind === 'audio'
           ? { kind: 'audio', ...base, seconds: m.seconds ?? 0, url: m.audioUrl }
           : { kind: 'text', ...base, text: m.text ?? '' };
@@ -178,7 +178,7 @@ function Bubble({ m }: { m: Msg }) {
     );
   return (
     <View style={{ flexDirection: 'row', gap: 8, alignSelf: m.mine ? 'flex-end' : 'flex-start', maxWidth: '86%' }}>
-      {!m.mine ? <Avatar source={m.playerId ? undefined : photos.leo} name={m.name} size={32} state="hunter" /> : null}
+      {!m.mine ? <Avatar source={m.playerId ? undefined : photos.leo} name={m.name} size={32} state="hunter" frame={'frame' in m ? m.frame : null} /> : null}
       <Pressable
         accessibilityRole="text"
         delayLongPress={400}

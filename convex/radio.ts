@@ -89,7 +89,7 @@ export const list = query({
         text: m.text ?? null,
         seconds: m.seconds ?? null,
         audioUrl: m.audioId ? await ctx.storage.getUrl(m.audioId) : null,
-        from: from ? { id: from._id, name: from.name, isMe: from._id === me._id } : null,
+        from: from ? { id: from._id, name: from.name, isMe: from._id === me._id, frame: (await ctx.db.get(from.userId))?.frame ?? null } : null,
         at: m.at,
       });
     }

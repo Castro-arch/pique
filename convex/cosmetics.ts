@@ -2,7 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import type { Id } from './_generated/dataModel';
 import { mutation, query, type QueryCtx } from './_generated/server';
-import { requireUser } from './lib';
+import { BETA_FREE_UNLOCK, requireUser } from './lib';
 
 // Catálogo das molduras. Só visual: nada aqui muda ping, visibilidade ou pega.
 // price null = grátis. As pagas entram na tabela cosmetics pelo webhook da loja.
@@ -39,5 +39,18 @@ export const equip = mutation({
     const userId = await requireUser(ctx);
     if (itemId !== null && !(await owns(ctx, userId, itemId))) throw new ConvexError('Essa moldura ainda não é sua.');
     await ctx.db.patch(userId, { frame: itemId ?? undefined });
+  },
+});
+
+// Beta: "comprar" libera a moldura sem cobrar (ver BETA_FREE_UNLOCK).
+export const buy = mutation({
+  args: { itemId: v.string() },
+  handler: async (ctx, { itemId }) => {
+    if (!BETA_FREE_UNLOCK) throw new ConvexError('A compra é feita pela loja do celular.');
+    const userId = await requireUser(ctx);
+    const item = CATALOG.find((i) => i.id === itemId);
+    if (!item) throw new ConvexError('Essa moldura não existe.');
+    if (!(await owns(ctx, userId, itemId))) await ctx.db.insert('cosmetics', { userId, itemId, at: Date.now() });
+    await ctx.db.patch(userId, { frame: itemId });
   },
 });

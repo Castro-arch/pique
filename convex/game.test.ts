@@ -732,6 +732,54 @@ describe('avisos da partida', () => {
   });
 });
 
+describe('amigos e perfil', () => {
+  test('pedir, aceitar, achar pelo @ e desfazer', async () => {
+    const s = await setup();
+    const leoId = (await s.leo.query(api.users.me, {}))!._id;
+    const priyaId = (await s.priya.query(api.users.me, {}))!._id;
+    expect(await s.priya.query(api.friends.find, { username: '@leo' })).toMatchObject({ name: 'Leo', status: 'none' });
+    await s.priya.mutation(api.friends.request, { userId: leoId });
+    expect((await s.leo.query(api.friends.list, {})).incoming.map((p) => p.name)).toEqual(['Priya']);
+    expect((await s.priya.query(api.friends.find, { username: 'leo' }))!.status).toBe('sent');
+    await s.leo.mutation(api.friends.respond, { userId: priyaId, accept: true });
+    expect((await s.priya.query(api.friends.list, {})).friends.map((p) => p.name)).toEqual(['Leo']);
+    expect((await s.leo.query(api.friends.profile, { userId: priyaId }))!.status).toBe('friend');
+    await s.leo.mutation(api.friends.remove, { userId: priyaId });
+    expect((await s.priya.query(api.friends.list, {})).friends).toEqual([]);
+  });
+
+  test('pedido dos dois lados vira amizade e amigo jogando aparece ao vivo', async () => {
+    const s = await lobbyWith4();
+    const hostId = (await s.host.query(api.users.me, {}))!._id;
+    const teoId = (await s.teo.query(api.users.me, {}))!._id;
+    await s.teo.mutation(api.friends.request, { userId: hostId });
+    await s.host.mutation(api.friends.request, { userId: teoId });
+    const f = (await s.teo.query(api.friends.list, {})).friends[0];
+    expect(f).toMatchObject({ name: 'Castro', live: { code: s.code, status: 'lobby' } });
+  });
+
+  test('o fim da rodada soma os números do perfil', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    const v = await viewOf(s.priya, s.gameId);
+    for (const p of [s.host, s.priya, s.teo]) await p.mutation(api.play.reportCaught, { gameId: s.gameId, hunterId: v.hunters[0].id });
+    const leo = (await s.leo.query(api.friends.profile, {}))!;
+    expect(leo.stats).toMatchObject({ games: 1, wins: 1, catches: 3 });
+    expect(leo.level.xp).toBe(50 + 100 + 90);
+    const priya = (await s.priya.query(api.friends.profile, {}))!;
+    expect(priya.stats).toMatchObject({ games: 1, wins: 0, escapes: 0 });
+  });
+
+  test('no beta comprar moldura libera e já equipa', async () => {
+    const s = await setup();
+    await s.priya.mutation(api.cosmetics.buy, { itemId: 'gelo' });
+    const shop = await s.priya.query(api.cosmetics.shop, {});
+    expect(shop.frame).toBe('gelo');
+    expect(shop.items.find((i) => i.id === 'gelo')!.owned).toBe(true);
+  });
+});
+
 describe('cosméticos', () => {
   test('equipa só o que tem e a moldura aparece no mapa', async () => {
     const s = await lobbyWith4();

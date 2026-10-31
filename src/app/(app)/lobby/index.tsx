@@ -35,8 +35,8 @@ export default function Lobby() {
   const withId = (pathname: string): Href => (id ? ({ pathname, params: { id } } as Href) : (pathname as Href));
 
   const people = lobby
-    ? lobby.players.map((p) => ({ key: p.id, name: p.isMe ? 'Você' : p.name, fullName: p.name, side: p.side, ready: p.ready || p.isHost, photo: undefined }))
-    : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.id === 'castro' ? demoSide : p.role, ready: true, photo: p.photo }));
+    ? lobby.players.map((p) => ({ key: p.id, name: p.isMe ? 'Você' : p.name, fullName: p.name, side: p.side, ready: p.ready || p.isHost, frame: p.frame, photo: undefined }))
+    : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.id === 'castro' ? demoSide : p.role, ready: true, frame: null, photo: p.photo }));
 
   const share = () => Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link ${inviteLink(code)}` });
   const copy = async () => {
@@ -111,7 +111,7 @@ export default function Lobby() {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
           {people.map((p, i) => (
             <Appear key={p.key} delay={stagger(i)} style={{ alignItems: 'center', width: 52 }}>
-              <Avatar source={p.photo} name={p.fullName} size={42} state={p.ready ? 'runner' : 'draw'} />
+              <Avatar source={p.photo} name={p.fullName} size={42} state={p.ready ? 'runner' : 'draw'} frame={p.frame} />
               <Text style={{ fontSize: 11, marginTop: 4 }} numberOfLines={1}>{p.name}</Text>
               <Text style={{ fontSize: 10, color: p.ready ? colors.lime : colors.paperMuted }}>{p.ready ? 'pronto' : 'entrando'}</Text>
             </Appear>

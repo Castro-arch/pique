@@ -9,3 +9,6 @@ export function codeFromQr(text: string): string | null {
   const m = text.trim().match(CODE);
   return m ? m[1].toUpperCase() : null;
 }
+
+// Link do perfil (amizade): abre /u/nome, onde dá para adicionar.
+export const profileLink = (username: string) => `https://pique.expo.app/u/${username}`;

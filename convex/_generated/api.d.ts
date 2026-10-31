@@ -13,13 +13,16 @@ import type * as alerts from "../alerts.js";
 import type * as auth from "../auth.js";
 import type * as cosmetics from "../cosmetics.js";
 import type * as emailOtp from "../emailOtp.js";
+import type * as friends from "../friends.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
 import type * as lib from "../lib.js";
 import type * as play from "../play.js";
+import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as radio from "../radio.js";
 import type * as rounds from "../rounds.js";
+import type * as streets from "../streets.js";
 import type * as users from "../users.js";
 
 import type {
@@ -34,13 +37,16 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   cosmetics: typeof cosmetics;
   emailOtp: typeof emailOtp;
+  friends: typeof friends;
   games: typeof games;
   http: typeof http;
   lib: typeof lib;
   play: typeof play;
+  profile: typeof profile;
   push: typeof push;
   radio: typeof radio;
   rounds: typeof rounds;
+  streets: typeof streets;
   users: typeof users;
 }>;
 

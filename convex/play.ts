@@ -251,7 +251,7 @@ export const view = query({
 
     return {
       // Quem caça nesta rodada (a roleta mostrou para todo mundo).
-      hunters: players.filter((p) => p.role === 'hunter').map((p) => ({ id: p._id, name: p.name })),
+      hunters: players.filter((p) => p.role === 'hunter').map((p) => ({ id: p._id, name: p.name, frame: frames.get(p._id) ?? null })),
       game: {
         code: game.code,
         status: game.status,

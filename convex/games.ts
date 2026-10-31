@@ -165,9 +165,10 @@ export const lobby = query({
           }
         : null,
       me: { id: me._id, side: me.side, role: me.role ?? null, ready: me.ready, state: me.state },
-      players: players.map((p) => ({
+      players: await Promise.all(players.map(async (p) => ({
         id: p._id,
         name: p.name,
+        frame: (await ctx.db.get(p.userId))?.frame ?? null,
         side: p.side,
         ready: p.ready,
         choosing: isChoosing(p, game),
@@ -175,7 +176,7 @@ export const lobby = query({
         isMe: p._id === me._id,
         // O papel sorteado só aparece para o próprio time (ou depois do fim).
         role: game.status === 'ended' || p._id === me._id || (me.role && p.role === me.role) ? (p.role ?? null) : null,
-      })),
+      }))),
     };
   },
 });

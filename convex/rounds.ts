@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { notify } from './alerts';
+import { recordRound } from './profile';
 import { isChoosing } from './games';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
@@ -396,6 +397,7 @@ export const end = internalMutation({
       winner,
       at: now,
     });
+    await recordRound(ctx, game, players, winner, now);
     await deleteAudio(ctx, gameId);
     await notify(
       ctx,

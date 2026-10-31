@@ -78,6 +78,7 @@ export default function Aguardando() {
                     name={p.name}
                     size={32}
                     state={p.ready ? 'runner' : 'draw'}
+                    frame={p.frame}
                     style={{ marginLeft: i === 0 ? 0 : -8 }}
                   />
                 ))}

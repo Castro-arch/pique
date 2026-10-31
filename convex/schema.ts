@@ -209,6 +209,28 @@ export default defineSchema({
     passUntil: v.optional(v.number()),
   }).index('by_user', ['userId']),
 
+  // Amizades: um par de pessoas (a < b) com o pedido ou a amizade.
+  friendships: defineTable({
+    a: v.id('users'),
+    b: v.id('users'),
+    from: v.id('users'), // quem pediu
+    status: v.union(v.literal('pending'), v.literal('accepted')),
+    at: v.number(),
+  })
+    .index('by_pair', ['a', 'b'])
+    .index('by_b', ['b']),
+
+  // Números do perfil, somados no fim de cada rodada.
+  player_stats: defineTable({
+    userId: v.id('users'),
+    games: v.number(),
+    wins: v.number(),
+    catches: v.number(),
+    escapes: v.number(),
+    bestHiddenMs: v.number(),
+    distanceM: v.number(),
+  }).index('by_user', ['userId']),
+
   // Métricas de cada rodada (sem dados pessoais).
   match_stats: defineTable({
     gameId: v.id('games'),

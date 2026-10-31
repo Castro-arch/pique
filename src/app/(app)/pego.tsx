@@ -114,7 +114,7 @@ function SelfReport({ id }: { id: string }) {
                     accessibilityState={{ checked: on }}
                     onPress={() => setWho(on ? null : h.id)}
                     style={[styles.hunter, on && { backgroundColor: colors.pinkTint, borderColor: colors.pink, borderWidth: 2 }]}>
-                    <Avatar name={h.name} size={28} state="hunter" />
+                    <Avatar name={h.name} size={28} state="hunter" frame={h.frame} />
                     <Text numberOfLines={1} style={{ flex: 1, fontSize: 14, fontFamily: fonts.bodyStrong }}>
                       {h.name}
                     </Text>
