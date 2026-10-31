@@ -9,7 +9,7 @@ import { colors, fonts } from '@/theme/tokens';
 
 // Placar da partida (tela 13.12): barra no topo com o relógio num meio-círculo
 // e o anel do ping em volta. O olho mostra quem te vê; as 2 bolinhas de boost
-// ficam no lado oposto do arco. A moldura contorna tudo numa peça só.
+// ficam uma de cada lado, embaixo da barra. A moldura contorna tudo numa peça só.
 // Medidas no espaço de 390 px do design; em celular mais estreito, encolhe junto.
 
 const W = 390;
@@ -22,11 +22,14 @@ const RING = 164; // anel do ping
 const FILL = '#111519';
 const LINE = colors.inkBorder;
 
-// Bolinhas no mesmo raio do anel: o olho à esquerda e o par de boosts no
-// espelho dele, um pouco mais para baixo para não cobrir o texto do ping.
+// O olho fica no meio, embaixo do anel; os 2 boosts ficam um de cada lado,
+// pendurados embaixo das pontas da barra.
 const at = (deg: number) => ({ x: CX + 80 * Math.cos((deg * Math.PI) / 180), y: CY + 80 * Math.sin((deg * Math.PI) / 180) });
-const EYE = at(130);
-const SLOTS = [at(80), at(47)];
+const EYE = at(90);
+const SLOTS = [
+  { x: 66, y: BAR_BOTTOM + 16 },
+  { x: W - 66, y: BAR_BOTTOM + 16 },
+];
 const HALO = 24;
 const DOT = 34;
 
