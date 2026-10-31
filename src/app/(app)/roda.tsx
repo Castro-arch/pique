@@ -78,6 +78,9 @@ export default function Roda() {
     }
   };
 
+  // Indo para a revelação: já pinta a cor dela, sem piscar a roda escura no meio.
+  if (papel) return <View style={[styles.full, { backgroundColor: papel === 'hunter' ? colors.pink : colors.lime }]} />;
+
   // 15.2 A luz está em mim: a tela inteira acende.
   if (mine && !stopped) {
     return (
