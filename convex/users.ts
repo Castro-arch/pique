@@ -20,7 +20,7 @@ export const me = query({
       username: user.username ?? null,
       email: user.email ?? null,
       betaOk: await hasBetaAccess(ctx, user),
-      betaAdmin: isBetaAdmin(user.email),
+      betaAdmin: isBetaAdmin(user),
       // já tinha entrado com um código que foi trocado
       betaRevoked: user.betaVersion !== undefined && !(await hasBetaAccess(ctx, user)),
     };

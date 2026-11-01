@@ -67,4 +67,13 @@ describe('convite do teste fechado', () => {
     const novo = await dono.mutation(api.beta.rotate, {});
     expect((await dono.query(api.beta.adminView, {}))!.code).toBe(novo);
   });
+
+  test('quem administra também pode ser o @ do usuário (conta sem e-mail)', async () => {
+    vi.stubEnv('BETA_ADMINS', 'outro@exemplo.com, @Ana');
+    const { t, ana, bia } = await setup();
+    await t.mutation(internal.beta.createCode, {});
+    expect((await ana.query(api.users.me, {}))!.betaOk).toBe(true);
+    expect((await ana.query(api.users.me, {}))!.betaAdmin).toBe(true);
+    expect((await bia.query(api.users.me, {}))!.betaOk).toBe(false);
+  });
 });

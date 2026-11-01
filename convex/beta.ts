@@ -9,8 +9,9 @@ import { newCode as randomCode, requireUser } from './lib';
 // criado), com um número de versão. Quem digita o código guarda a versão; ao
 // gerar um código novo, a versão sobe e todo mundo que entrou com o anterior
 // perde o acesso até digitar o novo. Sem nenhum código criado, o app fica aberto.
-// Quem administra o teste (e-mails em BETA_ADMINS, nas variáveis do Convex,
-// separados por vírgula) nunca é barrado e vê/troca o código nos Ajustes.
+// Quem administra o teste (BETA_ADMINS, nas variáveis do Convex, separados por
+// vírgula: e-mails ou @usuário, para contas sem e-mail) nunca é barrado e
+// vê/troca o código nos Ajustes.
 //   npx convex run beta:createCode         (gera um código novo pelo terminal)
 //   npx convex run beta:currentCode        (mostra o código atual)
 
@@ -18,12 +19,14 @@ type Ctx = QueryCtx;
 
 const normalize = (code: string) => code.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
 
-export function isBetaAdmin(email: string | undefined | null) {
+export function isBetaAdmin(user: Pick<Doc<'users'>, 'email' | 'username'>) {
   const admins = (process.env.BETA_ADMINS ?? '')
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter(Boolean);
-  return !!email && admins.includes(email.toLowerCase());
+  const email = user.email?.toLowerCase();
+  const handle = user.username ? `@${user.username.toLowerCase()}` : null;
+  return (!!email && admins.includes(email)) || (!!handle && admins.includes(handle));
 }
 
 async function currentInvite(ctx: Ctx) {
@@ -33,7 +36,7 @@ async function currentInvite(ctx: Ctx) {
 export async function hasBetaAccess(ctx: Ctx, user: Doc<'users'>) {
   const invite = await currentInvite(ctx);
   if (!invite) return true;
-  if (isBetaAdmin(user.email)) return true;
+  if (isBetaAdmin(user)) return true;
   return user.betaVersion === invite.version;
 }
 
@@ -63,7 +66,7 @@ export const adminView = query({
     const userId = await getAuthUserId(ctx);
     if (userId === null) return null;
     const user = await ctx.db.get(userId);
-    if (!user || !isBetaAdmin(user.email)) return null;
+    if (!user || !isBetaAdmin(user)) return null;
     const invite = await currentInvite(ctx);
     if (!invite) return { code: null, version: 0, createdAt: null, members: 0 };
     const members = (await ctx.db.query('users').collect()).filter((u) => u.betaVersion === invite.version).length;
@@ -85,7 +88,7 @@ export const rotate = mutation({
   handler: async (ctx, { code }) => {
     const userId = await requireUser(ctx);
     const user = await ctx.db.get(userId);
-    if (!user || !isBetaAdmin(user.email)) throw new ConvexError('Só quem administra o teste pode trocar o código.');
+    if (!user || !isBetaAdmin(user)) throw new ConvexError('Só quem administra o teste pode trocar o código.');
     return await makeCode(ctx, code);
   },
 });
