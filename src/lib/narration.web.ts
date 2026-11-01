@@ -27,11 +27,19 @@ let el: HTMLAudioElement | null = null;
 let unlocked = false;
 // Uma fala de verdade começou enquanto o destravamento ainda rodava: não pausar nem mutar.
 let speaking = false;
+// Qual passo está tocando e quem quer saber quando a fala acaba.
+let current = -1;
+const endListeners = new Set<(step: number) => void>();
+const preloaded = new Set<number>();
 
 function audio() {
   if (!el && typeof Audio !== 'undefined') {
     el = new Audio();
     el.preload = 'auto';
+    el.addEventListener('ended', () => {
+      const step = current;
+      if (step >= 0) endListeners.forEach((l) => l(step));
+    });
   }
   return el;
 }
@@ -62,11 +70,40 @@ export function playNarration(step: number) {
   a.pause();
   const n = NARRATION[step];
   if (!n) return;
+  current = step;
   a.src = Asset.fromModule(n.src).uri;
   a.currentTime = 0;
   a.muted = false;
   speaking = true;
   a.play().catch(() => (speaking = false));
+  preload(step + 1);
+}
+
+// Baixa a próxima fala antes da hora: no celular, sem isso, o áudio começa
+// atrasado e o passo acabava antes da última palavra.
+function preload(step: number) {
+  const n = NARRATION[step];
+  if (!n || preloaded.has(step) || typeof Audio === 'undefined') return;
+  preloaded.add(step);
+  const p = new Audio();
+  p.preload = 'auto';
+  p.src = Asset.fromModule(n.src).uri;
+  p.load();
+}
+
+// Em que ponto (ms) está a fala deste passo; null se ela não está tocando.
+export function narrationPosition(step: number) {
+  const a = audio();
+  if (!a || current !== step || !speaking || a.currentTime <= 0) return null;
+  return a.currentTime * 1000;
+}
+
+// Avisa quando a fala de um passo termina de verdade.
+export function onNarrationEnd(cb: (step: number) => void) {
+  endListeners.add(cb);
+  return () => {
+    endListeners.delete(cb);
+  };
 }
 
 export function pauseNarration() {
@@ -81,6 +118,7 @@ export function resumeNarration() {
 export function stopNarration() {
   const a = audio();
   speaking = false;
+  current = -1;
   if (!a) return;
   a.pause();
   a.currentTime = 0;

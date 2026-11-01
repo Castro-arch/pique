@@ -1,6 +1,6 @@
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
+import { Animated, Easing, Platform, Pressable, StyleSheet, useWindowDimensions, View } from 'react-native';
 
 import { ArcHud, type ArcStatus } from '@/components/ArcHud';
 import { BENTO, Sticker, type StickerKind } from '@/components/Bento';
@@ -12,7 +12,7 @@ import { Text } from '@/components/Text';
 import { routeMs, TutorialMap } from '@/components/TutorialMap';
 import type { TutorialMark, TutorialMover } from '@/components/tutorialMapTypes';
 import { useCreateGame } from '@/lib/game';
-import { NARRATION, narrationOn, pauseNarration, playNarration, resumeNarration, setNarrationOn, stopNarration } from '@/lib/narration';
+import { NARRATION, narrationOn, narrationPosition, onNarrationEnd, pauseNarration, playNarration, resumeNarration, setNarrationOn, stopNarration } from '@/lib/narration';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { TUTORIAL_CENTER, TUTORIAL_ROUTES, TUTORIAL_SPOTS, type LngLat, type Who } from '@/lib/tutorialRoutes';
 import { colors, fonts } from '@/theme/tokens';
@@ -29,6 +29,9 @@ const PINK = colors.pink;
 const INK = BENTO.ink;
 const STEP_MS = 8500;
 const WHO: Who[] = ['C', 'L', 'P', 'T', 'S'];
+// Segurar o dedo pausa: sem isso o iPhone entra em seleção de texto (lupa e
+// marcadores azuis) e o Android abre o menu de copiar.
+const NO_SELECT = Platform.OS === 'web' ? ({ userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none' } as object) : null;
 const CENTER: LngLat = [TUTORIAL_CENTER.lng, TUTORIAL_CENTER.lat];
 type Spot = keyof typeof TUTORIAL_SPOTS;
 const spot = (k: Spot): LngLat => [TUTORIAL_SPOTS[k][0], TUTORIAL_SPOTS[k][1]];
@@ -365,6 +368,17 @@ export default function ComoJogar() {
     else stopNarration();
   }, [i, sound]);
   useEffect(() => () => stopNarration(), []);
+  // E sem o menu do toque longo (copiar, pesquisar) enquanto o tutorial está aberto.
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const block = (e: Event) => e.preventDefault();
+    document.addEventListener('contextmenu', block);
+    document.addEventListener('selectstart', block);
+    return () => {
+      document.removeEventListener('contextmenu', block);
+      document.removeEventListener('selectstart', block);
+    };
+  }, []);
   useEffect(() => {
     if (!sound) return;
     if (paused) pauseNarration();
@@ -375,6 +389,8 @@ export default function ComoJogar() {
   // da linha do tempo e o tempo do placar, que desce de verdade.
   const [ms, setMs] = useState(0);
   const msRef = useRef(0);
+  const iRef = useRef(i);
+  iRef.current = i;
   useEffect(() => {
     msRef.current = 0;
     setMs(0);
@@ -384,12 +400,14 @@ export default function ComoJogar() {
     let before = Date.now();
     const id = setInterval(() => {
       const now = Date.now();
-      msRef.current += now - before;
+      // Com a fala tocando, o relógio segue a voz (no celular ela pode começar atrasada).
+      const voice = sound ? narrationPosition(iRef.current) : null;
+      msRef.current = voice ?? msRef.current + (now - before);
       before = now;
       setMs(msRef.current);
     }, 100);
     return () => clearInterval(id);
-  }, [paused]);
+  }, [paused, sound]);
   const secs = ms / 1000;
   const beat = Math.floor(ms / 500) % 2 === 1;
 
@@ -412,11 +430,38 @@ export default function ComoJogar() {
       return;
     }
     const anim = Animated.timing(fill, { toValue: 1, duration: stepMs * (1 - fillAt.current), easing: Easing.linear, useNativeDriver: false });
-    anim.start(({ finished }) => finished && go(i + 1));
+    // Com som, quem vira o passo é o fim da fala (abaixo); a barrinha só garante, com folga, se o áudio falhar.
+    anim.start(({ finished }) => finished && (!sound || !NARRATION[i]) && go(i + 1));
     return () => anim.stop();
   }, [i, paused, last]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (n: number) => setI(Math.min(Math.max(n, 0), steps.length - 1));
+
+  // Troca suave: guarda o passo que está saindo para o cartão dele sumir devagar.
+  const [leaving, setLeaving] = useState<number | null>(null);
+  const out = useRef(new Animated.Value(0)).current;
+  const prevI = useRef(i);
+  useEffect(() => {
+    if (prevI.current === i) return;
+    setLeaving(prevI.current);
+    prevI.current = i;
+    out.setValue(1);
+    Animated.timing(out, { toValue: 0, duration: 220, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(({ finished }) => finished && setLeaving(null));
+  }, [i, out]);
+
+  // A fala acabou de verdade: vira o passo logo em seguida.
+  useEffect(
+    () =>
+      onNarrationEnd((step) => {
+        if (step === iRef.current && step < steps.length - 1) setTimeout(() => iRef.current === step && go(step + 1), 350);
+      }),
+    [],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+  // Se o áudio não tocar (bloqueado, sem internet), o passo vira pelo relógio com folga.
+  useEffect(() => {
+    if (!sound || !NARRATION[i] || last || paused) return;
+    if (ms > sayMs + 2500) go(i + 1);
+  }, [ms]); // eslint-disable-line react-hooks/exhaustive-deps
   const leave = () => router.replace('/');
 
   // Espaço livre para o mapa mostrar a ação: entre o placar e o cartão.
@@ -469,7 +514,7 @@ export default function ComoJogar() {
   const held = (v.used ? [] : [...new Set([...(v.held ?? []), ...pickedNow])]).map((kind) => ({ id: `h-${kind}`, kind }));
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.inkSunken }}>
+    <View style={[{ flex: 1, backgroundColor: colors.inkSunken }, NO_SELECT]}>
       <TutorialMap camera={s.camera} padding={padding} zoneRadius={v.zone ?? 0} movers={movers} marks={marks} />
       {s.dim ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(11,14,17,${s.dim})` }]} /> : null}
       {s.roda ? <Roda cx={W / 2} cy={freeMid} lit={v.litStop ?? Math.floor(secs * 3) % 6} /> : null}
@@ -534,20 +579,32 @@ export default function ComoJogar() {
       </View>
 
       {s.view ? (
-        <View pointerEvents="none" style={[styles.viewTag, { top: top - 30 }]}>
+        <Appear key={`v${i}`} style={[styles.viewTag, { top: top - 30 }]}>
           <View style={[styles.viewPill, { backgroundColor: s.view === 'caçador' ? PINK : LIME }]}>
             <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, letterSpacing: 0.6, color: s.view === 'caçador' ? PAPER : INK }}>
               {s.view === 'caçador' ? 'MAPA DO CAÇADOR' : 'O SEU MAPA'}
             </Text>
           </View>
-        </View>
+        </Appear>
       ) : null}
 
       {i > 0 ? <Arrow side="left" top={freeMid - 18} onPress={() => go(i - 1)} /> : null}
       {!last ? <Arrow side="right" top={freeMid - 18} onPress={() => go(i + 1)} pulse={i === 0} /> : null}
 
       <View style={[styles.cardBox, { bottom: Math.max(insets.bottom, 16) + 12 }]} pointerEvents={last ? 'box-none' : 'none'} onLayout={(e) => setCardTop(e.nativeEvent.layout.y)}>
-        <Appear key={i} style={styles.card}>
+        {leaving !== null ? (
+          <Animated.View
+            pointerEvents="none"
+            style={[styles.card, styles.cardLeaving, { opacity: out, transform: [{ translateY: out.interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) }, { scale: out.interpolate({ inputRange: [0, 1], outputRange: [0.97, 1] }) }] }]}>
+            <View style={styles.cardSticker}>
+              <Sticker kind={steps[leaving].sticker[0]} color={steps[leaving].sticker[1]} size={56} tilt={-8} />
+            </View>
+            <Text style={[styles.kicker, { color: steps[leaving].tone }]}>{steps[leaving].kicker}</Text>
+            <Text style={styles.title}>{steps[leaving].title}</Text>
+            <Text style={styles.body}>{steps[leaving].body}</Text>
+          </Animated.View>
+        ) : null}
+        <Appear key={i} delay={leaving !== null ? 230 : 0} distance={22} style={styles.card}>
           <View style={styles.cardSticker} pointerEvents="none">
             <Sticker kind={s.sticker[0]} color={s.sticker[1]} size={56} tilt={-8} />
           </View>
@@ -830,13 +887,14 @@ const styles = StyleSheet.create({
   seg: { flex: 1, height: 4, borderRadius: 2, backgroundColor: 'rgba(243,240,232,0.25)', overflow: 'hidden' },
   segFill: { height: 4, borderRadius: 2, backgroundColor: PAPER },
   hudBox: { position: 'absolute', left: 0, right: 0, height: 250, transformOrigin: 'top center' },
-  viewTag: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
+  viewTag: { position: 'absolute', left: 0, right: 0, alignItems: 'center', pointerEvents: 'none' },
   viewPill: { borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12, borderWidth: 2, borderColor: INK },
   arrowBox: { position: 'absolute' },
   question: { backgroundColor: '#FFC23D', borderWidth: 2.5, borderColor: INK, boxShadow: '2px 3px 0 #0B0F13', alignItems: 'center', justifyContent: 'center' },
   soundBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(11,15,19,0.7)', alignItems: 'center', justifyContent: 'center' },
   arrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(11,15,19,0.78)', borderWidth: 2, borderColor: 'rgba(243,240,232,0.35)', alignItems: 'center', justifyContent: 'center' },
   cardBox: { position: 'absolute', left: 16, right: 16 },
+  cardLeaving: { position: 'absolute', left: 0, right: 0, bottom: 0 },
   card: { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: INK, borderRadius: 26, boxShadow: '4px 5px 0 #0B0F13', paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16 },
   cardSticker: { position: 'absolute', right: 16, top: -30 },
   kicker: { fontSize: 11, fontFamily: fonts.bodyStrong, letterSpacing: 0.9 },

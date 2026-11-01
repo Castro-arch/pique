@@ -6,6 +6,12 @@ export function playNarration(_step: number) {}
 export function pauseNarration() {}
 export function resumeNarration() {}
 export function stopNarration() {}
+export function narrationPosition(_step: number): number | null {
+  return null;
+}
+export function onNarrationEnd(_cb: (step: number) => void) {
+  return () => {};
+}
 export function narrationOn() {
   return false;
 }
