@@ -36,10 +36,11 @@ Ninguém fica olhando a localização de ninguém o tempo todo. Os caçadores s�
 1. **Crie a partida** e compartilhe o código de 6 letras (ou o QR) com a crew.
 2. **Marque a zona** no mapa: o círculo onde todo mundo tem que ficar.
 3. **Escolha o lado** (corredor, caçador ou sorteio) e ajuste as regras da casa: duração, vantagem, intervalo do ping, zona que encolhe, boosts e o que mais quiserem.
-4. **Comece.** Os corredores têm alguns minutos de vantagem para sumir. Depois os caçadores são liberados.
-5. **Pings:** a cada intervalo, os caçadores recebem a posição de cada corredor naquele momento.
-6. **Pegou?** O caçador marca o corredor e o corredor confirma no celular dele. Sem resposta em 60 s, conta como pego.
-7. **Fim:** quando o tempo acaba (corredores vencem) ou quando não sobra ninguém (caçadores vencem). Dá para pedir revanche com a mesma crew.
+4. **A roda:** juntem os celulares no meio. Uma luz passa de celular em celular e para em quem vai caçar.
+5. **Vantagem:** os corredores têm 1 minuto (no padrão) para sumir enquanto o caçador fica travado. Depois ele é liberado.
+6. **Pings:** a cada 2 minutos (no padrão), os caçadores veem onde cada corredor estava naquele momento.
+7. **Pegou?** O caçador marca o corredor e o corredor confirma no celular dele. Sem resposta em 60 s, conta como pego.
+8. **Fim:** quando o tempo acaba (corredores vencem) ou quando não sobra ninguém (caçadores vencem). Dá para pedir revanche com a mesma crew.
 
 ## O que tem no jogo
 
@@ -54,49 +55,51 @@ Ninguém fica olhando a localização de ninguém o tempo todo. Os caçadores s�
 | **Radio** | Canal de cada time, com respostas prontas e áudio curto. |
 | **Avisos com o celular no bolso** | Ping, coração acelerado, grito, pega e fim da rodada chegam como notificação. |
 | **Molduras** | Cosméticos em volta da sua foto no mapa. Só visual: ninguém compra vantagem. |
+| **Como jogar narrado** | Um tutorial de 14 passos em cima do mapa de ruas de verdade: as pessoas correm pelas ruas, a câmera dá zoom, cada boost é mostrado funcionando e uma narradora explica cada regra, com o texto aparecendo no ritmo da fala. Passa sozinho, em 1x, 1,5x ou 2x. |
+| **Figurinhas** | Ícones, boosts e o nome no Início no estilo de adesivo, com contorno preto. |
 
 ## Telas
 
 <table>
   <tr>
-    <td><img src="docs/screens/01-boas-vindas.png" width="220" alt="Boas-vindas"></td>
-    <td><img src="docs/screens/02-lobby.png" width="220" alt="Lobby: quem joga"></td>
-    <td><img src="docs/screens/03-papel-corredor.png" width="220" alt="Revelação do papel: corredor"></td>
-    <td><img src="docs/screens/04-papel-cacador.png" width="220" alt="Revelação do papel: caçador"></td>
+    <td><img src="docs/screens/01-inicio.png" width="220" alt="Início"></td>
+    <td><img src="docs/screens/02-lobby.png" width="220" alt="Lobby do anfitrião"></td>
+    <td><img src="docs/screens/03-como-jogar.png" width="220" alt="Como jogar: vantagem"></td>
+    <td><img src="docs/screens/04-ping.png" width="220" alt="Como jogar: o ping"></td>
   </tr>
   <tr>
-    <td align="center">Boas-vindas</td>
+    <td align="center">Início</td>
     <td align="center">Lobby</td>
-    <td align="center">Você corre</td>
-    <td align="center">Você caça</td>
+    <td align="center">Como jogar</td>
+    <td align="center">O ping</td>
   </tr>
   <tr>
-    <td><img src="docs/screens/05-mapa.png" width="220" alt="Mapa da partida"></td>
-    <td><img src="docs/screens/06-coracao-acelerado.png" width="220" alt="Coração acelerado"></td>
-    <td><img src="docs/screens/07-boosts.png" width="220" alt="Boosts no mapa"></td>
+    <td><img src="docs/screens/05-despiste.png" width="220" alt="Boost Despiste: ping falso"></td>
+    <td><img src="docs/screens/06-papel.png" width="220" alt="Revelação do papel: corredor"></td>
+    <td><img src="docs/screens/07-radio.png" width="220" alt="Radio dos caçadores"></td>
     <td><img src="docs/screens/08-grito.png" width="220" alt="Seu celular gritou"></td>
   </tr>
   <tr>
-    <td align="center">Mapa da partida</td>
-    <td align="center">Coração acelerado</td>
-    <td align="center">Boosts</td>
+    <td align="center">Boost Despiste</td>
+    <td align="center">Você corre</td>
+    <td align="center">Radio</td>
     <td align="center">Grito</td>
   </tr>
   <tr>
-    <td><img src="docs/screens/09-salvar-o-amigo.png" width="220" alt="Você está preso"></td>
-    <td><img src="docs/screens/10-radio.png" width="220" alt="Radio dos caçadores"></td>
-    <td><img src="docs/screens/11-loja.png" width="220" alt="Loja de molduras"></td>
+    <td><img src="docs/screens/09-pego.png" width="220" alt="Um caçador te achou?"></td>
+    <td><img src="docs/screens/10-loja.png" width="220" alt="Loja de molduras"></td>
+    <td><img src="docs/screens/11-perfil.png" width="220" alt="Perfil"></td>
     <td><img src="docs/screens/12-fim-da-rodada.png" width="220" alt="Fim da rodada"></td>
   </tr>
   <tr>
-    <td align="center">Salvar o amigo</td>
-    <td align="center">Radio</td>
+    <td align="center">Fui pego</td>
     <td align="center">Loja</td>
+    <td align="center">Perfil</td>
     <td align="center">Fim da rodada</td>
   </tr>
 </table>
 
-<sub>Imagens geradas a partir do design do app. As fotos de perfil aparecem como iniciais, igual ao app enquanto a pessoa não envia uma foto.</sub>
+<sub>Prints do app no modo demonstração. As fotos de perfil aparecem como iniciais, igual ao app enquanto a pessoa não envia uma foto.</sub>
 
 ## Instalar e jogar
 
