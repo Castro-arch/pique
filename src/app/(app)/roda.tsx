@@ -105,7 +105,7 @@ export default function Roda() {
         {draw ? <Chip label="girando…" tone="runner" /> : lobby?.code ? <Chip label={lobby.code} /> : null}
       </View>
       <View style={{ alignItems: 'center', marginTop: 14 }}>
-        <Wheel order={order} lit={lit} chosen={chosen} meId={meId} nameOf={nameOf} />
+        <Wheel order={order} lit={lit} chosen={chosen} meId={meId} nameOf={nameOf} size={draw ? 280 : 220} />
       </View>
       {draw ? (
         <View style={{ alignItems: 'center' }}>
@@ -129,6 +129,7 @@ export default function Roda() {
             <Text style={{ flex: 1, fontSize: 14, fontFamily: fonts.bodyStrong }}>{`${ready} de ${players.length} na roda`}</Text>
             <Text variant="small">{`${lobby?.rules.hunters ?? 1} ${(lobby?.rules.hunters ?? 1) === 1 ? 'caçador' : 'caçadores'}`}</Text>
           </View>
+          <Safety />
         </>
       )}
       <View style={{ flex: 1 }} />
@@ -147,11 +148,39 @@ export default function Roda() {
   );
 }
 
+// Antes de todo mundo sair correndo: as regras de segurança, curtas, na hora
+// em que a crew está junta olhando para a tela.
+const SAFETY = [
+  { c: colors.pink, t: 'Trânsito primeiro', d: 'Atravesse na faixa. Nada de correr na rua.' },
+  { c: colors.lime, t: 'Só lugar público', d: 'Não entre em prédio, loja ou quintal.' },
+  { c: '#5AC8FA', t: 'Celular no bolso', d: 'Olhe a tela parado, não correndo.' },
+  { c: '#FFC83D', t: 'Fique no claro', d: 'Ruas iluminadas e com gente.' },
+];
+
+function Safety() {
+  return (
+    <View style={styles.safety}>
+      <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.paperMuted, letterSpacing: 0.6, textTransform: 'uppercase' }}>Antes de correr</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, rowGap: 10 }}>
+        {SAFETY.map((s) => (
+          <View key={s.t} style={{ width: '50%', flexDirection: 'row', gap: 8, paddingRight: 8 }}>
+            <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: s.c, marginTop: 5 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, lineHeight: 17 }}>{s.t}</Text>
+              <Text variant="small" style={{ lineHeight: 15, fontSize: 11 }}>{s.d}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
+    </View>
+  );
+}
+
 // A roda vista de cima: um celular por pessoa, aceso quando a luz está nele.
-function Wheel({ order, lit, chosen, meId, nameOf }: { order: string[]; lit: string | null; chosen: string[]; meId?: string; nameOf: (id: string) => string }) {
-  const size = 280;
+function Wheel({ order, lit, chosen, meId, nameOf, size = 280 }: { order: string[]; lit: string | null; chosen: string[]; meId?: string; nameOf: (id: string) => string; size?: number }) {
   const c = size / 2;
   const r = size * 0.3;
+  const label = size * 0.157; // distância do nome até o celular
   const n = Math.max(order.length, 1);
   return (
     <Svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
@@ -160,13 +189,13 @@ function Wheel({ order, lit, chosen, meId, nameOf }: { order: string[]; lit: str
         const a = (i / n) * 2 * Math.PI - Math.PI / 2;
         const x = c + r * Math.cos(a);
         const y = c + r * Math.sin(a);
-        const w = n > 8 ? 20 : 28;
+        const w = (n > 8 ? 20 : 28) * (size / 280);
         const h = w * 1.9;
         const on = pid === lit;
         const hunter = chosen.includes(pid);
         const fill = hunter ? colors.pink : on ? colors.lime : colors.inkRaised;
-        const lx = c + (r + 44) * Math.cos(a);
-        const ly = c + (r + 44) * Math.sin(a);
+        const lx = c + (r + label) * Math.cos(a);
+        const ly = c + (r + label) * Math.sin(a);
         return (
           <G key={pid}>
             <G transform={`translate(${x} ${y}) rotate(${(a * 180) / Math.PI + 90})`}>
@@ -254,6 +283,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 14,
   },
+  safety: { marginTop: 10, marginBottom: 14, borderWidth: 1, borderColor: colors.inkBorder, borderRadius: radius.md, paddingVertical: 12, paddingHorizontal: 14 },
   full: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 20 },
   eye: { width: 120, height: 120, borderRadius: 60, backgroundColor: colors.limeInk, alignItems: 'center', justifyContent: 'center' },
   big: { fontFamily: fonts.display, fontSize: 64, lineHeight: 66, letterSpacing: -2.5 },

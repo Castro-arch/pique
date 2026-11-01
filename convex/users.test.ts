@@ -2,7 +2,7 @@
 import { convexTest } from 'convex-test';
 import { describe, expect, test } from 'vitest';
 
-import { api } from './_generated/api';
+import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import schema from './schema';
 
@@ -44,5 +44,24 @@ describe('termos e conta', () => {
     // o lobby de quem ficou continua funcionando
     const lobby = await bia.as.query(api.games.lobby, { gameId });
     expect(lobby).not.toBeNull();
+  });
+});
+
+describe('código de recuperação', () => {
+  test('gerar um código liga ele à conta; gerar outro invalida o anterior', async () => {
+    const { t, ana, bia } = await setup();
+    expect((await ana.as.query(api.recovery.status, {}))!.has).toBe(false);
+    const primeiro = await ana.as.mutation(api.recovery.create, {});
+    expect(primeiro).toMatch(/^[A-Z2-9]{4}-[A-Z2-9]{4}-[A-Z2-9]{4}$/);
+    expect((await ana.as.query(api.recovery.status, {}))!.has).toBe(true);
+    // aceita minúsculas e sem traços
+    expect(await t.query(internal.recovery.userByCode, { code: primeiro.toLowerCase().replace(/-/g, '') })).toBe(ana.id);
+    expect(await t.query(internal.recovery.userByCode, { code: 'AAAA-BBBB-CCCC' })).toBeNull();
+    const segundo = await ana.as.mutation(api.recovery.create, {});
+    expect(await t.query(internal.recovery.userByCode, { code: primeiro })).toBeNull();
+    expect(await t.query(internal.recovery.userByCode, { code: segundo })).toBe(ana.id);
+    // o código da Bia é só dela
+    const daBia = await bia.as.mutation(api.recovery.create, {});
+    expect(await t.query(internal.recovery.userByCode, { code: daBia })).toBe(bia.id);
   });
 });

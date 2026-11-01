@@ -57,11 +57,10 @@ export default function BemVindo() {
         <Appear delay={150} style={{ gap: 10 }}>
           <Button label="Começar" variant="dark" loading={starting} onPress={start} style={styles.go} />
           {error ? <Text style={styles.error}>{error}</Text> : null}
-          {BETA_SEM_LOGIN ? null : (
-            <Text onPress={() => router.push('/como-entrar')} style={styles.link}>
-              Já tenho conta
-            </Text>
-          )}
+          {/* No beta, voltar à conta é com o código de recuperação (Ajustes → Proteger minha conta). */}
+          <Text onPress={() => router.push(BETA_SEM_LOGIN ? '/recuperar' : '/como-entrar')} style={styles.link}>
+            Já tenho conta
+          </Text>
           <Text style={styles.legal}>
             Ao continuar, você aceita os{' '}
             <Text style={styles.legalLink} onPress={() => router.push('/termos')}>

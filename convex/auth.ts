@@ -4,6 +4,7 @@ import { Anonymous } from '@convex-dev/auth/providers/Anonymous';
 import { convexAuth } from '@convex-dev/auth/server';
 
 import { EmailOtp } from './emailOtp';
+import { Recovery } from './recovery';
 
 // Google e Apple só entram quando as credenciais estão configuradas no
 // Convex (AUTH_GOOGLE_ID/SECRET, AUTH_APPLE_ID/SECRET). Sem elas, o app
@@ -22,6 +23,8 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
     EmailOtp,
     // Beta com amigos: conta anônima presa ao celular, sem login (só o nome).
     Anonymous,
+    // Voltar à conta anônima em outro aparelho, com o código de recuperação.
+    Recovery,
     ...(loginProviders.google ? [Google] : []),
     ...(loginProviders.apple ? [Apple] : []),
   ],

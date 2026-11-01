@@ -22,6 +22,7 @@ import type * as play from "../play.js";
 import type * as profile from "../profile.js";
 import type * as push from "../push.js";
 import type * as radio from "../radio.js";
+import type * as recovery from "../recovery.js";
 import type * as rounds from "../rounds.js";
 import type * as streets from "../streets.js";
 import type * as users from "../users.js";
@@ -47,6 +48,7 @@ declare const fullApi: ApiFromModules<{
   profile: typeof profile;
   push: typeof push;
   radio: typeof radio;
+  recovery: typeof recovery;
   rounds: typeof rounds;
   streets: typeof streets;
   users: typeof users;

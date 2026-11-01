@@ -43,9 +43,12 @@ export default defineSchema({
     betaVersion: v.optional(v.number()), // versão do código de convite que a pessoa digitou (beta.ts)
     termsVersion: v.optional(v.string()), // versão dos Termos e da Política que a pessoa aceitou (src/lib/legal.ts)
     termsAt: v.optional(v.number()),
+    recoveryHash: v.optional(v.string()), // hash do código de recuperação (recovery.ts)
+    recoveryAt: v.optional(v.number()),
   })
     .index('email', ['email'])
-    .index('username', ['username']),
+    .index('username', ['username'])
+    .index('recoveryHash', ['recoveryHash']),
 
   // Códigos de convite do teste fechado; o último é o que vale (beta.ts).
   beta_invites: defineTable({ code: v.string(), version: v.number(), createdAt: v.number() }),

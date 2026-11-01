@@ -52,9 +52,11 @@ function Ok({ night }: { night: boolean }) {
         <Perk>Regras e zonas salvas para repetir</Perk>
       </View>
       <Spacer />
-      <Text style={{ fontSize: 12, textAlign: 'center', color: colors.limeInk, opacity: 0.7, marginBottom: 10 }}>
-        Recibo enviado para {me.email}
-      </Text>
+      {me.email ? (
+        <Text style={{ fontSize: 12, textAlign: 'center', color: colors.limeInk, opacity: 0.7, marginBottom: 10 }}>
+          Recibo enviado para {me.email}
+        </Text>
+      ) : null}
       {create.error ? <Text variant="error" style={{ marginBottom: 8, textAlign: 'center' }}>{create.error}</Text> : null}
       <Button variant="dark" label="Criar minha primeira partida" style={{ minHeight: 58 }} loading={create.busy} onPress={create.run} />
     </Screen>
