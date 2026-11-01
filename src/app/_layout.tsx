@@ -63,8 +63,9 @@ export default function RootLayout() {
   );
 }
 
-// Três estados de acesso:
+// Quatro estados de acesso:
 // - sem sessão: grupo (entrada) — boas-vindas, e-mail e código
+// - logado sem convite válido do teste fechado: tela "teste-fechado" (convex/beta.ts)
 // - logado sem usuário: tela "nome" (cadastro)
 // - logado com usuário: grupo (app) — todo o resto
 // Em desenvolvimento, a Galeria de telas liga o modo demonstração, que abre o app sem login.
@@ -82,13 +83,17 @@ function Routes() {
   // Espera saber se há sessão e, logado, se o perfil já carregou.
   if (!demo && (isLoading || (isAuthenticated && me === undefined))) return <Loading />;
 
-  const needsProfile = !demo && isAuthenticated && !!me && !me.username;
-  const inside = demo || (isAuthenticated && !needsProfile);
+  const needsInvite = !demo && isAuthenticated && !!me && !me.betaOk;
+  const needsProfile = !demo && isAuthenticated && !!me && me.betaOk && !me.username;
+  const inside = demo || (isAuthenticated && !needsInvite && !needsProfile);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
       <Stack.Protected guard={!isAuthenticated && !demo}>
         <Stack.Screen name="(entrada)" />
+      </Stack.Protected>
+      <Stack.Protected guard={needsInvite}>
+        <Stack.Screen name="teste-fechado" />
       </Stack.Protected>
       <Stack.Protected guard={needsProfile}>
         <Stack.Screen name="nome" />

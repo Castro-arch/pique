@@ -40,9 +40,13 @@ export default defineSchema({
     isAnonymous: v.optional(v.boolean()),
     username: v.optional(v.string()),
     frame: v.optional(v.string()), // moldura equipada (cosmético)
+    betaVersion: v.optional(v.number()), // versão do código de convite que a pessoa digitou (beta.ts)
   })
     .index('email', ['email'])
     .index('username', ['username']),
+
+  // Códigos de convite do teste fechado; o último é o que vale (beta.ts).
+  beta_invites: defineTable({ code: v.string(), version: v.number(), createdAt: v.number() }),
 
   // Uma partida. A mesma partida pode ter várias rodadas (revanche).
   games: defineTable({

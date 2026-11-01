@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
+import { requireBeta } from './beta';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query, type MutationCtx } from './_generated/server';
 import {
@@ -48,6 +49,7 @@ export const create = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
+    await requireBeta(ctx, userId);
     const name = await displayName(ctx, userId);
 
     // Limite simples contra abuso: até 5 partidas criadas por hora.
@@ -109,6 +111,7 @@ export const join = mutation({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {
     const userId = await requireUser(ctx);
+    await requireBeta(ctx, userId);
     const game = await ctx.db
       .query('games')
       .withIndex('by_code', (q) => q.eq('code', code.trim().toUpperCase()))

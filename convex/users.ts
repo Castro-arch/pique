@@ -2,6 +2,7 @@ import { getAuthUserId } from '@convex-dev/auth/server';
 import { ConvexError, v } from 'convex/values';
 
 import { mutation, query } from './_generated/server';
+import { hasBetaAccess, isBetaAdmin } from './beta';
 import { loginProviders } from './auth';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
@@ -18,6 +19,10 @@ export const me = query({
       name: user.name ?? null,
       username: user.username ?? null,
       email: user.email ?? null,
+      betaOk: await hasBetaAccess(ctx, user),
+      betaAdmin: isBetaAdmin(user.email),
+      // já tinha entrado com um código que foi trocado
+      betaRevoked: user.betaVersion !== undefined && !(await hasBetaAccess(ctx, user)),
     };
   },
 });

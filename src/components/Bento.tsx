@@ -111,7 +111,7 @@ function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: 
     case 'lock':
       return (
         <>
-          <Path d="M20 28v-7a12 12 0 0 1 24 0v7" fill="none" {...l} strokeWidth={5} />
+          <Path d="M20 28v-7a12 12 0 0 1 24 0v7" fill="none" {...l} strokeWidth={Math.max(5, l.strokeWidth)} />
           <Rect x={12} y={28} width={40} height={28} rx={8} fill={color} {...l} />
           <Circle cx={32} cy={42} r={4} fill={K} />
         </>

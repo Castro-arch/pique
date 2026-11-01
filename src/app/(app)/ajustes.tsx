@@ -1,4 +1,6 @@
 import { useAuthActions } from '@convex-dev/auth/react';
+import { useMutation, useQuery } from 'convex/react';
+import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { MapPin } from '@/components/icons';
 import { useState } from 'react';
@@ -11,8 +13,69 @@ import { Text } from '@/components/Text';
 import { setDemoMode, useDemoMode } from '@/lib/demoMode';
 import { useMe } from '@/lib/useMe';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { api } from '../../../convex/_generated/api';
 
 // 3.6 Configurações
+// Só para quem administra o teste fechado (convex/beta.ts): o código de convite
+// atual e o botão de gerar outro, que tira o acesso de quem entrou com o anterior.
+function BetaInvite() {
+  const view = useQuery(api.beta.adminView, {});
+  const rotate = useMutation(api.beta.rotate);
+  const [confirm, setConfirm] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  if (!view) return null;
+  const copy = async () => {
+    if (!view.code) return;
+    await Clipboard.setStringAsync(view.code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+  const make = async () => {
+    if (!confirm && view.code) return setConfirm(true);
+    setBusy(true);
+    try {
+      await rotate({});
+    } finally {
+      setBusy(false);
+      setConfirm(false);
+    }
+  };
+  return (
+    <>
+      <SectionLabel>Convite do teste</SectionLabel>
+      <View style={styles.invite}>
+        <Text variant="small">{view.code ? 'Código que vale agora' : 'Ainda não tem código: o app está aberto para todos.'}</Text>
+        {view.code ? (
+          <>
+            <Text style={styles.inviteCode} selectable>
+              {view.code}
+            </Text>
+            <Text variant="small">{`${view.members} ${view.members === 1 ? 'pessoa entrou' : 'pessoas entraram'} com ele`}</Text>
+          </>
+        ) : null}
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+          {view.code ? (
+            <Pressable accessibilityRole="button" onPress={copy} style={[styles.inviteBtn, { backgroundColor: colors.inkBorder }]}>
+              <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14 }}>{copied ? 'Copiado!' : 'Copiar'}</Text>
+            </Pressable>
+          ) : null}
+          <Pressable accessibilityRole="button" disabled={busy} onPress={make} style={[styles.inviteBtn, { flex: 1, backgroundColor: confirm ? colors.pink : colors.lime }]}>
+            <Text style={{ fontFamily: fonts.bodyStrong, fontSize: 14, color: confirm ? colors.paper : colors.limeInk }}>
+              {busy ? 'Gerando…' : confirm ? 'Confirmar: todos perdem o acesso' : view.code ? 'Gerar código novo' : 'Criar código e fechar o teste'}
+            </Text>
+          </Pressable>
+        </View>
+        {confirm ? (
+          <Text variant="small" style={{ marginTop: 8 }} onPress={() => setConfirm(false)}>
+            Quem entrou com {view.code} vai precisar do código novo. Toque aqui para cancelar.
+          </Text>
+        ) : null}
+      </View>
+    </>
+  );
+}
+
 export default function Ajustes() {
   const me = useMe();
   const demo = useDemoMode();
@@ -42,6 +105,8 @@ export default function Ajustes() {
         <ListRow title="Meu visual" value="Moldura e cosméticos" chevron onPress={() => router.push('/visual')} />
         <ListRow title="E-mail" value={me.email} last />
       </ListGroup>
+
+      {demo ? null : <BetaInvite />}
 
       <SectionLabel>Privacidade</SectionLabel>
       <View style={styles.privacy}>
@@ -98,6 +163,9 @@ export default function Ajustes() {
 }
 
 const styles = StyleSheet.create({
+  invite: { backgroundColor: colors.inkRaised, borderWidth: 1, borderColor: colors.inkBorder, borderRadius: radius.lg, padding: 16 },
+  inviteCode: { fontFamily: fonts.display, fontSize: 40, letterSpacing: 4, color: colors.lime, marginVertical: 4 },
+  inviteBtn: { height: 44, borderRadius: 999, paddingHorizontal: 18, alignItems: 'center', justifyContent: 'center' },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 44 },
   privacy: {
     flexDirection: 'row',
