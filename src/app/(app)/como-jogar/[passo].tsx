@@ -354,7 +354,14 @@ export default function ComoJogar() {
   const { width: W, height: Hh } = useWindowDimensions();
   const [i, setI] = useState(() => Math.min(Math.max(Number(passo) - 1 || 0, 0), steps.length - 1));
   const [paused, setPaused] = useState(false);
-  const [cardTop, setCardTop] = useState(Hh - 260);
+  // Onde o cartão começa = altura da tela - (altura do cartão + margem de baixo).
+  // As duas alturas são medidas: no celular a tela encolhe quando as barras do
+  // navegador aparecem, o cartão sobe junto sem mudar de tamanho (e sem avisar),
+  // e a ação do mapa descia para trás dele.
+  const [rootH, setRootH] = useState(Hh);
+  const [cardH, setCardH] = useState(240);
+  const cardBottom = Math.max(insets.bottom, 16) + 12;
+  const cardTop = rootH - cardBottom - cardH;
   const s = steps[i];
   const last = i === steps.length - 1;
   const [sound, setSound] = useState(() => narrationOn());
@@ -472,7 +479,7 @@ export default function ComoJogar() {
   // Espaço livre para o mapa mostrar a ação: entre o placar e o cartão.
   const hudScale = 0.74;
   const top = Math.max(insets.top, 20) + 30 + (s.hud ? 205 * hudScale : 0) + (s.view ? 34 : 0);
-  const padding = useMemo(() => ({ top, bottom: Math.max(0, Hh - cardTop + 24), left: 30, right: 30 }), [top, Hh, cardTop]);
+  const padding = useMemo(() => ({ top, bottom: Math.max(0, rootH - cardTop + 24), left: 30, right: 30 }), [top, rootH, cardTop]);
   const freeMid = top + Math.max(120, cardTop - 24 - top) / 2;
 
   // Quem anda por onde neste passo.
@@ -519,7 +526,7 @@ export default function ComoJogar() {
   const held = (v.used ? [] : [...new Set([...(v.held ?? []), ...pickedNow])]).map((kind) => ({ id: `h-${kind}`, kind }));
 
   return (
-    <View style={[{ flex: 1, backgroundColor: colors.inkSunken }, NO_SELECT]}>
+    <View style={[{ flex: 1, backgroundColor: colors.inkSunken }, NO_SELECT]} onLayout={(e) => setRootH(Math.round(e.nativeEvent.layout.height))}>
       <TutorialMap camera={s.camera} padding={padding} zoneRadius={v.zone ?? 0} movers={movers} marks={marks} rate={rate} />
       {s.dim ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(11,14,17,${s.dim})` }]} /> : null}
       {s.roda ? <Roda cx={W / 2} cy={freeMid} lit={v.litStop ?? Math.floor(secs * 3) % 6} /> : null}
@@ -604,7 +611,7 @@ export default function ComoJogar() {
       {i > 0 ? <Arrow side="left" top={freeMid - 18} onPress={() => go(i - 1)} /> : null}
       {!last ? <Arrow side="right" top={freeMid - 18} onPress={() => go(i + 1)} pulse={i === 0} /> : null}
 
-      <View style={[styles.cardBox, { bottom: Math.max(insets.bottom, 16) + 12 }]} pointerEvents={last ? 'box-none' : 'none'} onLayout={(e) => setCardTop(e.nativeEvent.layout.y)}>
+      <View style={[styles.cardBox, { bottom: cardBottom }]} pointerEvents={last ? 'box-none' : 'none'} onLayout={(e) => setCardH(Math.round(e.nativeEvent.layout.height))}>
         {leaving !== null ? (
           <Animated.View
             pointerEvents="none"

@@ -23,6 +23,9 @@ export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const zoneNow = useRef(0);
+  // Último enquadramento pedido, para reenquadrar quando a tela muda de tamanho.
+  const view = useRef({ camera, padding });
+  view.current = { camera, padding };
 
   useEffect(() => {
     if (!el.current) return;
@@ -41,7 +44,19 @@ export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail
       return;
     }
     m.on('load', () => setMap(m));
+    // No celular as barras do navegador mudam a altura da tela depois de abrir:
+    // sem isso o mapa ficava com o tamanho antigo e a ação descia para trás do cartão.
+    const ro =
+      typeof ResizeObserver !== 'undefined'
+        ? new ResizeObserver(() => {
+            m.resize();
+            const { camera: c, padding: p } = view.current;
+            m.jumpTo({ center: c.center, zoom: c.zoom, padding: p });
+          })
+        : null;
+    ro?.observe(el.current);
     return () => {
+      ro?.disconnect();
       setMap(null);
       m.remove();
     };
