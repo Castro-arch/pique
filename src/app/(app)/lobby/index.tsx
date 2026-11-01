@@ -13,6 +13,7 @@ import { Appear, Pressy, stagger } from '@/components/Motion';
 import { OutlinedText } from '@/components/OutlinedText';
 import type { Side } from '@/components/RoleTag';
 import { Text } from '@/components/Text';
+import { track } from '@/lib/analytics';
 import { match, players as demoPlayers } from '@/lib/demo';
 import { useFollowRound, useLobby } from '@/lib/game';
 import { inviteLink } from '@/lib/qr';
@@ -45,7 +46,10 @@ export default function Lobby() {
     ? lobby.players.map((p) => ({ key: p.id, name: p.isMe ? 'Você' : p.name, fullName: p.name, side: p.side, ready: p.ready || p.isHost, frame: p.frame, photo: undefined }))
     : demoPlayers.map((p) => ({ key: p.id, name: p.id === 'castro' ? 'Você' : p.name, fullName: p.name, side: p.role, ready: true, frame: null, photo: p.photo }));
 
-  const share = () => Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link ${inviteLink(code)}` });
+  const share = () => {
+    track('invite_shared', { from: 'lobby' });
+    return Share.share({ message: `Bora jogar Pique? Entra com o código ${code} ou pelo link ${inviteLink(code)}` });
+  };
   const copy = async () => {
     await Clipboard.setStringAsync(code);
     setCopied(true);

@@ -10,6 +10,7 @@ import { BackButton } from '@/components/Nav';
 import { Button } from '@/components/Button';
 import { Appear, SlideUp, stagger } from '@/components/Motion';
 import { Text } from '@/components/Text';
+import { track } from '@/lib/analytics';
 import { useDemoMode } from '@/lib/demoMode';
 import { useJoinGame } from '@/lib/game';
 import { inviteLink, profileLink } from '@/lib/qr';
@@ -43,12 +44,14 @@ export default function Crew() {
     if (r.ok) router.push({ pathname: '/aguardando', params: { id: r.gameId } });
   };
   // "Chamar": com partida aberta manda o convite dela; sem, o meu perfil.
-  const call = (name: string) =>
-    Share.share({
+  const call = (name: string) => {
+    track('invite_shared', { from: 'crew' });
+    return Share.share({
       message: myLobby
         ? `${name}, bora jogar Pique? Entra na minha partida: ${inviteLink(myLobby.code)}`
         : `${name}, me adiciona no Pique: ${profileLink(me.username)}`,
     });
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: BENTO.ink }}>

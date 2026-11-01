@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { notify } from './alerts';
+import { track } from './analytics';
 import { recordRound } from './profile';
 import { isChoosing } from './games';
 import { internal } from './_generated/api';
@@ -208,6 +209,14 @@ async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<
   await ctx.scheduler.runAt(endsAt, internal.rounds.end, { gameId, round, reason: 'time' });
   await systemMessage(ctx, gameId, `Os corredores têm ${r.headStartMin} min de vantagem.`);
   const who = await inRound(ctx, gameId);
+  await track(
+    ctx,
+    who.all.map((p) => ({
+      event: 'match_started' as const,
+      userId: p.userId,
+      props: { game_id: gameId, round, players_count: who.all.length, hunters: who.all.filter((x) => x.role === 'hunter').length, role: p.role!, duration_min: r.durationMin },
+    })),
+  );
   await notify(ctx, who.runners, 'start', 'A rodada começou: você corre', `Você tem ${r.headStartMin} min de vantagem. Suma!`);
   await notify(ctx, who.hunters, 'start', 'A rodada começou: você caça', `Os corredores têm ${r.headStartMin} min de vantagem. Espere parado.`);
   return { round };
@@ -405,6 +414,15 @@ export const end = internalMutation({
       at: now,
     });
     await recordRound(ctx, game, players, winner, now);
+    const played = players.filter((p) => p.state !== 'left' && p.role);
+    await track(
+      ctx,
+      played.map((p) => ({
+        event: 'match_finished' as const,
+        userId: p.userId,
+        props: { game_id: gameId, round, players_count: played.length, duration_s: Math.round((now - (game.startedAt ?? now)) / 1000), winner, reason, role: p.role!, won: p.role === winner },
+      })),
+    );
     await deleteAudio(ctx, gameId);
     await notify(
       ctx,

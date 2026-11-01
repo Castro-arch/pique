@@ -12,6 +12,7 @@ import { MapBackdrop } from '@/components/MapBackdrop';
 import { CloseButton } from '@/components/Nav';
 import { Screen } from '@/components/Screen';
 import { Headline, Text } from '@/components/Text';
+import { track } from '@/lib/analytics';
 import { illustrations, match, photos } from '@/lib/demo';
 import { colors, fonts, radius } from '@/theme/tokens';
 
@@ -26,7 +27,10 @@ const route = 'M70 330 C90 280 70 240 120 210 C160 186 150 140 200 120 C240 104 
 export default function Post() {
   const { visual: initial = 'mapa' } = useLocalSearchParams<{ visual?: Visual }>();
   const [visual, setVisual] = useState<Visual>(initial);
-  const share = () => Share.share({ message: `Fiquei 30:00 escondido no Pique e ninguém me achou. Bora? https://pique.app/p/${match.code}` });
+  const share = () => {
+    track('invite_shared', { from: 'post' });
+    return Share.share({ message: `Fiquei 30:00 escondido no Pique e ninguém me achou. Bora? https://pique.app/p/${match.code}` });
+  };
 
   return (
     <Screen scroll>

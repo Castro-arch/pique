@@ -9,6 +9,7 @@ import { OutlinedText } from '@/components/OutlinedText';
 import { Text } from '@/components/Text';
 import { TutorialMap } from '@/components/TutorialMap';
 import type { TutorialMover } from '@/components/tutorialMapTypes';
+import { track } from '@/lib/analytics';
 import { NARRATION } from '@/lib/narration';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { TUTORIAL_CENTER, TUTORIAL_ROUTES, type LngLat, type Who } from '@/lib/tutorialRoutes';
@@ -34,8 +35,15 @@ export default function ComecarTutorial() {
     return { id: who, route, runKey: `${who}-${lap}`, delay: who === 'L' ? 700 : 0, zIndex: who === 'L' ? 5 : 2, node: <Dot who={who} /> };
   });
 
-  const start = () => router.replace({ pathname: '/como-jogar/[passo]', params: { passo: '1', ...(de ? { de } : {}) } });
-  const skip = () => (router.canGoBack() ? router.back() : router.replace('/'));
+  const start = () => {
+    track('tutorial_intro', { action: 'start' });
+    router.replace({ pathname: '/como-jogar/[passo]', params: { passo: '1', ...(de ? { de } : {}) } });
+  };
+  const skip = () => {
+    track('tutorial_intro', { action: 'skip' });
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: BENTO.ink }}>

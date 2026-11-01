@@ -10,6 +10,7 @@ import { ListGroup, ListRow, SectionLabel } from '@/components/Card';
 import { Toggle } from '@/components/Controls';
 import { Screen } from '@/components/Screen';
 import { Text } from '@/components/Text';
+import { resetAnalytics, track } from '@/lib/analytics';
 import { BETA_SEM_LOGIN } from '@/lib/beta';
 import { setDemoMode, useDemoMode } from '@/lib/demoMode';
 import { CONTACT_EMAIL } from '@/lib/legal';
@@ -101,6 +102,7 @@ function ProtectAccount() {
     setBusy(true);
     try {
       setCode(await create({}));
+      track('recovery_code_created', { replaced: status.has });
     } finally {
       setBusy(false);
       setConfirm(false);
@@ -172,7 +174,10 @@ export default function Ajustes() {
 
   async function leave() {
     if (demo) setDemoMode(false);
-    else await signOut();
+    else {
+      resetAnalytics();
+      await signOut();
+    }
   }
 
   return (

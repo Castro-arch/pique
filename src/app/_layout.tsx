@@ -6,7 +6,7 @@ import { Inter_600SemiBold } from '@expo-google-fonts/inter/600SemiBold';
 import { ConvexAuthProvider } from '@convex-dev/auth/react';
 import { useConvexAuth, useMutation, useQuery } from 'convex/react';
 import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
+import { Stack, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
@@ -17,6 +17,7 @@ import { SetupMissing } from '@/components/SetupMissing';
 import { api } from '../../convex/_generated/api';
 import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
 import '@/lib/shoutSound'; // no site, destrava o som do grito no primeiro toque
+import { identify, track } from '@/lib/analytics';
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
 import { LEGAL_VERSION } from '@/lib/legal';
@@ -81,6 +82,17 @@ function Routes() {
   useEffect(() => {
     if (isAuthenticated && me?.username) enablePush(saveSubscription).catch(() => {});
   }, [isAuthenticated, me?.username, saveSubscription]);
+
+  // Analytics: liga o site à conta e conta as telas abertas, pelo nome do
+  // arquivo ("convite/[codigo]"), nunca pelo endereço (que tem código e @).
+  useEffect(() => {
+    if (me?._id) identify(me._id);
+  }, [me?._id]);
+  const segments = useSegments();
+  const screen = segments.filter((s) => !s.startsWith('(')).join('/') || 'inicio';
+  useEffect(() => {
+    track('screen_viewed', { screen });
+  }, [screen]);
 
   // Espera saber se há sessão e, logado, se o perfil já carregou.
   if (!demo && (isLoading || (isAuthenticated && me === undefined))) return <Loading />;

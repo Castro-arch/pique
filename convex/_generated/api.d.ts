@@ -10,6 +10,7 @@
 
 import type * as admin from "../admin.js";
 import type * as alerts from "../alerts.js";
+import type * as analytics from "../analytics.js";
 import type * as auth from "../auth.js";
 import type * as beta from "../beta.js";
 import type * as cosmetics from "../cosmetics.js";
@@ -36,6 +37,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   alerts: typeof alerts;
+  analytics: typeof analytics;
   auth: typeof auth;
   beta: typeof beta;
   cosmetics: typeof cosmetics;

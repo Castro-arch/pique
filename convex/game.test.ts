@@ -828,3 +828,50 @@ test('limpeza apaga a partida depois de 7 dias', async () => {
   expect(await s.t.run((ctx) => ctx.db.get(s.gameId))).toBeNull();
   expect(await s.t.run((ctx) => ctx.db.query('players').collect())).toHaveLength(0);
 });
+
+describe('analytics', () => {
+  test('manda os eventos da partida ao PostHog, sem posição nem nome', async () => {
+    process.env.POSTHOG_KEY = 'phc_teste';
+    const sent: { event: string; distinct_id: string; properties: Record<string, unknown> }[] = [];
+    let raw = '';
+    vi.stubGlobal('fetch', async (url: string, init?: { body?: string }) => {
+      if (String(url).includes('posthog')) {
+        raw += init?.body ?? '';
+        sent.push(...JSON.parse(init!.body!).batch);
+        return new Response('{}', { status: 200 });
+      }
+      return new Response('', { status: 503 });
+    });
+    try {
+      const s = await lobbyWith4();
+      await startWithLeoHunting(s);
+      await move(s.priya, s.gameId, north(20));
+      await advance(s.t, 34 * MIN); // vantagem + 30 min: acaba pelo tempo
+      await advance(s.t, 0); // o envio do fim é agendado pelo próprio fim
+      const count = (e: string) => sent.filter((x) => x.event === e).length;
+      expect(count('match_created')).toBe(1);
+      expect(count('match_joined')).toBe(3);
+      expect(count('match_started')).toBe(4);
+      expect(count('match_finished')).toBe(4);
+      const fim = sent.filter((x) => x.event === 'match_finished');
+      expect(fim.every((x) => x.properties.winner === 'runner')).toBe(true);
+      expect(fim.filter((x) => x.properties.won).length).toBe(3);
+      // privacidade: nada de coordenadas, nomes ou e-mails
+      expect(raw).not.toMatch(/lat|lng|Castro|Priya|Leo|Teo|@/);
+    } finally {
+      delete process.env.POSTHOG_KEY;
+    }
+  });
+
+  test('sem chave do PostHog não manda nada', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal('fetch', async (url: string) => {
+      calls.push(String(url));
+      return new Response('', { status: 503 });
+    });
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await advance(s.t, 1 * MIN);
+    expect(calls.filter((u) => u.includes('posthog'))).toEqual([]);
+  });
+});

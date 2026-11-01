@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
+import { track } from './analytics';
 import { requireBeta } from './beta';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query, type MutationCtx } from './_generated/server';
@@ -77,6 +78,7 @@ export const create = mutation({
     await ctx.db.insert('players', { gameId, userId, name, side: 'runner', ready: true, state: 'active', joinedAt: Date.now() });
     // Partidas são apagadas 7 dias depois de criadas (documento: retenção curta).
     await ctx.scheduler.runAfter(7 * 24 * 60 * MIN, internal.rounds.cleanup, { gameId });
+    await track(ctx, [{ event: 'match_created', userId, props: { game_id: gameId } }]);
     return { gameId, code };
   },
 });
@@ -135,6 +137,7 @@ export const join = mutation({
     } else {
       await ctx.db.insert('players', { gameId: game._id, userId, name, side: 'draw', ready: false, state: 'active', joinedAt: Date.now() });
     }
+    await track(ctx, [{ event: 'match_joined', userId, props: { game_id: game._id, players_count: players.length + 1 } }]);
     return { gameId: game._id };
   },
 });

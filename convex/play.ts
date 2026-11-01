@@ -1,6 +1,7 @@
 import { ConvexError, v } from 'convex/values';
 
 import { notify } from './alerts';
+import { track } from './analytics';
 import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
@@ -402,6 +403,7 @@ async function caught(ctx: MutationCtx, runner: Doc<'players'>, hunter: Doc<'pla
     rescue: undefined,
     jail: pos ? { lat: pos.lat, lng: pos.lng, at: Date.now() } : undefined,
   });
+  if (game) await track(ctx, [{ event: 'player_caught', userId: runner.userId, props: { game_id: runner.gameId, round: game.round, seconds_alive: Math.round((Date.now() - (game.startedAt ?? Date.now())) / 1000) } }]);
   const free = (await gamePlayers(ctx, runner.gameId)).filter((p) => p.role === 'runner' && p.state === 'active').length;
   const who = hunter ? `${hunter.name} pegou ${runner.name}` : `${runner.name} foi pego`;
   await systemMessage(ctx, runner.gameId, `${who}. ${free === 1 ? 'Resta 1 corredor' : `Restam ${free} corredores`}.`);

@@ -7,6 +7,7 @@ import QRCode from 'react-native-qrcode-svg';
 import { Button } from '@/components/Button';
 import { Sheet } from '@/components/Sheet';
 import { Text } from '@/components/Text';
+import { track } from '@/lib/analytics';
 import { match } from '@/lib/demo';
 import { inviteLink } from '@/lib/qr';
 import { useLobby } from '@/lib/game';
@@ -43,7 +44,10 @@ export default function QRLobby() {
 
         <View style={{ flex: 1 }} />
         <View style={{ flexDirection: 'row', gap: 8, alignSelf: 'stretch' }}>
-          <Button label="Mandar link" style={{ flex: 1 }} onPress={() => Share.share({ message: `Bora jogar Pique? ${link}` })} />
+          <Button label="Mandar link" style={{ flex: 1 }} onPress={() => {
+            track('invite_shared', { from: 'qr' });
+            Share.share({ message: `Bora jogar Pique? ${link}` });
+          }} />
           <Button variant="secondary" label="Copiar código" style={{ flex: 1, backgroundColor: colors.ink }} onPress={() => Clipboard.setStringAsync(code)} />
         </View>
       </Sheet>

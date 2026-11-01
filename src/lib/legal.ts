@@ -5,7 +5,7 @@
 // advogado. Mudou o texto de um jeito que importa? Suba LEGAL_VERSION: todo
 // mundo vê a tela de aceite de novo (convex/users.ts, acceptTerms).
 
-export const LEGAL_VERSION = '2026-11-01';
+export const LEGAL_VERSION = '2026-11-01.2'; // .2: analytics (PostHog) na Política de privacidade
 export const LEGAL_DATE = '1º de novembro de 2026';
 export const CONTACT_EMAIL = 'contatar.arthurcastro@gmail.com';
 export const CONTROLLER = 'José Arthur de Castro Tavares';
@@ -84,6 +84,7 @@ export const PRIVACY: LegalSection[] = [
       '• Partida: o lado que você escolheu, quem pegou quem, as mensagens e os áudios do rádio do seu time, e os avisos do jogo.',
       '• Perfil e amigos: suas estatísticas (partidas, vitórias, distância), medalhas, pedidos de amizade, a moldura equipada e os cosméticos que você tem.',
       '• Avisos: se você permitir, o endereço de notificação do seu navegador ou celular, para mandar os avisos da partida.',
+      '• Uso do app: quais telas você abre, se viu o tutorial, quando compartilha um convite e os números das partidas (quantas pessoas, duração, seu papel e se ganhou). Tudo ligado só ao número da sua conta: sem localização, sem nome, sem @ e sem o que você escreve ou fala.',
       '• Técnico: dados básicos de acesso que os serviços que usamos registram (como endereço IP e horário), para o app funcionar e ficar seguro.',
       'Não vendemos seus dados, não mostramos anúncios e não usamos seus dados para fazer perfil de publicidade.',
     ],
@@ -91,7 +92,7 @@ export const PRIVACY: LegalSection[] = [
   {
     title: 'Para que usamos',
     body: [
-      'Para criar sua conta e fazer o jogo funcionar (base legal: execução do contrato, os termos que você aceitou), para manter o app seguro e evitar abusos (legítimo interesse), e para cumprir a lei. A localização e o microfone só são usados com a sua permissão no celular, e você pode retirar essa permissão quando quiser nos ajustes do aparelho.',
+      'Para criar sua conta e fazer o jogo funcionar (base legal: execução do contrato, os termos que você aceitou), para manter o app seguro e evitar abusos, para entender como o jogo é usado e melhorar ele (legítimo interesse), e para cumprir a lei. A localização e o microfone só são usados com a sua permissão no celular, e você pode retirar essa permissão quando quiser nos ajustes do aparelho.',
     ],
   },
   {
@@ -107,6 +108,7 @@ export const PRIVACY: LegalSection[] = [
       '• Áudios do rádio: apagados quando a rodada acaba.',
       '• Partida (posições, mensagens, avisos, quem pegou quem): apagada 7 dias depois de criada. Fica só um resumo sem nomes (quantas pessoas, duração e quem venceu).',
       '• Conta, perfil, estatísticas e amigos: enquanto você tiver a conta. Ao excluir a conta, apagamos esses dados.',
+      '• Uso do app (analytics): até 1 ano. Depois que você exclui a conta, o número ao qual esses dados estão ligados não aponta mais para ninguém.',
       '• Registros de acesso: pelo tempo que a lei exige (até 6 meses), quando for o caso.',
     ],
   },
@@ -117,6 +119,7 @@ export const PRIVACY: LegalSection[] = [
       '• Convex: servidor e banco de dados do jogo;',
       '• Expo: hospedagem do site;',
       '• Resend: envio do código de login por e-mail;',
+      '• PostHog: estatísticas de uso do app (o que está em "Uso do app" acima), sem localização e sem gravação de tela;',
       '• Google e Apple: só se você escolher entrar com eles;',
       '• OpenFreeMap e OpenStreetMap: os mapas (seu celular baixa os mapas direto deles; para achar as ruas onde os boosts aparecem, enviamos só o centro e o tamanho da zona, sem nenhum nome);',
       '• serviços de notificação do navegador e do celular (Apple, Google, Mozilla), se você ligar os avisos.',

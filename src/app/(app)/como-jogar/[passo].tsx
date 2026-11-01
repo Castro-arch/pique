@@ -11,6 +11,7 @@ import { Appear, Pressy } from '@/components/Motion';
 import { Text } from '@/components/Text';
 import { routeMs, TutorialMap } from '@/components/TutorialMap';
 import type { TutorialMark, TutorialMover } from '@/components/tutorialMapTypes';
+import { track } from '@/lib/analytics';
 import { useCreateGame } from '@/lib/game';
 import { NARRATION, narrationOn, narrationPosition, narrationSpeed, onNarrationEnd, pauseNarration, playNarration, resumeNarration, setNarrationOn, setNarrationSpeed, stopNarration } from '@/lib/narration';
 import { useScreenInsets } from '@/lib/screenInsets';
@@ -474,7 +475,14 @@ export default function ComoJogar() {
     if (!sound || !NARRATION[i] || last || paused) return;
     if (ms > sayMs + 2500) go(i + 1);
   }, [ms]); // eslint-disable-line react-hooks/exhaustive-deps
-  const leave = () => router.replace('/');
+  // Analytics: chegou ao último passo (completou) ou saiu antes, em qual passo.
+  useEffect(() => {
+    if (last) track('tutorial_closed', { step: i + 1, of: steps.length, completed: true });
+  }, [last]); // eslint-disable-line react-hooks/exhaustive-deps
+  const leave = () => {
+    if (!last) track('tutorial_closed', { step: i + 1, of: steps.length, completed: false });
+    router.replace('/');
+  };
 
   // Espaço livre para o mapa mostrar a ação: entre o placar e o cartão.
   const hudScale = 0.74;
