@@ -27,13 +27,17 @@ export default function Recuperar() {
     if (clean.length !== 12 || busy) return;
     setBusy(true);
     setError(null);
+    const wrong = 'Esse código não confere com nenhuma conta. Confira as letras e tente de novo.';
     try {
-      await signIn('recovery', { code: clean });
+      // código errado não dá erro: o servidor só responde sem sessão
+      const { signingIn } = await signIn('recovery', { code: clean });
       // com a sessão de volta, as rotas levam para o app sozinhas
+      if (signingIn) return;
+      setError(wrong);
     } catch {
-      setError('Esse código não confere com nenhuma conta. Confira as letras e tente de novo.');
-      setBusy(false);
+      setError('Não deu para entrar agora. Confira a internet e tente de novo.');
     }
+    setBusy(false);
   }
 
   return (
