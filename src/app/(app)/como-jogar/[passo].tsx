@@ -4,14 +4,15 @@ import { Animated, Easing, Pressable, StyleSheet, useWindowDimensions, View } fr
 
 import { ArcHud, type ArcStatus } from '@/components/ArcHud';
 import { BENTO, Sticker, type StickerKind } from '@/components/Bento';
-import { BOOSTS, BoostSticker, type BoostKind } from '@/components/Boosts';
+import { BoostSticker, type BoostKind } from '@/components/Boosts';
 import { Button } from '@/components/Button';
-import { ChevronLeft, ChevronRight } from '@/components/icons';
+import { ChevronLeft, ChevronRight, Volume2, VolumeX } from '@/components/icons';
 import { Appear, Pressy } from '@/components/Motion';
 import { Text } from '@/components/Text';
 import { routeMs, TutorialMap } from '@/components/TutorialMap';
 import type { TutorialMark, TutorialMover } from '@/components/tutorialMapTypes';
 import { useCreateGame } from '@/lib/game';
+import { NARRATION, narrationOn, pauseNarration, playNarration, resumeNarration, setNarrationOn, stopNarration } from '@/lib/narration';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { TUTORIAL_CENTER, TUTORIAL_ROUTES, TUTORIAL_SPOTS, type LngLat, type Who } from '@/lib/tutorialRoutes';
 import { colors, fonts } from '@/theme/tokens';
@@ -20,6 +21,7 @@ import { colors, fonts } from '@/theme/tokens';
 // ruas de verdade. A câmera voa e dá zoom a cada passo, as pessoas correm pelas
 // ruas, a zona cresce e encolhe, e cada boost é pego e mostrado funcionando.
 // Em cima, o placar real do jogo. Passa sozinho; segurar pausa; setas dos lados.
+// Uma narradora fala cada passo (src/lib/narration); o passo dura o tempo da fala.
 
 const PAPER = colors.paper;
 const LIME = colors.lime;
@@ -33,7 +35,7 @@ const spot = (k: Spot): LngLat => [TUTORIAL_SPOTS[k][0], TUTORIAL_SPOTS[k][1]];
 const mid = (a: LngLat, b: LngLat): LngLat => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
 
 type Hud = { timeLabel: string; time: number; pingLabel: string; ping: number; progress: number; free: number; zone: number; zoneNote: string; status: ArcStatus; statusLabel: string };
-type Extra = 'lock' | 'ghost' | 'fake' | 'shield' | 'heart' | 'mega' | 'hand' | 'rescue';
+type Extra = 'lock' | 'ghost' | 'fake' | 'shield' | 'heart' | 'mega' | 'hand' | 'rescue' | 'question';
 type Step = {
   kicker: string;
   tone: string;
@@ -55,6 +57,10 @@ type Step = {
   dim?: number;
 };
 
+// O que pode mudar no meio de um passo, no ritmo da fala.
+type Look = Partial<Pick<Step, 'hidden' | 'labels' | 'jailed' | 'pulse' | 'extras' | 'zone' | 'held'>> & { status?: ArcStatus; statusLabel?: string; used?: boolean; litStop?: number };
+type Timeline = { beats?: { at: number; set: Look }[]; delays?: Partial<Record<Who, number>> }; // at/delays: fração da fala (0 a 1)
+
 const H = (o: Partial<Hud>): Hud => ({ timeLabel: 'Tempo restante', time: 28 * 60, pingLabel: 'ping em', ping: 60, progress: 0.5, free: 4, zone: 300, zoneNote: 'diâmetro', status: 'hidden', statusLabel: 'Ninguém te vê agora', ...o });
 
 const steps: Step[] = [
@@ -64,7 +70,7 @@ const steps: Step[] = [
     kicker: 'A RODA',
     tone: PINK,
     title: 'Juntem os celulares.',
-    body: 'Uma luz passa de celular em celular e para em quem vai caçar. Ninguém escolhe, é sorte.',
+    body: 'Pra começar, todo mundo coloca o celular no meio da roda. Uma luz vai passando de celular em celular e para em quem vai ser o caçador. É sorteio: ninguém escolhe. Quem não for caçador é corredor.',
     sticker: ['crew', LIME],
     camera: { center: CENTER, zoom: 13.6 },
     zone: 0,
@@ -74,7 +80,7 @@ const steps: Step[] = [
     kicker: 'A ZONA',
     tone: '#5E8C00',
     title: 'O jogo acontece aqui.',
-    body: 'Quem cria a partida marca um círculo no mapa, nas ruas de verdade. Ninguém pode sair dele.',
+    body: 'Quem cria a partida marca um círculo no mapa: essa é a zona. O jogo acontece só aqui dentro, nas ruas de verdade. Todo mundo começa junto, no meio.',
     sticker: ['pin', '#FFC23D'],
     camera: { center: CENTER, zoom: 15.7 },
     zone: 150,
@@ -85,7 +91,7 @@ const steps: Step[] = [
     kicker: 'VANTAGEM',
     tone: '#5E8C00',
     title: 'Corra e se esconda.',
-    body: 'Os corredores saem na frente pelas ruas. Por 1 minuto o caçador fica travado no meio, sem ver ninguém.',
+    body: 'Quando a partida começa, os corredores saem correndo pra se esconder. O caçador fica travado no meio por um minuto, sem ver ninguém no mapa. Essa é a sua vantagem: use pra se afastar.',
     sticker: ['run', LIME],
     hud: H({ timeLabel: 'Vantagem', time: 42, pingLabel: '1º ping em', ping: 102, progress: 0, statusLabel: 'Ninguém te vê agora' }),
     camera: { center: CENTER, zoom: 15.7 },
@@ -98,7 +104,7 @@ const steps: Step[] = [
     kicker: 'ESCONDIDOS',
     tone: '#1E8FD0',
     title: 'O caçador não vê ninguém…',
-    body: 'Acabou a vantagem: ele sai procurando, mas o mapa dele fica vazio. Os corredores não aparecem.',
+    body: 'Acabou a vantagem, o caçador sai procurando. Mas, no mapa dele, os corredores não aparecem. Ele não sabe onde ninguém está.',
     sticker: ['ghost', '#B57CFF'],
     hud: H({ time: 28 * 60 + 40, ping: 20, progress: 0.84, status: 'team', statusLabel: 'Só sua equipe te vê' }),
     camera: { center: CENTER, zoom: 15.7 },
@@ -111,7 +117,7 @@ const steps: Step[] = [
     kicker: 'O PING',
     tone: '#1E8FD0',
     title: '…até o ping.',
-    body: 'A cada 2 minutos o mapa do caçador mostra onde cada corredor estava naquele segundo.',
+    body: 'A cada dois minutos acontece o ping. Nessa hora, o caçador vê no mapa onde cada corredor estava naquele exato segundo. É a pista que ele tem pra ir atrás de você.',
     sticker: ['radar', '#5AC8FA'],
     hud: H({ ping: 0, progress: 1, status: 'team', statusLabel: 'Só sua equipe te vê' }),
     camera: { center: CENTER, zoom: 15.5 },
@@ -124,7 +130,7 @@ const steps: Step[] = [
     kicker: 'RASTRO',
     tone: '#8A4FE0',
     title: 'O ping é só uma foto.',
-    body: 'Você continua correndo e o caçador vai até onde você estava. Mexa-se logo depois de cada ping.',
+    body: 'Mas o ping é só uma foto. Se você continuar andando, o caçador vai até o lugar onde você estava, e você já não está mais lá. Por isso, logo depois de cada ping, mude de lugar.',
     sticker: ['ghost', '#B57CFF'],
     hud: H({ time: 27 * 60 + 10, ping: 70, progress: 0.42 }),
     camera: { center: mid(spot('se'), spot('leste')), zoom: 16.4 },
@@ -138,7 +144,7 @@ const steps: Step[] = [
     kicker: 'BOOSTS',
     tone: '#1E8FD0',
     title: 'Pegue boosts nas ruas.',
-    body: 'A cada 4 min aparecem 3 boosts só no mapa dos corredores. Passe em cima para pegar; dá para guardar 2.',
+    body: 'Durante a partida aparecem boosts pelas ruas, só no mapa dos corredores. Pra pegar, é só passar em cima. Você pode guardar até dois e usar quando quiser. Mas atenção: ao usar um boost, o caçador te vê ao vivo por alguns segundos.',
     sticker: ['shield', '#5AC8FA'],
     hud: H({ time: 24 * 60 + 30, ping: 90, progress: 0.25 }),
     camera: { center: mid(CENTER, spot('despiste')), zoom: 15.7 },
@@ -156,7 +162,7 @@ const steps: Step[] = [
     kicker: 'DESPISTE · custa 2 s',
     tone: '#5E8C00',
     title: 'O próximo ping te mostra no lugar errado.',
-    body: `${BOOSTS.despiste.effect} O caçador corre para o ponto falso. O preço: ele te vê ao vivo por 2 s quando você usa.`,
+    body: 'O Despiste faz o seu próximo ping aparecer a sessenta metros do lugar certo. O caçador corre pro ponto falso, enquanto você está em outro lugar. Ao usar, ele te vê por dois segundos.',
     sticker: ['shuffle', LIME],
     hud: H({ time: 23 * 60, ping: 0, progress: 1, status: 'team', statusLabel: 'Só sua equipe te vê' }),
     camera: { center: mid(spot('fugaDespiste'), spot('pingFalso')), zoom: 16.2 },
@@ -170,7 +176,7 @@ const steps: Step[] = [
     kicker: 'SOMBRA · custa 5 s',
     tone: '#8A4FE0',
     title: 'Você some do próximo ping.',
-    body: `${BOOSTS.sombra.effect} Os outros aparecem e você não. O preço: o caçador te vê ao vivo por 5 s quando você usa.`,
+    body: 'A Sombra faz você sumir do próximo ping. Todo mundo aparece no mapa do caçador, menos você. Ao usar, ele te vê por cinco segundos.',
     sticker: ['ghost', '#B57CFF'],
     hud: H({ time: 21 * 60, ping: 0, progress: 1, status: 'team', statusLabel: 'Só sua equipe te vê' }),
     camera: { center: CENTER, zoom: 15.5 },
@@ -184,7 +190,7 @@ const steps: Step[] = [
     kicker: 'ESCUDO · custa 8 s',
     tone: '#1E8FD0',
     title: 'Ninguém consegue te marcar.',
-    body: `${BOOSTS.escudo.effect} O caçador te alcança, mas não vale. O preço: ele te vê ao vivo por 8 s quando você usa.`,
+    body: 'O Escudo te protege por dois minutos. Mesmo que o caçador te alcance, ele não consegue te pegar. Ao usar, ele te vê por oito segundos.',
     sticker: ['shield', '#5AC8FA'],
     hud: H({ time: 19 * 60, ping: 50, progress: 0.58 }),
     held: ['escudo'],
@@ -200,7 +206,7 @@ const steps: Step[] = [
     kicker: 'PERTO DEMAIS',
     tone: PINK,
     title: 'O coração acelera. E o caçador pode gritar.',
-    body: 'Caçador chegando perto, seu celular vibra como coração. E ele pode fazer o seu celular gritar para te achar pelo som.',
+    body: 'Quando um caçador chega perto, o seu celular vibra como um coração acelerado: é hora de sair daí. E o caçador tem uma carta na manga: ele pode fazer o seu celular gritar, pra te achar pelo som.',
     sticker: ['heart', PINK],
     hud: H({ time: 17 * 60, ping: 40, progress: 0.66 }),
     camera: { center: mid(spot('pertoEscudo'), spot('coracao')), zoom: 16.6 },
@@ -217,7 +223,7 @@ const steps: Step[] = [
     kicker: 'O CERCO',
     tone: '#8A4FE0',
     title: 'A zona aperta a cada 5 min.',
-    body: 'Quem ficar fora por 30 s aparece ao vivo para os caçadores até voltar. Fique de olho no círculo.',
+    body: 'A cada cinco minutos, a zona diminui. Se você ficar fora dela por trinta segundos, os caçadores passam a te ver ao vivo até você voltar. Fique sempre de olho no círculo.',
     sticker: ['shrink', '#B57CFF'],
     hud: H({ time: 15 * 60, ping: 60, zone: 210, zoneNote: 'encolheu' }),
     camera: { center: CENTER, zoom: 15.5 },
@@ -229,7 +235,7 @@ const steps: Step[] = [
     kicker: 'PEGA-PEGA',
     tone: PINK,
     title: 'Encostou, pegou.',
-    body: 'O caçador encosta e a pessoa confirma no app. Presa, ela espera: um amigo chega perto e solta.',
+    body: 'Pra pegar alguém, o caçador precisa encostar na pessoa de verdade. Quem foi pego confirma no app e fica preso. Mas dá pra ser salvo: se um amigo chegar perto e ficar ali alguns segundos, você volta pro jogo.',
     sticker: ['hand', PINK],
     hud: H({ time: 12 * 60, ping: 90, progress: 0.25, free: 3 }),
     camera: { center: mid(spot('nw'), spot('norte')), zoom: 16.2 },
@@ -247,12 +253,95 @@ const steps: Step[] = [
     kicker: 'SUA VEZ',
     tone: '#5E8C00',
     title: 'Bora jogar?',
-    body: 'Junte 3 ou mais amigos. Um cria a partida e os outros entram pelo QR.',
+    body: 'Ganha quem ainda estiver livre quando o tempo acabar, ou o caçador, se pegar todo mundo. Agora é com você: junte pelo menos três amigos, crie uma partida e chame a galera pelo QR. Bora jogar!',
     sticker: ['run', LIME],
     camera: { center: CENTER, zoom: 14.4 },
     zone: 150,
     hidden: WHO,
   },
+];
+
+// Linha do tempo de cada passo (mesma ordem do roteiro): o que acontece no
+// mapa enquanto a narradora fala. "at" e "delays" são frações da fala.
+const RUNNERS: Who[] = ['C', 'P', 'T', 'S'];
+const TIMELINE: Timeline[] = [
+  // 0 roda: a luz gira e para no caçador quando ela diz "para em quem vai ser o caçador"
+  { beats: [{ at: 0.45, set: { litStop: 1 } }] },
+  // 1 zona: a zona cresce; todo mundo aparece no meio no "todo mundo começa junto"
+  { beats: [{ at: 0, set: { hidden: WHO } }, { at: 0.72, set: { hidden: [] } }] },
+  // 2 vantagem: os corredores saem correndo logo no "saem correndo"
+  { delays: { C: 0.12, P: 0.12, T: 0.12, S: 0.12 } },
+  // 3 escondidos: o caçador sai procurando; no "os corredores não aparecem"
+  //   surgem interrogações pelo mapa, e no "não sabe onde ninguém está" uma na cabeça dele
+  {
+    delays: { L: 0.12 },
+    beats: [
+      { at: 0.4, set: { extras: [{ kind: 'question', at: spot('nw') }, { kind: 'question', at: spot('se') }] } },
+      { at: 0.55, set: { extras: [{ kind: 'question', at: spot('nw') }, { kind: 'question', at: spot('se') }, { kind: 'question', at: spot('ne') }, { kind: 'question', at: spot('sw') }] } },
+      {
+        at: 0.7,
+        set: {
+          extras: [
+            { kind: 'question', at: spot('nw') },
+            { kind: 'question', at: spot('se') },
+            { kind: 'question', at: spot('ne') },
+            { kind: 'question', at: spot('sw') },
+            { kind: 'question', at: spot('despiste') },
+            { kind: 'question', at: spot('norte'), on: 'L' },
+          ],
+        },
+      },
+    ],
+  },
+  // 4 ping: no "nessa hora" todo mundo pisca no mapa do caçador
+  { beats: [{ at: 0, set: { hidden: RUNNERS, pulse: [] } }, { at: 0.3, set: { hidden: [], pulse: RUNNERS } }] },
+  // 5 rastro: você sai andando; depois o caçador vai até onde você estava
+  { delays: { C: 0.2, L: 0.45 } },
+  // 6 boosts: você corre e pega no "é só passar em cima"; no "ao usar um boost"
+  //   você usa e o caçador aparece te vendo ao vivo
+  {
+    delays: { C: 0.22 },
+    beats: [
+      {
+        at: 0.7,
+        set: {
+          used: true,
+          hidden: ['P', 'T', 'S'],
+          pulse: ['C'],
+          labels: { C: 'ao vivo · 2 s', L: 'te vendo!' },
+          status: 'off',
+          statusLabel: 'O caçador te vê agora',
+        },
+      },
+    ],
+  },
+  // 7 despiste: o ping falso aparece, e o caçador corre para ele
+  {
+    delays: { L: 0.42 },
+    beats: [
+      { at: 0, set: { extras: [] } },
+      { at: 0.28, set: { extras: [{ kind: 'fake', at: spot('pingFalso') }] } },
+    ],
+  },
+  // 8 sombra: no "todo mundo aparece" os outros piscam e você não
+  { beats: [{ at: 0, set: { pulse: [] } }, { at: 0.3, set: { pulse: ['P', 'T', 'S'] } }] },
+  // 9 escudo: o caçador te alcança e não consegue
+  { delays: { L: 0.25 }, beats: [{ at: 0, set: { labels: { C: 'você · escudo' } } }, { at: 0.62, set: { labels: { C: 'você · escudo', L: 'não dá!' } } }] },
+  // 10 perto: o coração bate; no "pode fazer o seu celular gritar" aparece o grito
+  { beats: [{ at: 0, set: { extras: [{ kind: 'heart', at: spot('pertoEscudo'), on: 'C' }] } }, { at: 0.55, set: { extras: [{ kind: 'heart', at: spot('pertoEscudo'), on: 'C' }, { kind: 'mega', at: spot('coracao'), on: 'L' }] } }] },
+  // 11 cerco: a zona aperta no "a zona diminui"; depois quem ficou fora é marcado
+  { beats: [{ at: 0, set: { zone: 150, labels: { C: 'você' } } }, { at: 0.12, set: { zone: 105 } }, { at: 0.45, set: { labels: { C: 'você', P: 'fora · 0:30' } } }] },
+  // 12 pega-pega: o caçador encosta, ela fica presa, você vai salvar
+  {
+    delays: { C: 0.55 },
+    beats: [
+      { at: 0, set: { jailed: [], labels: { C: 'você' }, extras: [{ kind: 'hand', at: spot('nw') }] } },
+      { at: 0.38, set: { jailed: ['P'], labels: { C: 'você', P: 'presa' } } },
+      { at: 0.72, set: { labels: { C: 'você · salvando', P: 'presa' }, extras: [{ kind: 'hand', at: spot('nw') }, { kind: 'rescue', at: spot('nw') }] } },
+    ],
+  },
+  // 13 sua vez
+  {},
 ];
 
 export default function ComoJogar() {
@@ -262,21 +351,53 @@ export default function ComoJogar() {
   const { width: W, height: Hh } = useWindowDimensions();
   const [i, setI] = useState(() => Math.min(Math.max(Number(passo) - 1 || 0, 0), steps.length - 1));
   const [paused, setPaused] = useState(false);
-  const [beat, setBeat] = useState(false);
   const [cardTop, setCardTop] = useState(Hh - 260);
   const s = steps[i];
   const last = i === steps.length - 1;
+  const [sound, setSound] = useState(() => narrationOn());
+  // Com fala, o passo dura o tempo dela + uma folga para olhar o mapa.
+  // Sem áudio, o tempo da fala é estimado pelo tamanho do texto (~15 letras por segundo).
+  const sayMs = NARRATION[i]?.ms ?? Math.round(s.body.length * 66);
+  const stepMs = last ? STEP_MS : sayMs + 350;
 
-  // Relógio: o tempo do placar desce de verdade enquanto o passo está na tela.
-  const [secs, setSecs] = useState(0);
-  useEffect(() => setSecs(0), [i]);
   useEffect(() => {
-    const t = setInterval(() => {
-      setBeat((b) => !b);
-      if (!paused) setSecs((n) => n + 0.5);
-    }, 500);
-    return () => clearInterval(t);
+    if (sound) playNarration(i);
+    else stopNarration();
+  }, [i, sound]);
+  useEffect(() => () => stopNarration(), []);
+  useEffect(() => {
+    if (!sound) return;
+    if (paused) pauseNarration();
+    else resumeNarration();
+  }, [paused]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Relógio do passo (100 ms, pausa junto): comanda a digitação, os momentos
+  // da linha do tempo e o tempo do placar, que desce de verdade.
+  const [ms, setMs] = useState(0);
+  const msRef = useRef(0);
+  useEffect(() => {
+    msRef.current = 0;
+    setMs(0);
+  }, [i]);
+  useEffect(() => {
+    if (paused) return;
+    let before = Date.now();
+    const id = setInterval(() => {
+      const now = Date.now();
+      msRef.current += now - before;
+      before = now;
+      setMs(msRef.current);
+    }, 100);
+    return () => clearInterval(id);
   }, [paused]);
+  const secs = ms / 1000;
+  const beat = Math.floor(ms / 500) % 2 === 1;
+
+  // O jeito do passo agora: o roteiro + os momentos da fala que já passaram.
+  const tl = TIMELINE[i] ?? {};
+  const v: Look = { hidden: s.hidden, labels: s.labels, jailed: s.jailed, pulse: s.pulse, extras: s.extras, zone: s.zone, held: s.held };
+  for (const b of tl.beats ?? []) if (ms >= b.at * sayMs) Object.assign(v, b.set);
+  const delayOf = (w: Who) => Math.round((tl.delays?.[w] ?? 0) * sayMs);
 
   // Barrinha do passo enchendo; cheia, passa sozinho (menos no último).
   const fill = useRef(new Animated.Value(0)).current;
@@ -290,7 +411,7 @@ export default function ComoJogar() {
       fill.stopAnimation((v) => (fillAt.current = v));
       return;
     }
-    const anim = Animated.timing(fill, { toValue: 1, duration: STEP_MS * (1 - fillAt.current), easing: Easing.linear, useNativeDriver: false });
+    const anim = Animated.timing(fill, { toValue: 1, duration: stepMs * (1 - fillAt.current), easing: Easing.linear, useNativeDriver: false });
     anim.start(({ finished }) => finished && go(i + 1));
     return () => anim.stop();
   }, [i, paused, last]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -310,21 +431,23 @@ export default function ComoJogar() {
     id: w,
     route: routes[w],
     runKey: `${i}-${w}`,
+    delay: delayOf(w),
     zIndex: w === 'C' ? 10 : w === 'L' ? 8 : 5,
     node: (
       <Person
         who={w}
-        hidden={s.hidden?.includes(w)}
-        label={s.labels?.[w]}
-        jailed={s.jailed?.includes(w)}
-        pulse={s.pulse?.includes(w)}
-        shield={s.extras?.some((e) => e.kind === 'shield' && e.on === w)}
-        heart={s.extras?.some((e) => e.kind === 'heart' && e.on === w) ? beat : undefined}
-        mega={s.extras?.some((e) => e.kind === 'mega' && e.on === w) ? beat : undefined}
+        hidden={v.hidden?.includes(w)}
+        label={v.labels?.[w]}
+        jailed={v.jailed?.includes(w)}
+        pulse={v.pulse?.includes(w)}
+        shield={v.extras?.some((e) => e.kind === 'shield' && e.on === w)}
+        heart={v.extras?.some((e) => e.kind === 'heart' && e.on === w) ? beat : undefined}
+        mega={v.extras?.some((e) => e.kind === 'mega' && e.on === w) ? beat : undefined}
+        question={v.extras?.some((e) => e.kind === 'question' && e.on === w)}
       />
     ),
   }));
-  const cArrives = routeMs(routes.C);
+  const cArrives = delayOf('C') + routeMs(routes.C);
   const marks: TutorialMark[] = [
     ...(s.boostsOnMap ?? []).map((b) => ({
       id: `b-${i}-${b.kind}`,
@@ -332,7 +455,7 @@ export default function ComoJogar() {
       zIndex: 3,
       node: <MapBoost kind={b.kind} pickAt={b.picked ? cArrives : undefined} />,
     })),
-    ...(s.extras ?? [])
+    ...(v.extras ?? [])
       .filter((e) => !e.on)
       .map((e, n) => ({ id: `e-${i}-${n}`, at: e.at, zIndex: e.kind === 'rescue' ? 1 : e.kind === 'fake' ? 9 : 2, node: <ExtraMark kind={e.kind} /> })),
   ];
@@ -342,13 +465,14 @@ export default function ComoJogar() {
   const mmss = (t: number) => `${Math.floor(t / 60)}:${String(t % 60).padStart(2, '0')}`;
   // O boost pego vai para o placar depois que a pessoa chega nele.
   const pickedNow = (s.boostsOnMap ?? []).filter((b) => b.picked && secs * 1000 > cArrives + 300).map((b) => b.kind);
-  const held = [...new Set([...(s.held ?? []), ...pickedNow])].map((kind) => ({ id: `h-${kind}`, kind }));
+  // Usou o boost: ele sai do placar.
+  const held = (v.used ? [] : [...new Set([...(v.held ?? []), ...pickedNow])]).map((kind) => ({ id: `h-${kind}`, kind }));
 
   return (
     <View style={{ flex: 1, backgroundColor: colors.inkSunken }}>
-      <TutorialMap camera={s.camera} padding={padding} zoneRadius={s.zone} movers={movers} marks={marks} />
+      <TutorialMap camera={s.camera} padding={padding} zoneRadius={v.zone ?? 0} movers={movers} marks={marks} />
       {s.dim ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(11,14,17,${s.dim})` }]} /> : null}
-      {s.roda ? <Roda cx={W / 2} cy={freeMid} lit={Math.floor(secs * 2) % 6} /> : null}
+      {s.roda ? <Roda cx={W / 2} cy={freeMid} lit={v.litStop ?? Math.floor(secs * 3) % 6} /> : null}
       {last ? (
         <View pointerEvents="none" style={{ position: 'absolute', left: 0, right: 0, top: freeMid - 50, alignItems: 'center' }}>
           <Sticker kind="hand" color={PINK} size={96} tilt={-12} />
@@ -376,8 +500,8 @@ export default function ComoJogar() {
             total={4}
             zone={`${s.hud.zone} m`}
             zoneNote={s.hud.zoneNote}
-            status={s.hud.status}
-            statusLabel={s.hud.statusLabel}
+            status={v.status ?? s.hud.status}
+            statusLabel={v.statusLabel ?? s.hud.statusLabel}
             boosts={s.view === 'você' && (s.boostsOnMap || s.held) ? held : null}
           />
         </View>
@@ -392,6 +516,17 @@ export default function ComoJogar() {
               </View>
             ))}
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={sound ? 'Desligar a narração' : 'Ligar a narração'}
+            onPress={() => {
+              setNarrationOn(!sound);
+              setSound(!sound);
+            }}
+            hitSlop={10}
+            style={styles.soundBtn}>
+            {sound ? <Volume2 size={16} color={PAPER} strokeWidth={2.4} /> : <VolumeX size={16} color={BENTO.muted} strokeWidth={2.4} />}
+          </Pressable>
           <Pressable accessibilityRole="button" onPress={leave} hitSlop={12}>
             <Text style={{ fontSize: 14, fontFamily: fonts.bodyStrong }}>{last ? 'OK' : 'Pular'}</Text>
           </Pressable>
@@ -418,7 +553,7 @@ export default function ComoJogar() {
           </View>
           <Text style={[styles.kicker, { color: s.tone }]}>{s.kicker}</Text>
           <Text style={styles.title}>{s.title}</Text>
-          <Text style={styles.body}>{s.body}</Text>
+          <Typed text={s.body} ms={sayMs} t={ms} />
           {last ? (
             <View style={{ gap: 8, marginTop: 14 }}>
               <Button label="Criar partida" variant="dark" loading={create.busy} onPress={create.run} style={{ minHeight: 56, borderRadius: 22, backgroundColor: INK }} />
@@ -445,8 +580,25 @@ export default function ComoJogar() {
   );
 }
 
+// Texto que vai sendo digitado no ritmo da fala, com um cursor piscando.
+// O texto inteiro fica invisível por baixo para o cartão já nascer com a altura
+// final (senão o cartão cresceria e o mapa ficaria pulando).
+function Typed({ text, ms, t }: { text: string; ms: number; t: number }) {
+  const shown = text.slice(0, Math.ceil((text.length * Math.min(t, ms)) / ms));
+  const typing = shown.length < text.length;
+  return (
+    <View>
+      <Text style={[styles.body, { opacity: 0 }]}>{text}</Text>
+      <Text style={[styles.body, StyleSheet.absoluteFill]}>
+        {shown}
+        {typing ? <Text style={{ color: PINK, opacity: Math.floor(t / 300) % 2 ? 0 : 1 }}>▍</Text> : null}
+      </Text>
+    </View>
+  );
+}
+
 // Uma pessoa no mapa: corredor verde, caçador com anel rosa, você com anel branco.
-function Person({ who, hidden, label, jailed, pulse, shield, heart, mega }: { who: Who; hidden?: boolean; label?: string; jailed?: boolean; pulse?: boolean; shield?: boolean; heart?: boolean; mega?: boolean }) {
+function Person({ who, hidden, label, jailed, pulse, shield, heart, mega, question }: { who: Who; hidden?: boolean; label?: string; jailed?: boolean; pulse?: boolean; shield?: boolean; heart?: boolean; mega?: boolean; question?: boolean }) {
   const show = useRef(new Animated.Value(hidden ? 0 : 1)).current;
   useEffect(() => {
     Animated.timing(show, { toValue: hidden ? 0 : 1, duration: 350, useNativeDriver: true }).start();
@@ -480,6 +632,11 @@ function Person({ who, hidden, label, jailed, pulse, shield, heart, mega }: { wh
       {heart !== undefined ? (
         <View style={{ position: 'absolute', left: -46, top: -54 }}>
           <Sticker kind="heart" color={PINK} size={heart ? 40 : 34} tilt={-10} />
+        </View>
+      ) : null}
+      {question ? (
+        <View style={{ position: 'absolute', left: -15, top: -58 }}>
+          <Question big />
         </View>
       ) : null}
       {mega !== undefined ? (
@@ -518,6 +675,14 @@ function MapBoost({ kind, pickAt }: { kind: BoostKind; pickAt?: number }) {
 
 // Peças paradas no mapa: cadeado, fantasma do ping antigo, ping falso, mão do pega, anel de resgate.
 function ExtraMark({ kind }: { kind: Extra }) {
+  if (kind === 'question')
+    return (
+      <View style={{ width: 0, height: 0 }}>
+        <View style={{ position: 'absolute', left: -13, top: -13 }}>
+          <Question />
+        </View>
+      </View>
+    );
   if (kind === 'rescue') return <View style={[styles.rescue, { left: -38, top: -38 }]} />;
   if (kind === 'fake')
     return (
@@ -555,6 +720,43 @@ function ExtraMark({ kind }: { kind: Extra }) {
         <Sticker kind={k} color={c} size={size} tilt={kind === 'hand' ? 18 : -6} />
       </View>
     </View>
+  );
+}
+
+// Ponto de interrogação de figurinha: surge com um pulo e fica flutuando.
+function Question({ big }: { big?: boolean }) {
+  const enter = useRef(new Animated.Value(0)).current;
+  const float = useRef(new Animated.Value(0)).current;
+  const phase = useRef(Math.random() * 600).current;
+  useEffect(() => {
+    Animated.spring(enter, { toValue: 1, friction: 4, tension: 120, useNativeDriver: true }).start();
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(float, { toValue: 1, duration: 700 + phase, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(float, { toValue: 0, duration: 700 + phase, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [enter, float, phase]);
+  const size = big ? 30 : 26;
+  return (
+    <Animated.View
+      style={[
+        styles.question,
+        { width: size, height: size, borderRadius: size / 2 },
+        big ? { backgroundColor: PINK } : null,
+        {
+          opacity: enter,
+          transform: [
+            { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [0.2, 1] }) },
+            { translateY: float.interpolate({ inputRange: [0, 1], outputRange: [0, -7] }) },
+            { rotate: float.interpolate({ inputRange: [0, 1], outputRange: ['-10deg', '10deg'] }) },
+          ],
+        },
+      ]}>
+      <Text style={{ fontFamily: fonts.display, fontSize: big ? 19 : 16, lineHeight: big ? 22 : 19, color: big ? PAPER : INK }}>?</Text>
+    </Animated.View>
   );
 }
 
@@ -631,6 +833,8 @@ const styles = StyleSheet.create({
   viewTag: { position: 'absolute', left: 0, right: 0, alignItems: 'center' },
   viewPill: { borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12, borderWidth: 2, borderColor: INK },
   arrowBox: { position: 'absolute' },
+  question: { backgroundColor: '#FFC23D', borderWidth: 2.5, borderColor: INK, boxShadow: '2px 3px 0 #0B0F13', alignItems: 'center', justifyContent: 'center' },
+  soundBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(11,15,19,0.7)', alignItems: 'center', justifyContent: 'center' },
   arrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(11,15,19,0.78)', borderWidth: 2, borderColor: 'rgba(243,240,232,0.35)', alignItems: 'center', justifyContent: 'center' },
   cardBox: { position: 'absolute', left: 16, right: 16 },
   card: { backgroundColor: '#FFFFFF', borderWidth: 2, borderColor: INK, borderRadius: 26, boxShadow: '4px 5px 0 #0B0F13', paddingTop: 18, paddingHorizontal: 18, paddingBottom: 16 },
