@@ -1,9 +1,10 @@
-import { router } from 'expo-router';
+import { Redirect, router, useNavigation } from 'expo-router';
 import { ScrollView, StyleSheet, View } from 'react-native';
 
 import { BENTO, Sticker, type StickerKind } from '@/components/Bento';
 import { BackButton } from '@/components/Nav';
 import { Text } from '@/components/Text';
+import { useAccessGate } from '@/lib/accessGate';
 import { LEGAL_DATE, type LegalSection } from '@/lib/legal';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { colors, fonts } from '@/theme/tokens';
@@ -12,10 +13,16 @@ import { colors, fonts } from '@/theme/tokens';
 // figurinha, a data e as seções em cartões, fácil de ler no celular.
 export function LegalPage({ title, sticker, color, intro, sections }: { title: string; sticker: StickerKind; color: string; intro: string; sections: LegalSection[] }) {
   const insets = useScreenInsets();
+  // Com uma porta pendente (convite, termos, nome), o roteador abre esta página
+  // sozinho, porque ela é a primeira tela liberada. Só fica aqui quem veio
+  // tocando no link (tem para onde voltar); quem caiu aqui vai para a porta.
+  const gate = useAccessGate();
+  const navigation = useNavigation();
+  if (gate && !navigation.canGoBack()) return <Redirect href={gate} />;
   return (
     <View style={{ flex: 1, backgroundColor: BENTO.ink }}>
       <ScrollView contentContainerStyle={{ paddingTop: Math.max(insets.top, 20) + 8, paddingHorizontal: 18, paddingBottom: Math.max(insets.bottom, 16) + 24 }}>
-        <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))} />
+        <BackButton onPress={() => (router.canGoBack() ? router.back() : router.replace(gate ?? '/'))} />
         <View style={styles.head}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>{title}</Text>
