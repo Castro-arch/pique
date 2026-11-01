@@ -12,5 +12,6 @@ export type TutorialMapProps = {
   zoneRadius: number; // metros; 0 = sem zona
   movers: TutorialMover[];
   marks: TutorialMark[];
+  rate?: number; // velocidade do tutorial (1, 1.5, 2)
   onFail?: () => void;
 };

@@ -12,7 +12,7 @@ import { Text } from '@/components/Text';
 import { routeMs, TutorialMap } from '@/components/TutorialMap';
 import type { TutorialMark, TutorialMover } from '@/components/tutorialMapTypes';
 import { useCreateGame } from '@/lib/game';
-import { NARRATION, narrationOn, narrationPosition, onNarrationEnd, pauseNarration, playNarration, resumeNarration, setNarrationOn, stopNarration } from '@/lib/narration';
+import { NARRATION, narrationOn, narrationPosition, narrationSpeed, onNarrationEnd, pauseNarration, playNarration, resumeNarration, setNarrationOn, setNarrationSpeed, stopNarration } from '@/lib/narration';
 import { useScreenInsets } from '@/lib/screenInsets';
 import { TUTORIAL_CENTER, TUTORIAL_ROUTES, TUTORIAL_SPOTS, type LngLat, type Who } from '@/lib/tutorialRoutes';
 import { colors, fonts } from '@/theme/tokens';
@@ -358,6 +358,11 @@ export default function ComoJogar() {
   const s = steps[i];
   const last = i === steps.length - 1;
   const [sound, setSound] = useState(() => narrationOn());
+  // Velocidade do tutorial: 1x, 1,5x ou 2x (voz, digitação, mapa e passos).
+  const [rate, setRate] = useState(() => narrationSpeed());
+  useEffect(() => setNarrationSpeed(rate), [rate]);
+  const rateRef = useRef(rate);
+  rateRef.current = rate;
   // Com fala, o passo dura o tempo dela + uma folga para olhar o mapa.
   // Sem áudio, o tempo da fala é estimado pelo tamanho do texto (~15 letras por segundo).
   const sayMs = NARRATION[i]?.ms ?? Math.round(s.body.length * 66);
@@ -402,7 +407,7 @@ export default function ComoJogar() {
       const now = Date.now();
       // Com a fala tocando, o relógio segue a voz (no celular ela pode começar atrasada).
       const voice = sound ? narrationPosition(iRef.current) : null;
-      msRef.current = voice ?? msRef.current + (now - before);
+      msRef.current = voice ?? msRef.current + (now - before) * rateRef.current;
       before = now;
       setMs(msRef.current);
     }, 100);
@@ -429,11 +434,11 @@ export default function ComoJogar() {
       fill.stopAnimation((v) => (fillAt.current = v));
       return;
     }
-    const anim = Animated.timing(fill, { toValue: 1, duration: stepMs * (1 - fillAt.current), easing: Easing.linear, useNativeDriver: false });
+    const anim = Animated.timing(fill, { toValue: 1, duration: (stepMs / rate) * (1 - fillAt.current), easing: Easing.linear, useNativeDriver: false });
     // Com som, quem vira o passo é o fim da fala (abaixo); a barrinha só garante, com folga, se o áudio falhar.
     anim.start(({ finished }) => finished && (!sound || !NARRATION[i]) && go(i + 1));
     return () => anim.stop();
-  }, [i, paused, last]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [i, paused, last, rate]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const go = (n: number) => setI(Math.min(Math.max(n, 0), steps.length - 1));
 
@@ -498,7 +503,7 @@ export default function ComoJogar() {
       id: `b-${i}-${b.kind}`,
       at: spot(b.at),
       zIndex: 3,
-      node: <MapBoost kind={b.kind} pickAt={b.picked ? cArrives : undefined} />,
+      node: <MapBoost kind={b.kind} pickAt={b.picked ? cArrives / rate : undefined} />,
     })),
     ...(v.extras ?? [])
       .filter((e) => !e.on)
@@ -515,7 +520,7 @@ export default function ComoJogar() {
 
   return (
     <View style={[{ flex: 1, backgroundColor: colors.inkSunken }, NO_SELECT]}>
-      <TutorialMap camera={s.camera} padding={padding} zoneRadius={v.zone ?? 0} movers={movers} marks={marks} />
+      <TutorialMap camera={s.camera} padding={padding} zoneRadius={v.zone ?? 0} movers={movers} marks={marks} rate={rate} />
       {s.dim ? <View pointerEvents="none" style={[StyleSheet.absoluteFill, { backgroundColor: `rgba(11,14,17,${s.dim})` }]} /> : null}
       {s.roda ? <Roda cx={W / 2} cy={freeMid} lit={v.litStop ?? Math.floor(secs * 3) % 6} /> : null}
       {last ? (
@@ -561,6 +566,14 @@ export default function ComoJogar() {
               </View>
             ))}
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={`Velocidade ${rate}x. Trocar`}
+            onPress={() => setRate((r) => (r === 1 ? 1.5 : r === 1.5 ? 2 : 1))}
+            hitSlop={8}
+            style={[styles.speedBtn, rate !== 1 && { backgroundColor: LIME }]}>
+            <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: rate !== 1 ? INK : PAPER }}>{rate === 1.5 ? '1,5x' : `${rate}x`}</Text>
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={sound ? 'Desligar a narração' : 'Ligar a narração'}
@@ -891,6 +904,7 @@ const styles = StyleSheet.create({
   viewPill: { borderRadius: 999, paddingVertical: 5, paddingHorizontal: 12, borderWidth: 2, borderColor: INK },
   arrowBox: { position: 'absolute' },
   question: { backgroundColor: '#FFC23D', borderWidth: 2.5, borderColor: INK, boxShadow: '2px 3px 0 #0B0F13', alignItems: 'center', justifyContent: 'center' },
+  speedBtn: { height: 30, minWidth: 40, paddingHorizontal: 8, borderRadius: 15, backgroundColor: 'rgba(11,15,19,0.7)', alignItems: 'center', justifyContent: 'center' },
   soundBtn: { width: 30, height: 30, borderRadius: 15, backgroundColor: 'rgba(11,15,19,0.7)', alignItems: 'center', justifyContent: 'center' },
   arrow: { width: 36, height: 36, borderRadius: 18, backgroundColor: 'rgba(11,15,19,0.78)', borderWidth: 2, borderColor: 'rgba(243,240,232,0.35)', alignItems: 'center', justifyContent: 'center' },
   cardBox: { position: 'absolute', left: 16, right: 16 },

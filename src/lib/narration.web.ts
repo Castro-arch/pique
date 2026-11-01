@@ -23,6 +23,8 @@ export const NARRATION: { src: number; ms: number }[] = [
 ];
 
 const KEY = 'pique.narracao';
+const SPEED_KEY = 'pique.narracao.velocidade';
+let rate = 1;
 let el: HTMLAudioElement | null = null;
 let unlocked = false;
 // Uma fala de verdade começou enquanto o destravamento ainda rodava: não pausar nem mutar.
@@ -73,6 +75,8 @@ export function playNarration(step: number) {
   current = step;
   a.src = Asset.fromModule(n.src).uri;
   a.currentTime = 0;
+  a.playbackRate = rate;
+  a.preservesPitch = true;
   a.muted = false;
   speaking = true;
   a.play().catch(() => (speaking = false));
@@ -136,6 +140,27 @@ export function narrationOn() {
 export function setNarrationOn(on: boolean) {
   try {
     window.localStorage.setItem(KEY, on ? '1' : '0');
+  } catch {
+    // sem armazenamento: vale só nesta visita
+  }
+}
+
+// Velocidade da narração (1, 1.5 ou 2), lembrada neste aparelho.
+export function narrationSpeed() {
+  try {
+    const v = Number(window.localStorage.getItem(SPEED_KEY));
+    return v === 1.5 || v === 2 ? v : 1;
+  } catch {
+    return 1;
+  }
+}
+
+export function setNarrationSpeed(v: number) {
+  rate = v;
+  const a = audio();
+  if (a) a.playbackRate = v;
+  try {
+    window.localStorage.setItem(SPEED_KEY, String(v));
   } catch {
     // sem armazenamento: vale só nesta visita
   }

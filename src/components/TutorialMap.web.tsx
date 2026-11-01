@@ -19,7 +19,7 @@ maplibregl.setWorkerUrl('/maplibre-gl-worker.mjs');
 
 const SPEED = 45; // metros do mapa por segundo de animação (bem acelerado)
 
-export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail }: TutorialMapProps) {
+export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail, rate = 1 }: TutorialMapProps) {
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
   const zoneNow = useRef(0);
@@ -50,7 +50,7 @@ export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail
   // Câmera: voa até o enquadramento do passo (é o zoom entrando e saindo).
   useEffect(() => {
     if (!map) return;
-    map.flyTo({ center: camera.center, zoom: camera.zoom, padding, duration: camera.instant ? 0 : 1600, essential: true });
+    map.flyTo({ center: camera.center, zoom: camera.zoom, padding, duration: camera.instant ? 0 : 1600 / rate, essential: true });
   }, [map, camera.center[0], camera.center[1], camera.zoom, padding.top, padding.bottom]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Zona: o raio anima do valor de agora até o do passo.
@@ -61,7 +61,7 @@ export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail
     const start = performance.now();
     let raf = 0;
     const tick = (t: number) => {
-      const k = Math.min(1, (t - start) / 1100);
+      const k = Math.min(1, (t - start) / (1100 / rate));
       const e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2;
       const r = from + (to - from) * e;
       zoneNow.current = r;
@@ -77,14 +77,14 @@ export function TutorialMap({ camera, padding, zoneRadius, movers, marks, onFail
       <div ref={el} style={{ position: 'absolute', inset: 0, background: colors.inkSunken }} />
       {map
         ? movers.map((p) => (
-            <Moving key={p.id} map={map} route={p.route} runKey={p.runKey} delay={p.delay ?? 0} zIndex={p.zIndex ?? 1}>
+            <Moving key={p.id} map={map} route={p.route} runKey={p.runKey} delay={(p.delay ?? 0) / rate} rate={rate} zIndex={p.zIndex ?? 1}>
               {p.node}
             </Moving>
           ))
         : null}
       {map
         ? marks.map((k) => (
-            <Moving key={k.id} map={map} route={[k.at]} runKey={k.id} delay={0} zIndex={k.zIndex ?? 0}>
+            <Moving key={k.id} map={map} route={[k.at]} runKey={k.id} delay={0} rate={rate} zIndex={k.zIndex ?? 0}>
               {k.node}
             </Moving>
           ))
@@ -100,7 +100,7 @@ const meters = (a: LngLat, b: LngLat) => {
 };
 
 // Marcador que corre pela rota (de ponto em ponto, velocidade constante).
-function Moving({ map, route, runKey, delay, zIndex, children }: { map: maplibregl.Map; route: LngLat[]; runKey: string; delay: number; zIndex: number; children: ReactNode }) {
+function Moving({ map, route, runKey, delay, rate, zIndex, children }: { map: maplibregl.Map; route: LngLat[]; runKey: string; delay: number; rate: number; zIndex: number; children: ReactNode }) {
   const [el] = useState(() => document.createElement('div'));
   const marker = useRef<maplibregl.Marker | null>(null);
 
@@ -121,7 +121,7 @@ function Moving({ map, route, runKey, delay, zIndex, children }: { map: maplibre
     }
     const legs = route.slice(1).map((p, i) => meters(route[i], p));
     const total = legs.reduce((a, b) => a + b, 0);
-    const dur = Math.min(5200, Math.max(700, (total / SPEED) * 1000));
+    const dur = Math.min(5200, Math.max(700, (total / SPEED) * 1000)) / rate;
     m.setLngLat(route[0]);
     const start = performance.now() + delay;
     let raf = 0;

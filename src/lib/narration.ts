@@ -16,3 +16,7 @@ export function narrationOn() {
   return false;
 }
 export function setNarrationOn(_on: boolean) {}
+export function narrationSpeed() {
+  return 1;
+}
+export function setNarrationSpeed(_v: number) {}
