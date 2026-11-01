@@ -4,13 +4,14 @@ import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import { MapPin } from '@/components/icons';
 import { useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, View } from 'react-native';
 
 import { ListGroup, ListRow, SectionLabel } from '@/components/Card';
 import { Toggle } from '@/components/Controls';
 import { Screen } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { setDemoMode, useDemoMode } from '@/lib/demoMode';
+import { CONTACT_EMAIL } from '@/lib/legal';
 import { useMe } from '@/lib/useMe';
 import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../convex/_generated/api';
@@ -83,6 +84,21 @@ export default function Ajustes() {
   const [vibrate, setVibrate] = useState(true);
   const [lockAlerts, setLockAlerts] = useState(true);
   const [news, setNews] = useState(false);
+  const deleteAccount = useMutation(api.users.deleteAccount);
+  const [deleting, setDeleting] = useState<'ask' | 'busy' | null>(null);
+
+  // Excluir a conta: pede confirmação; depois apaga tudo e sai.
+  async function removeAccount() {
+    if (demo) return;
+    if (deleting !== 'ask') return setDeleting('ask');
+    setDeleting('busy');
+    try {
+      await deleteAccount({});
+      await signOut();
+    } catch {
+      setDeleting(null);
+    }
+  }
 
   async function leave() {
     if (demo) setDemoMode(false);
@@ -153,10 +169,34 @@ export default function Ajustes() {
         <ListRow title="Sair da conta" danger onPress={leave} last />
       </ListGroup>
 
+      <SectionLabel>Termos e privacidade</SectionLabel>
+      <ListGroup>
+        <ListRow title="Termos de uso" chevron onPress={() => router.push('/termos')} />
+        <ListRow title="Política de privacidade" chevron onPress={() => router.push('/privacidade')} />
+        <ListRow
+          title={deleting === 'busy' ? 'Excluindo…' : deleting === 'ask' ? 'Toque de novo para excluir de vez' : 'Excluir minha conta'}
+          subtitle={deleting === 'ask' ? 'Apaga perfil, estatísticas, amigos e cosméticos. Não dá para desfazer.' : undefined}
+          danger
+          onPress={removeAccount}
+          last
+        />
+      </ListGroup>
+      {deleting === 'ask' ? (
+        <Text variant="small" style={{ textAlign: 'center', marginTop: 8 }} onPress={() => setDeleting(null)}>
+          Mudou de ideia? Toque aqui para cancelar.
+        </Text>
+      ) : null}
+
       <View style={styles.footer}>
-        {['Fale conosco', 'Termos de uso', 'Política de privacidade'].map((t) => (
-          <Text key={t} variant="small" accessibilityRole="link">{t}</Text>
-        ))}
+        <Text variant="small" accessibilityRole="link" onPress={() => Linking.openURL(`mailto:${CONTACT_EMAIL}`)}>
+          Fale conosco
+        </Text>
+        <Text variant="small" accessibilityRole="link" onPress={() => router.push('/termos')}>
+          Termos de uso
+        </Text>
+        <Text variant="small" accessibilityRole="link" onPress={() => router.push('/privacidade')}>
+          Política de privacidade
+        </Text>
       </View>
     </Screen>
   );

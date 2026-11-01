@@ -41,6 +41,8 @@ export default defineSchema({
     username: v.optional(v.string()),
     frame: v.optional(v.string()), // moldura equipada (cosmético)
     betaVersion: v.optional(v.number()), // versão do código de convite que a pessoa digitou (beta.ts)
+    termsVersion: v.optional(v.string()), // versão dos Termos e da Política que a pessoa aceitou (src/lib/legal.ts)
+    termsAt: v.optional(v.number()),
   })
     .index('email', ['email'])
     .index('username', ['username']),

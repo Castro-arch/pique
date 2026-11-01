@@ -19,6 +19,7 @@ import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo pl
 import '@/lib/shoutSound'; // no site, destrava o som do grito no primeiro toque
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
+import { LEGAL_VERSION } from '@/lib/legal';
 import { setupNotificationChannels } from '@/lib/notifications';
 import { enablePush } from '@/lib/webPush';
 import { setupWebHead } from '@/lib/webHead';
@@ -63,9 +64,10 @@ export default function RootLayout() {
   );
 }
 
-// Quatro estados de acesso:
+// Estados de acesso:
 // - sem sessão: grupo (entrada) — boas-vindas, e-mail e código
 // - logado sem convite válido do teste fechado: tela "teste-fechado" (convex/beta.ts)
+// - sem aceitar a versão atual dos Termos e da Privacidade: tela "aceitar-termos"
 // - logado sem usuário: tela "nome" (cadastro)
 // - logado com usuário: grupo (app) — todo o resto
 // Em desenvolvimento, a Galeria de telas liga o modo demonstração, que abre o app sem login.
@@ -84,8 +86,9 @@ function Routes() {
   if (!demo && (isLoading || (isAuthenticated && me === undefined))) return <Loading />;
 
   const needsInvite = !demo && isAuthenticated && !!me && !me.betaOk;
-  const needsProfile = !demo && isAuthenticated && !!me && me.betaOk && !me.username;
-  const inside = demo || (isAuthenticated && !needsInvite && !needsProfile);
+  const needsTerms = !demo && isAuthenticated && !!me && me.betaOk && me.termsVersion !== LEGAL_VERSION;
+  const needsProfile = !demo && isAuthenticated && !!me && me.betaOk && !needsTerms && !me.username;
+  const inside = demo || (isAuthenticated && !needsInvite && !needsTerms && !needsProfile);
 
   return (
     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.ink } }}>
@@ -95,12 +98,18 @@ function Routes() {
       <Stack.Protected guard={needsInvite}>
         <Stack.Screen name="teste-fechado" />
       </Stack.Protected>
+      <Stack.Protected guard={needsTerms}>
+        <Stack.Screen name="aceitar-termos" />
+      </Stack.Protected>
       <Stack.Protected guard={needsProfile}>
         <Stack.Screen name="nome" />
       </Stack.Protected>
       <Stack.Protected guard={inside}>
         <Stack.Screen name="(app)" />
       </Stack.Protected>
+      {/* Termos e Privacidade abrem de qualquer estado (entrada, aceite, app) */}
+      <Stack.Screen name="termos" />
+      <Stack.Screen name="privacidade" />
       <Stack.Protected guard={__DEV__}>
         <Stack.Screen name="galeria" />
       </Stack.Protected>
