@@ -8,6 +8,7 @@ import { Platform } from 'react-native';
 import { startBackgroundTracking, stopBackgroundTracking } from './backgroundLocation';
 import { api } from '../../convex/_generated/api';
 import type { Id } from '../../convex/_generated/dataModel';
+import { pruneTrails, recordTrail } from './trail';
 
 // Ponte entre as telas e a partida no Convex. Sem `id` na rota, as telas
 // continuam no modo demonstração com os dados de src/lib/demo.ts.
@@ -83,15 +84,18 @@ export function useFollowRound(id: string | undefined, status: string | undefine
 
 // Envia a posição enquanto a tela do jogo está aberta (só se mexer > 5 m).
 // O serviço em segundo plano (task-manager) chega junto com o mapa real.
-export function useSendPosition(id: string | undefined, active: boolean) {
+// startedAt: início da rodada, para gravar o trajeto local da rodada certa (src/lib/trail.ts).
+export function useSendPosition(id: string | undefined, active: boolean, startedAt?: number | null) {
   const send = useMutation(api.play.sendPosition);
   const [denied, setDenied] = useState(false);
   useEffect(() => {
     if (!id || !active) return;
+    pruneTrails();
     let sub: { remove: () => void } | null = null;
     let cancelled = false;
     const push = (lat: number, lng: number, accuracy: number | null, mocked = false) => {
       if (cancelled) return;
+      if (startedAt) recordTrail(id, startedAt, lat, lng, accuracy ?? 99);
       send({ gameId: id as GameId, lat, lng, accuracy: accuracy ?? 99, mocked }).catch(() => {});
     };
 
@@ -131,7 +135,7 @@ export function useSendPosition(id: string | undefined, active: boolean) {
       sub?.remove();
       stopBackgroundTracking();
     };
-  }, [id, active, send]);
+  }, [id, active, send, startedAt]);
   return { denied };
 }
 

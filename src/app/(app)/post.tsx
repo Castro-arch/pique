@@ -15,6 +15,7 @@ import { Headline, Text } from '@/components/Text';
 import { track } from '@/lib/analytics';
 import { illustrations, match, photos } from '@/lib/demo';
 import { colors, fonts, radius } from '@/theme/tokens';
+import { PostReal } from '@/components/PostReal';
 
 type Visual = 'mapa' | 'selfie' | 'adesivo';
 
@@ -22,9 +23,14 @@ type Visual = 'mapa' | 'selfie' | 'adesivo';
 const route = 'M70 330 C90 280 70 240 120 210 C160 186 150 140 200 120 C240 104 250 70 290 60';
 
 // 8.8 a 8.10 Post da rodada, no estilo dos apps de corrida: dá vontade de postar,
-// e cada post divulga o Pique de graça. A imagem final sai com react-native-view-shot
-// quando o compartilhamento for para o celular.
+// e cada post divulga o Pique de graça. Com ?id= é a partida de verdade
+// (PostReal, em PostReal.tsx); sem, a versão de exemplo da galeria de telas.
 export default function Post() {
+  const { id } = useLocalSearchParams<{ id?: string }>();
+  return id ? <PostReal id={id} /> : <PostDemo />;
+}
+
+function PostDemo() {
   const { visual: initial = 'mapa' } = useLocalSearchParams<{ visual?: Visual }>();
   const [visual, setVisual] = useState<Visual>(initial);
   const share = () => {

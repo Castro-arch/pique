@@ -107,13 +107,16 @@ function FimReal({ id }: { id: string }) {
           ))}
         </View>
         <View style={{ flex: 1, minHeight: 24 }} />
-        {won ? (
-          <Button variant={hunter ? 'danger' : 'primary'} label="Compartilhar a vitória" onPress={() => router.push({ pathname: '/post', params: { lado: hunter ? 'cacador' : 'corredor' } })} />
-        ) : null}
+        {/* Como nos apps de corrida: toda rodada vira post, com o trajeto e os números. */}
+        <Button
+          variant={won ? (hunter ? 'danger' : 'primary') : 'secondary'}
+          label={won ? 'Compartilhar a vitória' : 'Compartilhar a rodada'}
+          onPress={() => router.push({ pathname: '/post', params: { id } })}
+        />
         <Button
           variant={won ? 'secondary' : 'primary'}
           label={host ? 'Revanche: girar a roleta' : 'Revanche com a mesma crew'}
-          style={{ marginTop: won ? 8 : 6 }}
+          style={{ marginTop: 8 }}
           onPress={rematch}
         />
         <Text variant="label" style={{ textAlign: 'center', marginTop: 6 }}>

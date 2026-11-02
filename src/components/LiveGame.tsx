@@ -33,7 +33,7 @@ export function LiveGame({ id }: { id: string }) {
   const radio = useQuery(api.radio.list, { gameId: id as GameId });
   const now = useNow();
   const playing = view?.game.status === 'headstart' || view?.game.status === 'hunt';
-  const { denied } = useSendPosition(id, !!playing && view?.me.state === 'active');
+  const { denied } = useSendPosition(id, !!playing && view?.me.state === 'active', view?.game.startedAt);
   const myHeading = useSendHeading(id, !!playing && view?.me.state === 'active');
   const [picking, setPicking] = useState(false);
   const [error, setError] = useState<string | null>(null);
