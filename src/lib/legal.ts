@@ -5,7 +5,7 @@
 // advogado. Mudou o texto de um jeito que importa? Suba LEGAL_VERSION: todo
 // mundo vê a tela de aceite de novo (convex/users.ts, acceptTerms).
 
-export const LEGAL_VERSION = '2026-11-01.2'; // .2: analytics (PostHog) na Política de privacidade
+export { LEGAL_VERSION } from '../../convex/legalVersion';
 export const LEGAL_DATE = '1º de novembro de 2026';
 export const CONTACT_EMAIL = 'contatar.arthurcastro@gmail.com';
 export const CONTROLLER = 'José Arthur de Castro Tavares';

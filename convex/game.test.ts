@@ -8,6 +8,7 @@ import { distanceM as distanceBetween } from './lib';
 import { assignRoles, planDraw } from './rounds';
 import { samplePoints } from './streets';
 import schema from './schema';
+import { LEGAL_VERSION } from './legalVersion';
 
 const modules = import.meta.glob('./**/*.ts');
 const MIN = 60_000;
@@ -19,7 +20,7 @@ const north = (m: number) => ({ lat: CENTER.lat + m / 111_320, lng: CENTER.lng }
 async function setup() {
   const t = convexTest(schema, modules);
   const user = async (name: string) => {
-    const id = await t.run((ctx) => ctx.db.insert('users', { name, username: name.toLowerCase() }));
+    const id = await t.run((ctx) => ctx.db.insert('users', { name, username: name.toLowerCase(), termsVersion: LEGAL_VERSION }));
     return t.withIdentity({ subject: `${id}|sessao`, name });
   };
   const [host, leo, priya, teo] = await Promise.all(['Castro', 'Leo', 'Priya', 'Teo'].map(user));
@@ -110,8 +111,19 @@ describe('lobby', () => {
     await expect(s.priya.mutation(api.games.join, { code: 'ZZZZZZ' })).rejects.toThrow();
     await everyoneChooses(s);
     await s.host.mutation(api.rounds.start, { gameId: s.gameId });
-    const late = await s.t.run((ctx) => ctx.db.insert('users', { name: 'Sasha' }));
+    const late = await s.t.run((ctx) => ctx.db.insert('users', { name: 'Sasha', username: 'sasha', termsVersion: LEGAL_VERSION }));
     await expect(s.t.withIdentity({ subject: `${late}|x` }).mutation(api.games.join, { code: s.code })).rejects.toThrow(/IN_PROGRESS/);
+  });
+
+  test('sem aceitar os termos ou sem @ não cria nem entra em partida', async () => {
+    const s = await lobbyWith4();
+    const semTermos = await s.t.run((ctx) => ctx.db.insert('users', { name: 'Sem', username: 'sem' }));
+    const semNome = await s.t.run((ctx) => ctx.db.insert('users', { name: 'Anon', termsVersion: LEGAL_VERSION }));
+    for (const id of [semTermos, semNome]) {
+      const as = s.t.withIdentity({ subject: `${id}|x` });
+      await expect(as.mutation(api.games.create, {})).rejects.toThrow(/Termos|@/);
+      await expect(as.mutation(api.games.join, { code: s.code })).rejects.toThrow(/Termos|@/);
+    }
   });
 
   test('quem não está na partida não vê o lobby', async () => {
@@ -309,6 +321,9 @@ describe('rodada', () => {
     const ids = Object.fromEntries((await lobbyOf(s.leo, gameId)).players.map((p) => [p.name, p.id]));
     await expect(s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya })).rejects.toThrow(/vantagem/);
     await advance(s.t, 3 * MIN);
+    // o GPS segue mandando: posições recentes
+    await move(s.leo, gameId, CENTER);
+    for (const [p, m] of [[s.priya, 10], [s.teo, 12], [s.host, 20]] as const) await move(p, gameId, north(m));
 
     // Priya confirma.
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Priya });
@@ -323,6 +338,8 @@ describe('rodada', () => {
     await s.teo.mutation(api.play.answerCapture, { captureId: teoCapture.id, caught: false });
     expect((await viewOf(s.leo, gameId)).disputed).not.toBeNull();
     expect((await viewOf(s.teo, gameId)).me.state).toBe('active');
+    // logo depois de contestar, o mesmo caçador não pode marcar de novo
+    await expect(s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Teo })).rejects.toThrow(/contestou/);
 
     // Castro não responde em 60 s: conta como pego.
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Castro });
@@ -341,8 +358,13 @@ describe('rodada', () => {
     await move(s.leo, s.gameId, CENTER);
     await move(s.priya, s.gameId, north(150));
     await advance(s.t, 3 * MIN);
+    await move(s.leo, s.gameId, CENTER);
+    await move(s.priya, s.gameId, north(150));
     const ids = Object.fromEntries((await lobbyOf(s.leo, s.gameId)).players.map((p) => [p.name, p.id]));
-    await expect(s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya })).rejects.toThrow(/150 m/);
+    // recusa sem dizer a distância (com ela dava para achar o corredor sem ping)
+    const err = await s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya }).catch((e) => String(e));
+    expect(err).toMatch(/Longe demais/);
+    expect(err).not.toMatch(/d+ ?m/);
   });
 
   test('coração acelera só para o corredor com caçador a menos de 30 m', async () => {
@@ -378,6 +400,13 @@ describe('rodada', () => {
     await move(s.leo, gameId, CENTER);
     await move(s.priya, gameId, north(100));
     expect(await s.leo.mutation(api.play.shout, { gameId })).toEqual({ hit: false, left: 3 });
+    // intervalo de 20 s entre gritos, mesmo quando erra (senão vira radar)
+    await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/Espere/);
+    const gap = async () => {
+      vi.advanceTimersByTime(21_000);
+      await move(s.leo, gameId, CENTER);
+    };
+    await gap();
 
     await move(s.teo, gameId, north(50));
     await move(s.host, gameId, north(40));
@@ -386,8 +415,12 @@ describe('rodada', () => {
     expect((await viewOf(s.teo, gameId)).me.shoutedAt).toBeNull();
     expect((await viewOf(s.leo, gameId)).me.shoutsLeft).toBe(2);
 
-    await s.leo.mutation(api.play.shout, { gameId });
-    await s.leo.mutation(api.play.shout, { gameId });
+    for (let i = 0; i < 2; i++) {
+      await gap();
+      await move(s.host, gameId, north(40));
+      await s.leo.mutation(api.play.shout, { gameId });
+    }
+    await gap();
     await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/acabaram/);
   });
 
@@ -873,5 +906,29 @@ describe('analytics', () => {
     await startWithLeoHunting(s);
     await advance(s.t, 1 * MIN);
     expect(calls.filter((u) => u.includes('posthog'))).toEqual([]);
+  });
+});
+
+describe('segurança', () => {
+  test('posição NaN ou infinita é recusada (deixaria o corredor invisível)', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    for (const bad of [NaN, Infinity]) {
+      await expect(s.priya.mutation(api.play.sendPosition, { gameId: s.gameId, lat: bad, lng: CENTER.lng, accuracy: 8 })).rejects.toThrow(/inválida/);
+      await expect(s.priya.mutation(api.play.sendPosition, { gameId: s.gameId, ...CENTER, accuracy: bad })).rejects.toThrow(/inválida/);
+    }
+    await expect(s.host.mutation(api.games.setZone, { gameId: s.gameId, lat: NaN, lng: 0, radius: 200 })).rejects.toThrow();
+  });
+
+  test('perfil de quem não é amigo não mostra a partida ao vivo, e nunca o papel', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    const stranger = await s.t.run((ctx) => ctx.db.insert('users', { name: 'Estranho', username: 'estranho', termsVersion: LEGAL_VERSION }));
+    const as = s.t.withIdentity({ subject: `${stranger}|x` });
+    const perfil = await as.query(api.friends.profile, { username: 'leo' });
+    expect(perfil!.live).toBeNull();
+    const meu = await s.leo.query(api.friends.profile, {});
+    expect(meu!.live).not.toBeNull();
+    expect(meu!.live).not.toHaveProperty('role');
   });
 });

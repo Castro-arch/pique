@@ -18,6 +18,7 @@ import type * as emailOtp from "../emailOtp.js";
 import type * as friends from "../friends.js";
 import type * as games from "../games.js";
 import type * as http from "../http.js";
+import type * as legalVersion from "../legalVersion.js";
 import type * as lib from "../lib.js";
 import type * as play from "../play.js";
 import type * as profile from "../profile.js";
@@ -45,6 +46,7 @@ declare const fullApi: ApiFromModules<{
   friends: typeof friends;
   games: typeof games;
   http: typeof http;
+  legalVersion: typeof legalVersion;
   lib: typeof lib;
   play: typeof play;
   profile: typeof profile;

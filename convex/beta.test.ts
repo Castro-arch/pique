@@ -4,13 +4,14 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 
 import { api, internal } from './_generated/api';
 import schema from './schema';
+import { LEGAL_VERSION } from './legalVersion';
 
 const modules = import.meta.glob('./**/*.ts');
 
 async function setup() {
   const t = convexTest(schema, modules);
   const user = async (name: string, email?: string) => {
-    const id = await t.run((ctx) => ctx.db.insert('users', { name, username: name.toLowerCase(), email }));
+    const id = await t.run((ctx) => ctx.db.insert('users', { name, username: name.toLowerCase(), email, termsVersion: LEGAL_VERSION }));
     return t.withIdentity({ subject: `${id}|sessao`, name });
   };
   const ana = await user('Ana');
@@ -35,7 +36,7 @@ describe('convite do teste fechado', () => {
     expect((await ana.query(api.users.me, {}))!.betaRevoked).toBe(false);
     expect((await ana.query(api.users.me, {}))!.betaOk).toBe(false);
     await expect(ana.mutation(api.games.create, {})).rejects.toThrow(/convite/);
-    await expect(ana.mutation(api.beta.redeem, { code: 'XXXX' })).rejects.toThrow(/inválido/);
+    expect(await ana.mutation(api.beta.redeem, { code: 'XXXX' })).toMatchObject({ ok: false, error: expect.stringMatching(/inválido/) });
     await ana.mutation(api.beta.redeem, { code: ' pique1 ' });
     expect((await ana.query(api.users.me, {}))!.betaOk).toBe(true);
     await ana.mutation(api.games.create, {});
@@ -49,7 +50,7 @@ describe('convite do teste fechado', () => {
     expect(segundo).not.toBe(primeiro);
     expect((await ana.query(api.users.me, {}))!.betaOk).toBe(false);
     expect((await ana.query(api.users.me, {}))!.betaRevoked).toBe(true);
-    await expect(ana.mutation(api.beta.redeem, { code: primeiro })).rejects.toThrow(/inválido/);
+    expect(await ana.mutation(api.beta.redeem, { code: primeiro })).toMatchObject({ ok: false });
     await bia.mutation(api.beta.redeem, { code: segundo });
     expect((await bia.query(api.users.me, {}))!.betaOk).toBe(true);
   });
@@ -68,12 +69,24 @@ describe('convite do teste fechado', () => {
     expect((await dono.query(api.beta.adminView, {}))!.code).toBe(novo);
   });
 
-  test('quem administra também pode ser o @ do usuário (conta sem e-mail)', async () => {
-    vi.stubEnv('BETA_ADMINS', 'outro@exemplo.com, @Ana');
+  test('quem administra pode ser o id da conta (conta sem e-mail), nunca o @', async () => {
     const { t, ana, bia } = await setup();
+    const anaId = (await ana.query(api.users.me, {}))!._id;
+    vi.stubEnv('BETA_ADMINS', `outro@exemplo.com, ${anaId}`);
     await t.mutation(internal.beta.createCode, {});
-    expect((await ana.query(api.users.me, {}))!.betaOk).toBe(true);
     expect((await ana.query(api.users.me, {}))!.betaAdmin).toBe(true);
     expect((await bia.query(api.users.me, {}))!.betaOk).toBe(false);
+    // o @ de um admin não dá acesso a quem pegar o mesmo @
+    vi.stubEnv('BETA_ADMINS', 'outro@exemplo.com, @bia');
+    expect((await bia.query(api.users.me, {}))!.betaAdmin).toBe(false);
+    expect((await bia.query(api.users.me, {}))!.betaOk).toBe(false);
+  });
+
+  test('depois de 10 erros na hora, o convite certo também é recusado', async () => {
+    const { t, ana } = await setup();
+    await t.mutation(internal.beta.createCode, { code: 'PIQUE1' });
+    for (let i = 0; i < 10; i++) expect(await ana.mutation(api.beta.redeem, { code: 'ERRADO' })).toMatchObject({ ok: false });
+    expect(await ana.mutation(api.beta.redeem, { code: 'PIQUE1' })).toMatchObject({ ok: false, error: expect.stringMatching(/Muitas tentativas/) });
+    expect((await ana.query(api.users.me, {}))!.betaOk).toBe(false);
   });
 });

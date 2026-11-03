@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
-    "@auth/core": "^0.41.1",
+    "@auth/core": "^0.41.3",
     "@convex-dev/auth": "^0.0.96",
     "@expo-google-fonts/bricolage-grotesque": "^0.4.1",
     "@expo-google-fonts/inter": "^0.4.2",

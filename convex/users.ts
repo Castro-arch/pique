@@ -4,6 +4,7 @@ import { ConvexError, v } from 'convex/values';
 import { mutation, query } from './_generated/server';
 import { hasBetaAccess, isBetaAdmin } from './beta';
 import { loginProviders } from './auth';
+import { LEGAL_VERSION } from './legalVersion';
 
 const USERNAME_RE = /^[a-z0-9_]{3,20}$/;
 
@@ -62,6 +63,8 @@ export const acceptTerms = mutation({
   handler: async (ctx, { version }) => {
     const userId = await getAuthUserId(ctx);
     if (userId === null) throw new ConvexError('Faça login para continuar.');
+    // só vale o aceite da versão que está no app agora
+    if (version !== LEGAL_VERSION) throw new ConvexError('Os termos mudaram. Atualize o app e leia de novo.');
     await ctx.db.patch(userId, { termsVersion: version, termsAt: Date.now() });
   },
 });

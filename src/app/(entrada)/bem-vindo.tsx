@@ -58,16 +58,16 @@ export default function BemVindo() {
           <Button label="Começar" variant="dark" loading={starting} onPress={start} style={styles.go} />
           {error ? <Text style={styles.error}>{error}</Text> : null}
           {/* No beta, voltar à conta é com o código de recuperação (Ajustes → Proteger minha conta). */}
-          <Text onPress={() => router.push(BETA_SEM_LOGIN ? '/recuperar' : '/como-entrar')} style={styles.link}>
+          <Text accessibilityRole="link" onPress={() => router.push(BETA_SEM_LOGIN ? '/recuperar' : '/como-entrar')} style={styles.link}>
             Já tenho conta
           </Text>
           <Text style={styles.legal}>
             Ao continuar, você aceita os{' '}
-            <Text style={styles.legalLink} onPress={() => router.push('/termos')}>
+            <Text accessibilityRole="link" style={styles.legalLink} onPress={() => router.push('/termos')}>
               Termos de uso
             </Text>{' '}
             e a{' '}
-            <Text style={styles.legalLink} onPress={() => router.push('/privacidade')}>
+            <Text accessibilityRole="link" style={styles.legalLink} onPress={() => router.push('/privacidade')}>
               Política de privacidade
             </Text>
             .

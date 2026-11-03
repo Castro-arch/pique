@@ -414,6 +414,8 @@ export const end = internalMutation({
       at: now,
     });
     await recordRound(ctx, game, players, winner, now);
+    // a rodada acabou: a última posição de cada um não serve mais (e a revanche começa do zero)
+    for (const pos of await ctx.db.query('positions').withIndex('by_game', (q) => q.eq('gameId', gameId)).collect()) await ctx.db.delete(pos._id);
     const played = players.filter((p) => p.state !== 'left' && p.role);
     await track(
       ctx,

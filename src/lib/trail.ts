@@ -84,3 +84,15 @@ export function trailPath(trail: TrailPoint[], w: number, h: number, pad: number
   const pts = xs.map((x, i) => [ox + (x - x0) * s, oy + (ys[i] - y0) * s] as [number, number]);
   return { path: 'M' + pts.map((p) => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L'), start: pts[0], end: pts[pts.length - 1] };
 }
+
+// Ao sair ou excluir a conta: apaga todos os trajetos deste aparelho.
+export function clearTrails() {
+  memory.clear();
+  if (!web()) return;
+  try {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k?.startsWith(PREFIX)) localStorage.removeItem(k);
+    }
+  } catch {}
+}

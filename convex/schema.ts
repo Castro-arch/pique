@@ -41,6 +41,7 @@ export default defineSchema({
     username: v.optional(v.string()),
     frame: v.optional(v.string()), // moldura equipada (cosmético)
     betaVersion: v.optional(v.number()), // versão do código de convite que a pessoa digitou (beta.ts)
+    inviteFails: v.optional(v.object({ count: v.number(), since: v.number() })), // tentativas erradas de convite na última hora
     termsVersion: v.optional(v.string()), // versão dos Termos e da Política que a pessoa aceitou (src/lib/legal.ts)
     termsAt: v.optional(v.number()),
     recoveryHash: v.optional(v.string()), // hash do código de recuperação (recovery.ts)
@@ -111,6 +112,7 @@ export default defineSchema({
     flags: v.optional(v.array(v.string())), // anti-cheat: "mock", "speed", "jump"
     shoutsLeft: v.optional(v.number()), // caçador: gritos que ainda tem na rodada
     shoutedAt: v.optional(v.number()), // corredor: quando o celular dele gritou
+    lastShoutAt: v.optional(v.number()), // caçador: último grito (intervalo entre gritos)
     // Boosts: o preço de pegar (visível ao vivo por alguns segundos) e os efeitos ativos.
     revealed: v.optional(v.boolean()),
     revealUntil: v.optional(v.number()),

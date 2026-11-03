@@ -32,8 +32,12 @@ export default function TesteFechado() {
     setBusy(true);
     setError(null);
     try {
-      await redeem({ code });
+      const r = await redeem({ code });
       // com o acesso liberado, as rotas trocam sozinhas para o app
+      if (!r.ok) {
+        setError(r.error);
+        setBusy(false);
+      }
     } catch (e) {
       setError(errorInfo(e).message);
       setBusy(false);

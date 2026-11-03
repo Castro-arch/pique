@@ -44,3 +44,9 @@ example
 public/maplibre-gl-worker.mjs
 convex/_generated/ai/
 dist-dev/
+
+# cópias de arquivos de ambiente (podem ter chaves)
+.env
+.env.*
+!.env.example
+*.bak*

@@ -2,7 +2,7 @@ import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
 import { track } from './analytics';
-import { requireBeta } from './beta';
+import { requirePlayable } from './beta';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query, type MutationCtx } from './_generated/server';
 import {
@@ -50,7 +50,7 @@ export const create = mutation({
   args: {},
   handler: async (ctx) => {
     const userId = await requireUser(ctx);
-    await requireBeta(ctx, userId);
+    await requirePlayable(ctx, userId);
     const name = await displayName(ctx, userId);
 
     // Limite simples contra abuso: até 5 partidas criadas por hora.
@@ -113,7 +113,7 @@ export const join = mutation({
   args: { code: v.string() },
   handler: async (ctx, { code }) => {
     const userId = await requireUser(ctx);
-    await requireBeta(ctx, userId);
+    await requirePlayable(ctx, userId);
     const game = await ctx.db
       .query('games')
       .withIndex('by_code', (q) => q.eq('code', code.trim().toUpperCase()))
@@ -259,7 +259,7 @@ export const setZone = mutation({
     const { userId, game } = await requireMember(ctx, gameId);
     requireHost(game, userId);
     if (game.status === 'headstart' || game.status === 'hunt') throw new ConvexError('A rodada já começou.');
-    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ConvexError('Posição inválida.');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ConvexError('Posição inválida.');
     const zone = { lat, lng, radius: clamp(radius, LIMITS.zoneRadius) };
     await ctx.db.patch(gameId, { zone });
     // Busca as ruas da zona para os boosts nascerem só nelas.
@@ -281,6 +281,8 @@ export const leave = mutation({
 async function leaveGame(ctx: MutationCtx, game: Doc<'games'>, me: Doc<'players'>, userId: Id<'users'>) {
   const gameId = game._id;
   await ctx.db.patch(me._id, { state: 'left', ready: false });
+  // quem sai não deixa a última posição guardada
+  for (const pos of await ctx.db.query('positions').withIndex('by_player', (q) => q.eq('playerId', me._id)).collect()) await ctx.db.delete(pos._id);
   const playing = game.status === 'headstart' || game.status === 'hunt';
   if (playing) await systemMessage(ctx, gameId, `${me.name} saiu da partida.`);
 

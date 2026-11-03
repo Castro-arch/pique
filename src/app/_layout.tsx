@@ -18,6 +18,7 @@ import { api } from '../../convex/_generated/api';
 import '@/lib/backgroundLocation'; // define a tarefa de posição em segundo plano
 import '@/lib/shoutSound'; // no site, destrava o som do grito no primeiro toque
 import { identify, track } from '@/lib/analytics';
+import { pruneTrails } from '@/lib/trail';
 import { convex, tokenStorage } from '@/lib/convex';
 import { useDemoMode } from '@/lib/demoMode';
 import { LEGAL_VERSION } from '@/lib/legal';
@@ -28,6 +29,7 @@ import { colors } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync();
 setupWebHead();
+pruneTrails(); // trajetos com mais de 3 dias saem ao abrir o app, mesmo sem jogar de novo
 setupNotificationChannels().catch(() => {});
 
 // Quanto esperamos as fontes antes de abrir com a do sistema. Rede lenta ou

@@ -34,6 +34,9 @@ const MAX_SPEED_MS = 35 / 3.6; // 35 km/h: acima disso é salto de GPS
 const MIN_INTERVAL_MS = 2_000;
 const MAX_CAPTURE_DISTANCE_M = 50;
 
+const SHOUT_COOLDOWN_MS = 20_000;
+const REMARK_AFTER_DISPUTE_MS = 30_000;
+
 const playing = (g: Doc<'games'>) => g.status === 'headstart' || g.status === 'hunt';
 
 // O celular só manda a posição. Zona, visibilidade e pega são decididas aqui.
@@ -42,7 +45,8 @@ export const sendPosition = mutation({
   handler: async (ctx, { gameId, lat, lng, accuracy, mocked }) => {
     const { game, me } = await requireMember(ctx, gameId);
     if (!playing(game) || me.state !== 'active') return { accepted: false as const, reason: 'not_playing' };
-    if (Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ConvexError('Posição inválida.');
+    // NaN passaria por todas as comparações abaixo (NaN > 90 é falso) e deixaria o corredor invisível
+    if (![lat, lng, accuracy].every(Number.isFinite) || Math.abs(lat) > 90 || Math.abs(lng) > 180 || accuracy < 0) throw new ConvexError('Posição inválida.');
     if (accuracy > MAX_ACCURACY_M) return { accepted: false as const, reason: 'accuracy' };
 
     const now = Date.now();
@@ -360,6 +364,10 @@ export const shout = mutation({
     if (!features(game.rules).shouts) throw new ConvexError('O grito está desligado nesta partida.');
     const left = me.shoutsLeft ?? SHOUTS_PER_ROUND;
     if (left <= 0) throw new ConvexError('Seus gritos acabaram nesta rodada.');
+    // o grito que erra não gasta, mas tem intervalo: sem isso vira um radar sem fim
+    const wait = (me.lastShoutAt ?? 0) + SHOUT_COOLDOWN_MS - Date.now();
+    if (wait > 0) throw new ConvexError(`Espere ${Math.ceil(wait / 1000)} s para gritar de novo.`);
+    await ctx.db.patch(me._id, { lastShoutAt: Date.now() });
     const mine = await lastPosition(ctx, me._id);
     if (!mine || Date.now() - mine.at > FRESH_POSITION_MS) throw new ConvexError('Esperando o GPS achar você.');
 
@@ -427,10 +435,21 @@ export const markCapture = mutation({
     const open = await ctx.db.query('captures').withIndex('by_runner', (q) => q.eq('runnerId', runnerId).eq('status', 'pending')).first();
     if (open) return open._id;
 
-    // Se os dois têm posição, o servidor confere a distância.
+    // Depois que o corredor contesta, o mesmo caçador espera antes de marcar de novo.
+    const lastDisputed = await ctx.db
+      .query('captures')
+      .withIndex('by_runner', (q) => q.eq('runnerId', runnerId).eq('status', 'disputed'))
+      .order('desc')
+      .first();
+    if (lastDisputed && lastDisputed.hunterId === me._id && Date.now() - lastDisputed.createdAt < REMARK_AFTER_DISPUTE_MS) {
+      throw new ConvexError(`${runner.name} contestou agora há pouco. Chegue bem perto e tente de novo daqui a pouco.`);
+    }
+    // O servidor confere a distância. O caçador precisa de posição recente; a
+    // distância nunca volta na resposta (com ela dava para achar o corredor sem ping).
     const [a, b] = [await lastPosition(ctx, me._id), await lastPosition(ctx, runnerId)];
-    const dist = a && b ? Math.round(distanceM(a, b)) : undefined;
-    if (dist !== undefined && dist > MAX_CAPTURE_DISTANCE_M) throw new ConvexError(`Vocês estão a ${dist} m. Chegue mais perto.`);
+    if (!a || Date.now() - a.at > FRESH_POSITION_MS) throw new ConvexError('Esperando o GPS achar você.');
+    const dist = b ? Math.round(distanceM(a, b)) : undefined;
+    if (dist !== undefined && !(dist <= MAX_CAPTURE_DISTANCE_M)) throw new ConvexError('Longe demais para marcar. Chegue mais perto.');
 
     const now = Date.now();
     const id = await ctx.db.insert('captures', { gameId, hunterId: me._id, runnerId, status: 'pending', distanceM: dist, createdAt: now, expiresAt: now + CAPTURE_CONFIRM_MS });

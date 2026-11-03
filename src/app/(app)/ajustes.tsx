@@ -11,6 +11,7 @@ import { Toggle } from '@/components/Controls';
 import { Screen } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { resetAnalytics, track } from '@/lib/analytics';
+import { clearTrails } from '@/lib/trail';
 import { BETA_SEM_LOGIN } from '@/lib/beta';
 import { setDemoMode, useDemoMode } from '@/lib/demoMode';
 import { CONTACT_EMAIL } from '@/lib/legal';
@@ -166,6 +167,9 @@ export default function Ajustes() {
     setDeleting('busy');
     try {
       await deleteAccount({});
+      // o que fica no aparelho também sai: trajetos e o id do analytics
+      clearTrails();
+      resetAnalytics();
       await signOut();
     } catch {
       setDeleting(null);
@@ -175,6 +179,7 @@ export default function Ajustes() {
   async function leave() {
     if (demo) setDemoMode(false);
     else {
+      clearTrails();
       resetAnalytics();
       await signOut();
     }

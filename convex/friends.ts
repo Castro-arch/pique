@@ -26,6 +26,7 @@ async function allLinks(ctx: QueryCtx, userId: Id<'users'>) {
 }
 
 // Onde a pessoa está jogando agora (lobby ou rodada valendo), se estiver.
+// O papel (caçador/corredor) é segredo do sorteio: nunca sai daqui.
 export async function liveGameOf(ctx: QueryCtx, userId: Id<'users'>) {
   const rows = await ctx.db
     .query('players')
@@ -37,7 +38,7 @@ export async function liveGameOf(ctx: QueryCtx, userId: Id<'users'>) {
     const g = await ctx.db.get(p.gameId);
     if (!g || g.status === 'ended') continue;
     const count = (await ctx.db.query('players').withIndex('by_game', (q) => q.eq('gameId', g._id)).collect()).filter((x) => x.state !== 'left').length;
-    return { gameId: g._id, code: g.code, status: g.status, role: p.role ?? null, players: count };
+    return { gameId: g._id, code: g.code, status: g.status, players: count };
   }
   return null;
 }
@@ -162,7 +163,8 @@ export const profile = query({
       level: levelOf(stats),
       medals: medalsOf(stats),
       friends: friendCount,
-      live: await liveGameOf(ctx, u._id),
+      // só amigos (e a própria pessoa) sabem onde ela está jogando agora
+      live: isMe || l?.status === 'accepted' ? await liveGameOf(ctx, u._id) : null,
       status: isMe ? 'me' : l ? (l.status === 'accepted' ? 'friend' : l.from === me ? 'sent' : 'received') : 'none',
       together: isMe ? null : await together(ctx, me, u._id),
     };

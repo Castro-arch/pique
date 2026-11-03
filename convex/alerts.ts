@@ -1,4 +1,4 @@
-import { v } from 'convex/values';
+import { ConvexError, v } from 'convex/values';
 
 import { internal } from './_generated/api';
 import type { Doc } from './_generated/dataModel';
@@ -37,10 +37,24 @@ export const mine = query({
 
 // ── Push do site ───────────────────────────────────────────────────────
 
+const PUSH_HOSTS = [/^fcm.googleapis.com$/, /^android.googleapis.com$/, /^updates.push.services.mozilla.com$/, /.notify.windows.com$/, /^web.push.apple.com$/];
+function isPushEndpoint(endpoint: string) {
+  if (endpoint.length > 1000) return false;
+  try {
+    const u = new URL(endpoint);
+    return u.protocol === 'https:' && PUSH_HOSTS.some((h) => h.test(u.hostname));
+  } catch {
+    return false;
+  }
+}
+
 export const saveSubscription = mutation({
   args: { endpoint: v.string(), p256dh: v.string(), auth: v.string() },
   handler: async (ctx, sub) => {
     const userId = await requireUser(ctx);
+    // Só endereços dos serviços de push de verdade: sem isso o servidor faria
+    // POST em qualquer site que alguém cadastrasse.
+    if (!isPushEndpoint(sub.endpoint) || sub.p256dh.length > 200 || sub.auth.length > 100) throw new ConvexError('Inscrição de aviso inválida.');
     const old = await ctx.db.query('push_subscriptions').withIndex('by_endpoint', (q) => q.eq('endpoint', sub.endpoint)).unique();
     if (old) await ctx.db.patch(old._id, { userId, p256dh: sub.p256dh, auth: sub.auth, at: Date.now() });
     else await ctx.db.insert('push_subscriptions', { userId, ...sub, at: Date.now() });

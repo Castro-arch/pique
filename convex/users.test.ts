@@ -5,13 +5,14 @@ import { describe, expect, test } from 'vitest';
 import { api, internal } from './_generated/api';
 import type { Id } from './_generated/dataModel';
 import schema from './schema';
+import { LEGAL_VERSION } from './legalVersion';
 
 const modules = import.meta.glob('./**/*.ts');
 
 async function setup() {
   const t = convexTest(schema, modules);
   const user = async (name: string) => {
-    const id = await t.run((ctx) => ctx.db.insert('users', { name, username: name.toLowerCase(), email: `${name.toLowerCase()}@exemplo.com` }));
+    const id = await t.run((ctx) => ctx.db.insert('users', { name, username: name.toLowerCase(), email: `${name.toLowerCase()}@exemplo.com`, termsVersion: name === 'Ana' ? undefined : LEGAL_VERSION }));
     return { id, as: t.withIdentity({ subject: `${id}|sessao`, name }) };
   };
   return { t, ana: await user('Ana'), bia: await user('Bia') };
@@ -21,12 +22,15 @@ describe('termos e conta', () => {
   test('aceitar os termos guarda a versão', async () => {
     const { ana } = await setup();
     expect((await ana.as.query(api.users.me, {}))!.termsVersion).toBeNull();
-    await ana.as.mutation(api.users.acceptTerms, { version: '2026-11-01' });
-    expect((await ana.as.query(api.users.me, {}))!.termsVersion).toBe('2026-11-01');
+    // aceite de uma versão velha (ou inventada) não vale
+    await expect(ana.as.mutation(api.users.acceptTerms, { version: 'qualquer-coisa' })).rejects.toThrow(/termos mudaram/);
+    await ana.as.mutation(api.users.acceptTerms, { version: LEGAL_VERSION });
+    expect((await ana.as.query(api.users.me, {}))!.termsVersion).toBe(LEGAL_VERSION);
   });
 
   test('excluir a conta apaga perfil, amigos e estatísticas e tira da partida', async () => {
     const { t, ana, bia } = await setup();
+    await ana.as.mutation(api.users.acceptTerms, { version: LEGAL_VERSION });
     const { gameId, code } = await bia.as.mutation(api.games.create, {});
     await ana.as.mutation(api.games.join, { code });
     await t.run(async (ctx) => {

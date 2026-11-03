@@ -19,6 +19,7 @@ export const QUICK = [
 // O preso sempre pode pedir resgate, mesmo quando pego só assiste.
 const HELP = 'Me salva!';
 const MAX_AUDIO_S = 15;
+const MAX_AUDIO_BYTES = 600_000; // 15 s de voz comprimida cabem com folga
 const MIN_GAP_MS = 2_000;
 
 // Quem pode falar e em qual canal. Pego só fala se a regra permitir.
@@ -57,9 +58,19 @@ export const sendAudio = mutation({
   args: { gameId: v.id('games'), audioId: v.id('_storage'), seconds: v.number() },
   handler: async (ctx, { gameId, audioId, seconds }) => {
     const { me, team } = await speaker(ctx, gameId);
-    if (seconds <= 0 || seconds > MAX_AUDIO_S) {
-      await ctx.storage.delete(audioId);
-      throw new ConvexError(`Áudio de até ${MAX_AUDIO_S} s.`);
+    // Um arquivo já usado por outra mensagem não pode ser reenviado (nem apagado) por outra pessoa.
+    const used = await ctx.db
+      .query('messages')
+      .withIndex('by_game', (q) => q.eq('gameId', gameId))
+      .filter((q) => q.eq(q.field('audioId'), audioId))
+      .first();
+    if (used) throw new ConvexError('Áudio inválido.');
+    // Só áudio de verdade e pequeno (o rádio grava poucos segundos).
+    const file = await ctx.db.system.get(audioId);
+    const bad = !file || !(file.contentType ?? '').startsWith('audio/') || file.size > MAX_AUDIO_BYTES;
+    if (bad || !Number.isFinite(seconds) || seconds <= 0 || seconds > MAX_AUDIO_S) {
+      if (file) await ctx.storage.delete(audioId);
+      throw new ConvexError(bad ? 'Áudio inválido.' : `Áudio de até ${MAX_AUDIO_S} s.`);
     }
     await ctx.db.insert('messages', { gameId, playerId: me._id, team, kind: 'audio', audioId, seconds: Math.round(seconds), at: Date.now() });
   },

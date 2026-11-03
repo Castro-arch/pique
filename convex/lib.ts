@@ -62,10 +62,11 @@ export const FRESH_POSITION_MS = 60_000; // posição mais velha que isso não c
 
 // Sem letras que confundem (0/O, 1/I/L).
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+// Sorteio criptográfico (Math.random dá para prever).
 export function newCode() {
-  let s = '';
-  for (let i = 0; i < 6; i++) s += CODE_CHARS[Math.floor(Math.random() * CODE_CHARS.length)];
-  return s;
+  const bytes = new Uint32Array(6);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (n) => CODE_CHARS[n % CODE_CHARS.length]).join('');
 }
 
 export async function requireUser(ctx: Ctx): Promise<Id<'users'>> {
@@ -107,7 +108,8 @@ export function requireHost(game: Doc<'games'>, userId: Id<'users'>) {
   if (game.hostId !== userId) throw new ConvexError('Só o anfitrião pode fazer isso.');
 }
 
-export const clamp = (n: number, [min, max]: readonly [number, number]) => Math.min(max, Math.max(min, Math.round(n)));
+// NaN e infinito caem no mínimo (sem isso, NaN passava direto e quebrava a partida).
+export const clamp = (n: number, [min, max]: readonly [number, number]) => (Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : min);
 
 // Distância em metros entre dois pontos (haversine).
 export function distanceM(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
