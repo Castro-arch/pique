@@ -10,6 +10,7 @@ import { internalMutation, mutation, type MutationCtx } from './_generated/serve
 import {
   BOOST_EVERY_MIN,
   BOOSTS_PER_WAVE,
+  HUNTER_BOOSTS_PER_WAVE,
   DESPISTE_M,
   distanceM,
   features,
@@ -174,6 +175,9 @@ async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<
       disputedAt: undefined,
       lastMarkAt: undefined,
       uploads: undefined,
+      faroUntil: undefined,
+      faroTargetId: undefined,
+      spotUntil: undefined,
       revealed: undefined,
       revealUntil: undefined,
       nextPing: undefined,
@@ -246,32 +250,44 @@ export const ping = internalMutation({
   handler: async (ctx, { gameId, round }) => {
     const game = await liveGame(ctx, gameId, round);
     if (!game) return;
-    const now = Date.now();
-    let lit = 0;
-    for (const p of await gamePlayers(ctx, gameId)) {
-      if (p.role !== 'runner' || p.state !== 'active') continue;
-      const pos = await lastPosition(ctx, p._id);
-      if (!pos) continue;
-      // Sombra: some deste ping. Despiste: o ping sai a 60 m do lugar certo.
-      if (p.nextPing === 'sombra') {
-        await ctx.db.patch(p._id, { ping: undefined, nextPing: undefined });
-        continue;
-      }
-      const at = p.nextPing === 'despiste' ? offsetM(pos, DESPISTE_M, Math.random() * 2 * Math.PI) : pos;
-      await ctx.db.patch(p._id, { ping: { lat: at.lat, lng: at.lng, at: now }, nextPing: undefined });
-      lit++;
+    // o Radar adiou o próximo ping: este agendamento ficou velho
+    if (game.nextPingAt && Date.now() < game.nextPingAt - 2000) return;
+    await firePing(ctx, game, { schedule: true });
+  },
+});
+
+// O ping em si. schedule: false é o ping extra do Radar (não agenda o próximo).
+export async function firePing(ctx: MutationCtx, game: Doc<'games'>, { schedule }: { schedule: boolean }) {
+  const gameId = game._id;
+  const round = game.round;
+  const now = Date.now();
+  let lit = 0;
+  for (const p of await gamePlayers(ctx, gameId)) {
+    if (p.role !== 'runner' || p.state !== 'active') continue;
+    const pos = await lastPosition(ctx, p._id);
+    if (!pos) continue;
+    // Sombra: some deste ping. Despiste: o ping sai a 60 m do lugar certo.
+    if (p.nextPing === 'sombra') {
+      await ctx.db.patch(p._id, { ping: undefined, nextPing: undefined });
+      continue;
     }
+    const at = p.nextPing === 'despiste' ? offsetM(pos, DESPISTE_M, Math.random() * 2 * Math.PI) : pos;
+    await ctx.db.patch(p._id, { ping: { lat: at.lat, lng: at.lng, at: now }, nextPing: undefined });
+    lit++;
+  }
+  if (schedule) {
     const next = now + game.rules.pingEveryMin * MIN;
     const hasNext = next < (game.endsAt ?? 0);
     await ctx.db.patch(gameId, { lastPingAt: now, nextPingAt: hasNext ? next : undefined });
     if (hasNext) await ctx.scheduler.runAt(next, internal.rounds.ping, { gameId, round });
-    await systemMessage(ctx, gameId, `Ping! ${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`, 'hunter');
-    await systemMessage(ctx, gameId, 'Ping! Sua posição foi enviada. Se mexa.', 'runner');
-    const who = await inRound(ctx, gameId);
-    await notify(ctx, who.runners, 'ping', 'Ping!', 'Sua posição foi para os caçadores. Se mexa.');
-    await notify(ctx, who.hunters, 'ping', 'Ping!', `${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`);
-  },
-});
+  } else await ctx.db.patch(gameId, { lastPingAt: now });
+  await systemMessage(ctx, gameId, `Ping! ${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`, 'hunter');
+  await systemMessage(ctx, gameId, 'Ping! Sua posição foi enviada. Se mexa.', 'runner');
+  const who = await inRound(ctx, gameId);
+  await notify(ctx, who.runners, 'ping', 'Ping!', 'Sua posição foi para os caçadores. Se mexa.');
+  await notify(ctx, who.hunters, 'ping', 'Ping!', `${lit} ${lit === 1 ? 'corredor acendeu' : 'corredores acenderam'} no mapa.`);
+  return lit;
+}
 
 // ── Boosts ─────────────────────────────────────────────────────────────
 
@@ -280,11 +296,17 @@ const KINDS = [
   ['sombra', 0.35],
   ['escudo', 0.2],
 ] as const;
-function randomKind() {
+const HUNTER_KINDS = [
+  ['radar', 0.4],
+  ['faro', 0.35],
+  ['holofote', 0.25],
+] as const;
+function pick<K extends string>(kinds: readonly (readonly [K, number])[]): K {
   let r = Math.random();
-  for (const [kind, w] of KINDS) if ((r -= w) < 0) return kind;
-  return 'despiste' as const;
+  for (const [kind, w] of kinds) if ((r -= w) < 0) return kind;
+  return kinds[0][0];
 }
+const randomKind = () => pick(KINDS);
 
 async function clearBoosts(ctx: MutationCtx, gameId: Id<'games'>) {
   for (const state of ['map', 'held'] as const) {
@@ -315,12 +337,15 @@ export const spawnBoosts = internalMutation({
     // (ela pode ter encolhido). Sem ruas, qualquer lugar da zona.
     const zone = game.zone;
     const onStreet = shuffle((game.streets?.points ?? []).filter((p) => distanceM(p, zone) <= zone.radius * 0.9));
-    for (let i = 0; i < count; i++) {
+    // primeiro os dos corredores, depois os do caçador (só ele vê esses)
+    const kinds = [...Array.from({ length: count }, randomKind), ...Array.from({ length: HUNTER_BOOSTS_PER_WAVE }, () => pick(HUNTER_KINDS))];
+    for (let i = 0; i < kinds.length; i++) {
       // sqrt espalha por igual na área, e não amontoado no centro.
       const at = onStreet[i] ?? offsetM(zone, zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
-      await ctx.db.insert('boosts', { gameId, round, kind: randomKind(), ...at, state: 'map' });
+      await ctx.db.insert('boosts', { gameId, round, kind: kinds[i], ...at, state: 'map' });
     }
     await systemMessage(ctx, gameId, `${count} boosts apareceram. Você guarda até 2; quanto mais forte, mais tempo fica visível ao pegar.`, 'runner');
+    await systemMessage(ctx, gameId, `${HUNTER_BOOSTS_PER_WAVE} boosts de caçador apareceram no seu mapa. Você guarda 1.`, 'hunter');
     const next = Date.now() + BOOST_EVERY_MIN * MIN;
     if (next < (game.endsAt ?? 0)) await ctx.scheduler.runAt(next, internal.rounds.spawnBoosts, { gameId, round });
   },

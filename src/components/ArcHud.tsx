@@ -53,6 +53,8 @@ export function ArcHud({
   statusLabel,
   boosts,
   onBoost,
+  slots = 2,
+  tag,
   urgent,
 }: {
   timeLabel: string;
@@ -65,15 +67,18 @@ export function ArcHud({
   zoneNote: string;
   status: ArcStatus;
   statusLabel: string;
-  boosts?: Boost[] | null; // null = sem boosts nesta partida (ou caçador)
+  boosts?: Boost[] | null; // null = sem boosts nesta partida
   onBoost?: (b: Boost) => void;
+  slots?: number; // corredor guarda 2, caçador 1 (fica do lado esquerdo)
+  tag?: { text: string; color: string } | null; // etiqueta curta embaixo do olho (ex.: Faro em você)
   urgent?: boolean; // últimos segundos: o relógio pulsa
 }) {
   const { width } = useWindowDimensions();
   const insets = useScreenInsets();
   const scale = Math.min(1, width / W);
   const fresh = useFreshBoost(boosts ?? []);
-  const halos = boosts ? [EYE, ...SLOTS] : [EYE];
+  const mySlots = SLOTS.slice(0, slots);
+  const halos = boosts ? [EYE, ...mySlots] : [EYE];
   const r = (RING - 7) / 2;
   const c = 2 * Math.PI * r;
   const { pulse, eye, count, beat } = useHudMotion(progress, status, free, !!urgent);
@@ -157,8 +162,14 @@ export function ArcHud({
         )}
       </Animated.View>
 
+      {tag ? (
+        <View accessibilityRole="alert" style={[styles.tag, { backgroundColor: tag.color }]}>
+          <Text style={{ fontSize: 12, fontFamily: fonts.bodyStrong, color: colors.ink }}>{tag.text}</Text>
+        </View>
+      ) : null}
+
       {boosts
-        ? SLOTS.map((p, i) => {
+        ? mySlots.map((p, i) => {
             const b = boosts[i];
             return (
               <View key={b?.id ?? `vazio-${i}`} style={{ position: 'absolute', left: p.x - DOT / 2, top: p.y - DOT / 2 }}>
@@ -222,6 +233,7 @@ const styles = StyleSheet.create({
   wrap: { position: 'absolute', top: 0, width: W, height: CY + R + HALO },
   ring: { position: 'absolute', width: RING, height: RING, alignItems: 'center', justifyContent: 'center' },
   side: { position: 'absolute', top: 64, width: 84 },
+  tag: { position: 'absolute', top: EYE.y + DOT / 2 + 8, left: CX - 115, width: 230, alignItems: 'center', borderRadius: 999, paddingVertical: 5 },
   small: { fontSize: 11, color: colors.paperMuted },
   value: { fontFamily: fonts.display, fontSize: 24, lineHeight: 29, color: colors.paper },
   time: { fontFamily: fonts.display, fontSize: 42, lineHeight: 46, letterSpacing: -1.2, color: colors.paper, fontVariant: ['tabular-nums'] },

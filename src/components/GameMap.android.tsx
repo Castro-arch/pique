@@ -12,12 +12,12 @@ import type { GameMapProps } from './gameMapTypes';
 // Mapa da partida no Android: ruas do OpenFreeMap desenhadas pelo MapLibre
 // (sem Google, sem conta, sem cobrança). O iPhone usa o GameMap.native.tsx
 // (Apple Maps) e o site, o GameMap.tsx.
-export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [], padding = MAP_PADDING }: GameMapProps) {
+export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [], spot = null, padding = MAP_PADDING }: GameMapProps) {
   const camera = useRef<CameraRef>(null);
   // O estilo leva a zona; muda só quando a zona muda.
   const style = useMemo(
-    () => streetStyle(zone, nextZoneRadius),
-    [zone?.lat, zone?.lng, zone?.radius, nextZoneRadius], // eslint-disable-line react-hooks/exhaustive-deps
+    () => streetStyle(zone, nextZoneRadius, spot),
+    [zone?.lat, zone?.lng, zone?.radius, nextZoneRadius, spot?.lat, spot?.lng, spot?.radius], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Enquadra a zona inteira, com folga para o placar em cima e o Radio embaixo.

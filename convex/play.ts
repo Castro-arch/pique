@@ -11,6 +11,12 @@ import {
   BOOST_REVEAL_S,
   BOOST_SLOTS,
   CAPTURE_CONFIRM_MS,
+  FARO_MS,
+  HUNTER_BOOST_SLOTS,
+  isHunterBoost,
+  RADAR_DELAY_MS,
+  SPOT_M,
+  SPOT_MS,
   distanceM,
   features,
   FRESH_POSITION_MS,
@@ -27,7 +33,7 @@ import {
   SHOUTS_PER_ROUND,
   systemMessage,
 } from './lib';
-import { markOutOfZone } from './rounds';
+import { firePing, markOutOfZone } from './rounds';
 
 const MAX_ACCURACY_M = 30; // leitura pior que isso é descartada
 const MAX_SPEED_MS = 35 / 3.6; // 35 km/h: acima disso é salto de GPS
@@ -81,6 +87,7 @@ export const sendPosition = mutation({
       await pickUpBoost(ctx, game, me, { lat, lng });
       await tryRescue(ctx, me, { lat, lng }, now);
     }
+    if (me.role === 'hunter' && game.status === 'hunt' && features(game.rules).boosts) await pickUpBoost(ctx, game, me, { lat, lng });
     if (game.status === 'hunt' && features(game.rules).heartbeat) await heartbeatAlerts(ctx, me, { lat, lng }, now);
     return { accepted: true as const };
   },
@@ -91,10 +98,11 @@ export const sendPosition = mutation({
 const heldBoosts = (ctx: QueryCtx, playerId: Id<'players'>) =>
   ctx.db.query('boosts').withIndex('by_owner', (q) => q.eq('ownerId', playerId).eq('state', 'held')).collect();
 
-async function nearestMapBoost(ctx: QueryCtx, game: Doc<'games'>, at: { lat: number; lng: number }) {
+// O boost do mapa mais perto que essa pessoa pode pegar (corredor pega os de corredor; caçador, os de caçador).
+async function nearestMapBoost(ctx: QueryCtx, game: Doc<'games'>, at: { lat: number; lng: number }, hunter = false) {
   let best: { boost: Doc<'boosts'>; d: number } | null = null;
   for (const b of await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', game._id).eq('state', 'map')).collect()) {
-    if (b.round !== game.round) continue;
+    if (b.round !== game.round || isHunterBoost(b.kind) !== hunter) continue;
     const d = distanceM(b, at);
     if (d <= BOOST_PICK_M && (!best || d < best.d)) best = { boost: b, d };
   }
@@ -104,10 +112,16 @@ async function nearestMapBoost(ctx: QueryCtx, game: Doc<'games'>, at: { lat: num
 // Passou perto de um boost com espaço livre: pega. O preço é ficar visível
 // ao vivo para os caçadores por alguns segundos.
 async function pickUpBoost(ctx: MutationCtx, game: Doc<'games'>, me: Doc<'players'>, at: { lat: number; lng: number }) {
-  const boost = await nearestMapBoost(ctx, game, at);
-  if (!boost || (await heldBoosts(ctx, me._id)).length >= BOOST_SLOTS) return;
+  const hunter = me.role === 'hunter';
+  const boost = await nearestMapBoost(ctx, game, at, hunter);
+  if (!boost || (await heldBoosts(ctx, me._id)).length >= (hunter ? HUNTER_BOOST_SLOTS : BOOST_SLOTS)) return;
   const now = Date.now();
-  const seconds = BOOST_REVEAL_S[boost.kind];
+  // caçador pega sem custo: o preço dos boosts dele vem ao usar
+  if (hunter) {
+    await ctx.db.patch(boost._id, { state: 'held', ownerId: me._id, takenAt: now });
+    return;
+  }
+  const seconds = BOOST_REVEAL_S[boost.kind as keyof typeof BOOST_REVEAL_S];
   const until = now + seconds * 1000;
   await ctx.db.patch(boost._id, { state: 'held', ownerId: me._id, takenAt: now });
   await ctx.db.patch(me._id, { revealed: true, revealUntil: Math.max(until, me.revealUntil ?? 0) });
@@ -142,12 +156,55 @@ export const useBoost = mutation({
     const { game, me } = await requireMember(ctx, boost.gameId);
     if (boost.ownerId !== me._id || boost.state !== 'held') throw new ConvexError('Esse boost não é seu.');
     if (game.status !== 'hunt' || me.state !== 'active') throw new ConvexError('Só dá para usar boost durante a caça.');
+    if (isHunterBoost(boost.kind)) return useHunterBoost(ctx, game, me, boost);
     await ctx.db.patch(boostId, { state: 'used' });
     if (boost.kind === 'escudo') await ctx.db.patch(me._id, { shieldUntil: Date.now() + SHIELD_MS });
-    else await ctx.db.patch(me._id, { nextPing: boost.kind });
+    else await ctx.db.patch(me._id, { nextPing: boost.kind as 'despiste' | 'sombra' });
     return { kind: boost.kind };
   },
 });
+
+// Boosts do caçador. Cada um tem um preço que os corredores sentem.
+async function useHunterBoost(ctx: MutationCtx, game: Doc<'games'>, me: Doc<'players'>, boost: Doc<'boosts'>) {
+  const now = Date.now();
+  const runners = (await gamePlayers(ctx, game._id)).filter((p) => p.role === 'runner' && p.state === 'active');
+  if (boost.kind === 'radar') {
+    // ping na hora; o próximo ping normal atrasa 1 min e os corredores são avisados
+    await ctx.db.patch(boost._id, { state: 'used' });
+    await firePing(ctx, game, { schedule: false });
+    const next = (game.nextPingAt ?? now + game.rules.pingEveryMin * 60_000) + RADAR_DELAY_MS;
+    if (next < (game.endsAt ?? 0)) {
+      await ctx.db.patch(game._id, { nextPingAt: next });
+      await ctx.scheduler.runAt(next, internal.rounds.ping, { gameId: game._id, round: game.round });
+    } else await ctx.db.patch(game._id, { nextPingAt: undefined });
+    await systemMessage(ctx, game._id, `${me.name} usou o Radar: um ping fora de hora. O próximo atrasa 1 min.`, 'runner');
+    await notify(ctx, runners, 'ping', 'Radar!', 'Um caçador puxou um ping fora de hora. Se mexa.');
+    return { kind: boost.kind };
+  }
+  const mine = await lastPosition(ctx, me._id);
+  if (!mine || now - mine.at > FRESH_POSITION_MS) throw new ConvexError('Esperando o GPS achar você.');
+  if (boost.kind === 'faro') {
+    // o corredor mais perto (com GPS recente) aparece ao vivo por 10 s; ele é avisado
+    let target: { p: Doc<'players'>; d: number } | null = null;
+    for (const p of runners) {
+      const pos = await lastPosition(ctx, p._id);
+      if (!pos || now - pos.at > FRESH_POSITION_MS) continue;
+      const d = distanceM(pos, mine);
+      if (!target || d < target.d) target = { p, d };
+    }
+    if (!target) throw new ConvexError('Nenhum corredor com GPS para farejar agora. Guarde o Faro para depois.');
+    await ctx.db.patch(boost._id, { state: 'used' });
+    await ctx.db.patch(me._id, { faroUntil: now + FARO_MS, faroTargetId: target.p._id });
+    await notify(ctx, [target.p], 'heartbeat', 'Um caçador está te farejando', 'Por 10 s ele vê onde você está. Corra!');
+    return { kind: boost.kind };
+  }
+  // holofote: ilumina os corredores a até 80 m por 10 s; todos os corredores veem esse caçador
+  await ctx.db.patch(boost._id, { state: 'used' });
+  await ctx.db.patch(me._id, { spotUntil: now + SPOT_MS });
+  await systemMessage(ctx, game._id, `${me.name} acendeu o Holofote: por 10 s ele vê quem está a até ${SPOT_M} m, e vocês veem onde ele está.`, 'runner');
+  await notify(ctx, runners, 'heartbeat', 'Holofote!', `Por 10 s, ${me.name} vê quem está perto. E você vê onde ele está.`);
+  return { kind: boost.kind };
+}
 
 // ── Salvar o amigo ─────────────────────────────────────────────────────
 
@@ -186,6 +243,7 @@ type Seen = {
   state: Doc<'players'>['state'];
   isMe: boolean;
   kind: 'live' | 'ping';
+  faro?: boolean; // corredor sob o Faro deste caçador (brilha no mapa)
   heading?: number | null;
   lat: number;
   lng: number;
@@ -205,6 +263,10 @@ export const view = query({
     const players = (await gamePlayers(ctx, gameId)).filter((p) => p.state !== 'left' && p.role);
     const iHunt = me.role === 'hunter' && me.state === 'active';
     const seen: Seen[] = [];
+    const now = Date.now();
+    // boosts do caçador valendo: Faro (um corredor ao vivo) e Holofote (quem está a até 80 m)
+    const faroOn = iHunt && !!me.faroTargetId && (me.faroUntil ?? 0) > now;
+    const spotFrom = iHunt && (me.spotUntil ?? 0) > now ? await lastPosition(ctx, me._id) : null;
 
     const frames = new Map<Id<'players'>, string | null>();
     for (const p of players) frames.set(p._id, (await ctx.db.get(p.userId))?.frame ?? null);
@@ -218,18 +280,28 @@ export const view = query({
         seen.push({ ...base, kind: 'live', ...p.jail });
         continue;
       }
-      // Corredor e espectador nunca veem caçadores.
-      if (!isMe && !iHunt && role === 'hunter') continue;
-      // Caçador vê corredor no último ping, a não ser que ele esteja exposto.
-      if (!isMe && iHunt && role === 'runner' && !((p.exposed || p.revealed) && p.state === 'active')) {
+      // Corredor e espectador nunca veem caçadores (a não ser com o Holofote aceso).
+      if (!isMe && !iHunt && role === 'hunter' && !((p.spotUntil ?? 0) > now)) continue;
+      // Caçador vê corredor no último ping, a não ser que ele esteja exposto ou
+      // sob o Faro / Holofote desse caçador.
+      if (!isMe && iHunt && role === 'runner' && p.state === 'active' && !(p.exposed || p.revealed)) {
+        const sniffed = faroOn && me.faroTargetId === p._id;
+        const lit = spotFrom ? await lastPosition(ctx, p._id) : null;
+        const spotted = !!lit && !!spotFrom && distanceM(lit, spotFrom) <= SPOT_M;
+        if (!sniffed && !spotted) {
+          if (p.ping) seen.push({ ...base, kind: 'ping', ...p.ping });
+          continue;
+        }
+      } else if (!isMe && iHunt && role === 'runner' && !((p.exposed || p.revealed) && p.state === 'active')) {
         if (p.ping) seen.push({ ...base, kind: 'ping', ...p.ping });
         continue;
       }
       // O resto (eu, meu time, corredor exposto) aparece ao vivo.
       const pos = await lastPosition(ctx, p._id);
+      const faro = faroOn && me.faroTargetId === p._id ? { faro: true } : {};
       // Direção só se for recente (bússola parada há mais de 30 s não conta).
       const heading = p.heading !== undefined && Date.now() - (p.headingAt ?? 0) < 30_000 ? p.heading : null;
-      if (pos) seen.push({ ...base, kind: 'live', lat: pos.lat, lng: pos.lng, at: pos.at, heading });
+      if (pos) seen.push({ ...base, ...faro, kind: 'live', lat: pos.lat, lng: pos.lng, at: pos.at, heading });
     }
 
     const runners = players.filter((p) => p.role === 'runner');
@@ -240,9 +312,13 @@ export const view = query({
     // Boosts: o corredor vê os do mapa e os que guardou; o caçador só sabe quantos tem.
     const runner = me.role === 'runner';
     const mapBoosts = (await ctx.db.query('boosts').withIndex('by_game', (q) => q.eq('gameId', gameId).eq('state', 'map')).collect()).filter(
-      (b) => b.round === game.round,
+      (b) => b.round === game.round && isHunterBoost(b.kind) === (me.role === 'hunter'),
     );
-    const held = runner ? await heldBoosts(ctx, me._id) : [];
+    const held = me.role ? await heldBoosts(ctx, me._id) : [];
+    // corredor: algum caçador está me farejando agora?
+    const sniffedUntil = runner
+      ? Math.max(0, ...players.filter((h) => h.role === 'hunter' && h.faroTargetId === me._id && (h.faroUntil ?? 0) > now).map((h) => h.faroUntil!))
+      : 0;
     const myPos = runner && game.status === 'hunt' && held.length >= BOOST_SLOTS ? await lastPosition(ctx, me._id) : null;
     const blocked = myPos ? await nearestMapBoost(ctx, game, myPos) : null;
 
@@ -294,12 +370,15 @@ export const view = query({
         revealUntil: me.revealed ? (me.revealUntil ?? null) : null,
         shieldUntil: me.shieldUntil ?? null,
         nextPing: me.nextPing ?? null,
+        faroUntil: faroOn ? me.faroUntil! : null,
+        spotUntil: iHunt && (me.spotUntil ?? 0) > now ? me.spotUntil! : null,
+        sniffedUntil: sniffedUntil || null,
         boosts: held.sort((a, b) => (a.takenAt ?? 0) - (b.takenAt ?? 0)).map((b) => ({ id: b._id, kind: b.kind })),
         blockedBoost: blocked ? BOOST_NAME[blocked.kind] : null,
         jailed: me.state === 'caught' && !!me.jail,
         rescue: me.rescue ? { name: players.find((p) => p._id === me.rescue!.targetId)?.name ?? '', since: me.rescue.since } : null,
       },
-      boosts: runner ? mapBoosts.map((b) => ({ id: b._id, kind: b.kind, lat: b.lat, lng: b.lng })) : [],
+      boosts: me.role === 'hunter' && me.state !== 'active' ? [] : mapBoosts.map((b) => ({ id: b._id, kind: b.kind, lat: b.lat, lng: b.lng })),
       boostsOnMap: mapBoosts.length,
       runners: { total: runners.length, free: runners.filter((p) => p.state === 'active').length },
       people: seen,

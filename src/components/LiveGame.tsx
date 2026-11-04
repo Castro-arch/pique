@@ -153,8 +153,14 @@ export function LiveGame({ id }: { id: string }) {
 
   // Muda a situação (liberado, pego, preso...): os botões de baixo entram de novo.
   const actionsKey = denied ? 'gps' : me.jailed && !justWatch ? 'preso' : caught ? 'pego' : headstart ? (hunter ? 'espera' : 'vantagem') : hunter ? 'caca' : 'corre';
-  const runnerPlaying = !hunter && !caught && (g.status === 'hunt' || headstart) && g.features.boosts;
+  // Corredor guarda 2 boosts; caçador guarda 1 (Radar, Faro ou Holofote).
+  const boostPlaying = !caught && (g.status === 'hunt' || headstart) && g.features.boosts;
+  const slots = hunter ? 1 : 2;
   const revealed = me.revealUntil && me.revealUntil > now ? me.revealUntil : null;
+  // Holofote: círculo de 80 m em volta de mim no mapa. Faro: o corredor brilha (vem marcado do servidor).
+  const mine = view.people.find((p) => p.isMe);
+  const spot = me.spotUntil && me.spotUntil > now && mine ? { lat: mine.lat, lng: mine.lng, radius: 80 } : null;
+  const sniffed = !caught && !!me.sniffedUntil && me.sniffedUntil > now;
   // Algum aviso (fora da zona, preso, preço do boost, coração) ocupa o lugar do placar.
   const coveredHud = (outFor !== null && !caught) || (me.jailed && !justWatch) || (!!revealed && !caught) || beating;
   const confirmBoost = async () => {
@@ -240,7 +246,9 @@ export function LiveGame({ id }: { id: string }) {
           zoneNote={g.shrinkAt ? `encolhe em ${mmss(secondsUntil(g.shrinkAt, now))}` : 'diâmetro'}
           status={caught ? 'off' : hunter ? 'team' : 'hidden'}
           statusLabel={caught ? 'Sua posição não é mais enviada' : hunter ? 'Só sua equipe te vê' : 'Ninguém te vê agora'}
-          boosts={runnerPlaying ? me.boosts : null}
+          boosts={boostPlaying ? me.boosts : null}
+          slots={slots}
+          tag={sniffed ? { text: 'Um caçador está te farejando', color: BOOSTS.faro.color } : null}
           onBoost={(b) => {
             setError(null);
             setUsing(b);
@@ -251,8 +259,9 @@ export function LiveGame({ id }: { id: string }) {
 
       {/* Um aviso (fora da zona, preço do boost, coração...) cobre o placar: as
           bolinhas de boost seguem à vista embaixo dele, com a animação de pegar. */}
-      {runnerPlaying && coveredHud ? (
+      {boostPlaying && coveredHud ? (
         <BoostSlots
+          slots={slots}
           boosts={me.boosts}
           onPress={(b) => {
             setError(null);

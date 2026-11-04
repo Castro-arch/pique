@@ -5,6 +5,8 @@ import MapView, { Circle, Marker } from 'react-native-maps';
 
 import { Avatar } from '@/components/Avatar';
 import { BoostPin } from '@/components/Boosts';
+import { FARO, FaroRing } from '@/components/MapPins';
+import { SPOT } from '@/lib/mapStyle';
 import { Text } from '@/components/Text';
 import { colors, fonts } from '@/theme/tokens';
 
@@ -13,7 +15,7 @@ import { personState, personTag, type GameMapProps } from './gameMapTypes';
 // Mapa da partida no celular: satélite de verdade.
 // Android usa Google Maps (precisa da GOOGLE_MAPS_API_KEY no build);
 // iPhone usa Apple Maps, sem chave. Decisão do documento de arquitetura.
-export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [] }: GameMapProps) {
+export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [], spot = null }: GameMapProps) {
   const map = useRef<MapView>(null);
 
   // Enquadra a zona inteira, com folga para o placar em cima e o Radio embaixo.
@@ -63,6 +65,9 @@ export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, 
             lineDashPattern={[10, 6]}
           />
         ) : null}
+        {spot ? (
+          <Circle center={{ latitude: spot.lat, longitude: spot.lng }} radius={spot.radius} strokeColor={SPOT} fillColor="rgba(255,225,74,0.18)" strokeWidth={2.5} />
+        ) : null}
         {boosts.map((b) => (
           <Marker key={b.id} coordinate={{ latitude: b.lat, longitude: b.lng }} anchor={{ x: 0.5, y: 0.3 }}>
             <BoostPin kind={b.kind} />
@@ -73,11 +78,14 @@ export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, 
             key={p.id}
             coordinate={{ latitude: p.lat, longitude: p.lng }}
             anchor={{ x: 0.12, y: 0.5 }}
-            tracksViewChanges={p.kind === 'ping'}
+            tracksViewChanges={p.kind === 'ping' || !!p.faro}
             zIndex={p.isMe ? 10 : 1}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              <Avatar name={p.name} size={p.isMe ? 46 : 36} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
-              <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }]}>
+              <View>
+                {p.faro ? <FaroRing size={36} /> : null}
+                <Avatar name={p.name} size={p.isMe ? 46 : 36} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
+              </View>
+              <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }, p.faro && { backgroundColor: FARO }]}>
                 <Text
                   style={{
                     fontSize: p.isMe ? 12 : 11,

@@ -54,7 +54,16 @@ export const BOOST_SLOTS = 2; // guarda no máximo 2
 export const BOOST_REVEAL_S = { despiste: 2, sombra: 5, escudo: 8 } as const; // quanto mais forte, mais tempo visível
 export const SHIELD_MS = 2 * 60_000;
 export const DESPISTE_M = 60;
-export const BOOST_NAME = { despiste: 'Despiste', sombra: 'Sombra', escudo: 'Escudo' } as const;
+export const BOOST_NAME = { despiste: 'Despiste', sombra: 'Sombra', escudo: 'Escudo', radar: 'Radar', faro: 'Faro', holofote: 'Holofote' } as const;
+// Boosts do caçador: aparecem só no mapa dele, guarda 1 de cada vez, e o preço vem ao usar.
+export const HUNTER_BOOSTS = ['radar', 'faro', 'holofote'] as const;
+export const isHunterBoost = (kind: string) => (HUNTER_BOOSTS as readonly string[]).includes(kind);
+export const HUNTER_BOOST_SLOTS = 1;
+export const HUNTER_BOOSTS_PER_WAVE = 2;
+export const RADAR_DELAY_MS = 60_000; // o Radar dispara um ping agora e o próximo atrasa 1 min
+export const FARO_MS = 10_000; // o Faro mostra o corredor mais perto ao vivo por 10 s
+export const SPOT_MS = 10_000; // o Holofote ilumina por 10 s
+export const SPOT_M = 80; // ... os corredores a até 80 m (e todos veem esse caçador)
 export const RESCUE_M = 10; // chega a menos disso do preso
 export const RESCUE_HOLD_MS = 3_000; // e fica 3 s
 export const RESCUE_SHIELD_MS = 30_000; // quem foi solto não pode ser marcado logo em seguida

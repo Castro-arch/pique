@@ -12,11 +12,12 @@ export type MapPerson = {
   lng: number;
   at: number;
   frame?: string | null;
+  faro?: boolean; // sob o Faro do caçador: brilha laranja
 };
 
 export type MapZone = { lat: number; lng: number; radius: number };
 
-export type MapBoost = { id: string; kind: 'despiste' | 'sombra' | 'escudo'; lat: number; lng: number };
+export type MapBoost = { id: string; kind: 'despiste' | 'sombra' | 'escudo' | 'radar' | 'faro' | 'holofote'; lat: number; lng: number };
 
 export type GameMapProps = {
   zone: MapZone | null;
@@ -26,7 +27,8 @@ export type GameMapProps = {
   hunter: boolean;
   outOfZone: boolean;
   dim?: number;
-  boosts?: MapBoost[]; // só o corredor recebe
+  boosts?: MapBoost[]; // cada lado só recebe os boosts dele
+  spot?: MapZone | null; // Holofote do caçador: círculo amarelo em volta dele
   padding?: { top: number; bottom: number; left: number; right: number }; // folga do enquadramento (mapas pequenos)
 };
 

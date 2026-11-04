@@ -434,10 +434,13 @@ describe('rodada', () => {
     await startWithLeoHunting(s);
     await advance(t, 3 * MIN); // fim da vantagem
     await advance(t, MIN); // 1 min de caça: primeira onda
-    expect((await viewOf(s.priya, gameId)).boosts).toHaveLength(3);
+    const runnerView = await viewOf(s.priya, gameId);
+    expect(runnerView.boosts).toHaveLength(3);
+    expect(runnerView.boosts.every((b) => ['despiste', 'sombra', 'escudo'].includes(b.kind))).toBe(true);
+    // o caçador só vê os 2 boosts de caçador, nunca os dos corredores
     const hunterView = await viewOf(s.leo, gameId);
-    expect(hunterView.boosts).toHaveLength(0); // caçador não vê onde estão
-    expect(hunterView.boostsOnMap).toBe(3);
+    expect(hunterView.boosts).toHaveLength(2);
+    expect(hunterView.boosts.every((b) => ['radar', 'faro', 'holofote'].includes(b.kind))).toBe(true);
 
     // Troca a onda sorteada por boosts em lugares conhecidos.
     await t.run(async (ctx) => {
@@ -950,6 +953,80 @@ describe('segurança', () => {
     await startWithLeoHunting(s);
     for (let i = 0; i < 40; i++) await s.priya.mutation(api.radio.uploadUrl, { gameId: s.gameId });
     await expect(s.priya.mutation(api.radio.uploadUrl, { gameId: s.gameId })).rejects.toThrow(/Chega de áudio/);
+  });
+
+  test('boosts do caçador: pega 1, Radar, Faro e Holofote', async () => {
+    const s = await lobbyWith4();
+    const { gameId, t } = s;
+    await withStreets(s);
+    await startWithLeoHunting(s);
+    await advance(t, 3 * MIN);
+    await advance(t, MIN);
+    // boosts de caçador em lugares conhecidos
+    await t.run(async (ctx) => {
+      const game = (await ctx.db.get(gameId))!;
+      for (const b of await ctx.db.query('boosts').collect()) await ctx.db.delete(b._id);
+      for (const [kind, m] of [['faro', 0], ['holofote', 0], ['radar', 0], ['sombra', 0]] as const) {
+        await ctx.db.insert('boosts', { gameId, round: game.round, kind, ...north(m), state: 'map' });
+      }
+    });
+    await move(s.priya, gameId, north(60));
+    await move(s.teo, gameId, north(300));
+    await move(s.host, gameId, north(-200));
+    await move(s.leo, gameId, CENTER);
+    // caçador guarda só 1, e nunca pega boost de corredor
+    let me = (await viewOf(s.leo, gameId)).me;
+    expect(me.boosts).toHaveLength(1);
+    expect(['faro', 'holofote', 'radar']).toContain(me.boosts[0].kind);
+    const seen = async (name: string) => (await viewOf(s.leo, gameId)).people.find((p) => p.name === name);
+
+    // Faro: o corredor mais perto (Priya) ao vivo por 10 s, e ela sabe
+    await t.run(async (ctx) => {
+      const b = (await ctx.db.query('boosts').collect()).find((x) => x.state === 'held')!;
+      await ctx.db.patch(b._id, { kind: 'faro' });
+    });
+    me = (await viewOf(s.leo, gameId)).me;
+    await s.leo.mutation(api.play.useBoost, { boostId: me.boosts[0].id });
+    expect((await seen('Priya'))?.kind).toBe('live');
+    expect((await seen('Teo'))?.kind).not.toBe('live');
+    expect((await viewOf(s.priya, gameId)).me.sniffedUntil).not.toBeNull();
+    vi.advanceTimersByTime(11_000);
+    expect((await seen('Priya'))?.kind).not.toBe('live');
+
+    // Holofote: quem está a até 80 m aparece; todos os corredores veem o Leo
+    vi.advanceTimersByTime(3_000);
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(60));
+    await move(s.teo, gameId, north(300));
+    await t.run(async (ctx) => {
+      const game = (await ctx.db.get(gameId))!;
+      const leo = (await ctx.db.query('players').collect()).find((p) => p.name === 'Leo')!;
+      await ctx.db.insert('boosts', { gameId, round: game.round, kind: 'holofote', ...CENTER, state: 'held', ownerId: leo._id, takenAt: Date.now() });
+    });
+    me = (await viewOf(s.leo, gameId)).me;
+    await s.leo.mutation(api.play.useBoost, { boostId: me.boosts.find((b) => b.kind === 'holofote')!.id });
+    expect((await seen('Priya'))?.kind).toBe('live'); // a 60 m
+    expect((await seen('Teo'))?.kind).not.toBe('live'); // a 300 m
+    expect((await viewOf(s.teo, gameId)).people.some((p) => p.name === 'Leo')).toBe(true); // Teo vê o Leo
+    vi.advanceTimersByTime(11_000);
+    expect((await viewOf(s.teo, gameId)).people.some((p) => p.name === 'Leo')).toBe(false);
+
+    // Radar: ping na hora e o próximo atrasa 1 min
+    const before = (await viewOf(s.leo, gameId)).game.nextPingAt!;
+    await move(s.priya, gameId, north(70));
+    await t.run(async (ctx) => {
+      const game = (await ctx.db.get(gameId))!;
+      const leo = (await ctx.db.query('players').collect()).find((p) => p.name === 'Leo')!;
+      await ctx.db.insert('boosts', { gameId, round: game.round, kind: 'radar', ...CENTER, state: 'held', ownerId: leo._id, takenAt: Date.now() });
+    });
+    me = (await viewOf(s.leo, gameId)).me;
+    await s.leo.mutation(api.play.useBoost, { boostId: me.boosts.find((b) => b.kind === 'radar')!.id });
+    const after = await viewOf(s.leo, gameId);
+    expect(after.game.nextPingAt).toBe(before + MIN);
+    expect((await seen('Priya'))?.kind).toBe('ping');
+    // o ping agendado para o horário antigo não dispara
+    await advance(t, before - Date.now() + 500);
+    expect((await viewOf(s.leo, gameId)).game.nextPingAt).toBe(before + MIN);
   });
 
   test('perfil de quem não é amigo não mostra a partida ao vivo, e nunca o papel', async () => {

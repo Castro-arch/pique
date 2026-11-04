@@ -22,7 +22,7 @@ export const rules = v.object({
   rescue: v.optional(v.boolean()),
 });
 
-export const boostKind = v.union(v.literal('despiste'), v.literal('sombra'), v.literal('escudo'));
+export const boostKind = v.union(v.literal('despiste'), v.literal('sombra'), v.literal('escudo'), v.literal('radar'), v.literal('faro'), v.literal('holofote'));
 
 export const zone = v.object({ lat: v.number(), lng: v.number(), radius: v.number() });
 
@@ -115,6 +115,9 @@ export default defineSchema({
     lastShoutAt: v.optional(v.number()), // caçador: último grito (intervalo entre gritos)
     disputedAt: v.optional(v.number()), // corredor: quando contestou uma pega (ninguém marca de novo por 30 s)
     lastMarkAt: v.optional(v.number()), // caçador: última tentativa de marcar (intervalo, senão vira radar)
+    faroUntil: v.optional(v.number()), // caçador: Faro valendo até
+    faroTargetId: v.optional(v.id('players')), // ... e em quem
+    spotUntil: v.optional(v.number()), // caçador: Holofote aceso até
     uploads: v.optional(v.number()), // áudios do rádio pedidos nesta rodada (cota)
     // Boosts: o preço de pegar (visível ao vivo por alguns segundos) e os efeitos ativos.
     revealed: v.optional(v.boolean()),

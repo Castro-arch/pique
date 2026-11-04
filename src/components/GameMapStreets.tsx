@@ -29,6 +29,7 @@ export function StreetMap({
   outOfZone,
   dim = 0,
   boosts = [],
+  spot = null,
   padding = MAP_PADDING,
 }: GameMapProps & { onFail: () => void }) {
   const el = useRef<HTMLDivElement>(null);
@@ -65,8 +66,8 @@ export function StreetMap({
   // Zona nova ou encolhendo: troca o desenho e reenquadra.
   useEffect(() => {
     if (!map) return;
-    (map.getSource('zone') as maplibregl.GeoJSONSource | undefined)?.setData(zoneShapes(zone, nextZoneRadius));
-  }, [map, zone?.lat, zone?.lng, zone?.radius, nextZoneRadius]); // eslint-disable-line react-hooks/exhaustive-deps
+    (map.getSource('zone') as maplibregl.GeoJSONSource | undefined)?.setData(zoneShapes(zone, nextZoneRadius, spot));
+  }, [map, zone?.lat, zone?.lng, zone?.radius, nextZoneRadius, spot?.lat, spot?.lng, spot?.radius]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (map && zone) map.fitBounds(zoneBounds(zone), { padding, duration: 0 });
   }, [map, zone?.lat, zone?.lng, zone?.radius]); // eslint-disable-line react-hooks/exhaustive-deps

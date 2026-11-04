@@ -18,7 +18,7 @@ export const BENTO = { ink: '#0B0F13', tile: '#141A21', line: '#222A33', muted: 
 // ---------- Figurinhas ----------
 const K = '#0B0F13';
 const sw = { stroke: K, strokeWidth: 3.6, strokeLinejoin: 'round' as const, strokeLinecap: 'round' as const };
-export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield' | 'copy' | 'heart' | 'lock' | 'mega' | 'radar' | 'shrink';
+export type StickerKind = 'hand' | 'run' | 'chat' | 'crew' | 'pin' | 'bag' | 'cup' | 'ghost' | 'qr' | 'shuffle' | 'shield' | 'copy' | 'heart' | 'lock' | 'mega' | 'radar' | 'shrink' | 'nose' | 'spot';
 
 function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: Omit<typeof sw, "stroke"> & { stroke: string } }) {
   switch (kind) {
@@ -130,6 +130,22 @@ function Shape({ kind, color, l = sw }: { kind: StickerKind; color: string; l?: 
           <Circle cx={32} cy={32} r={13} fill="none" {...l} />
           <Circle cx={32} cy={32} r={4} fill={K} />
           <Path d="M32 32l15-15" fill="none" {...l} strokeWidth={4.4} />
+        </>
+      );
+    case 'nose':
+      return (
+        <>
+          <Path d="M32 8c-9 0-14 10-16 22-2 10-6 14-6 18 0 6 6 9 12 7 4-1 6-4 10-4s6 3 10 4c6 2 12-1 12-7 0-4-4-8-6-18C46 18 41 8 32 8z" fill={color} {...l} />
+          <Circle cx={25} cy={44} r={3.5} fill={K} />
+          <Circle cx={39} cy={44} r={3.5} fill={K} />
+        </>
+      );
+    case 'spot':
+      return (
+        <>
+          <Path d="M24 6h16l4 16H20z" fill={color} {...l} />
+          <Path d="M20 22h24L58 58H6z" fill={color} {...l} opacity={0.55} />
+          <Path d="M32 22v8M22 26l-4 6M42 26l4 6" fill="none" {...l} strokeWidth={4} />
         </>
       );
     case 'shrink':

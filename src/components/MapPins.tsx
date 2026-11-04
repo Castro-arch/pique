@@ -1,4 +1,5 @@
-import { StyleSheet, View } from 'react-native';
+import { useEffect, useRef } from 'react';
+import { Animated, Easing, Platform, StyleSheet, View } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
 
 import { Avatar } from '@/components/Avatar';
@@ -17,18 +18,49 @@ export function PersonPin({ p, now, hunter, outOfZone }: { p: MapPerson; now: nu
   return (
     <View collapsable={false} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
       <Beak heading={p.heading} size={pinSize(p.isMe)} color={p.role === 'hunter' ? colors.pink : colors.lime}>
-        <Avatar name={p.name} size={pinSize(p.isMe)} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
+        <View>
+          {p.faro ? <FaroRing size={pinSize(p.isMe)} /> : null}
+          <Avatar name={p.name} size={pinSize(p.isMe)} state={personState(p, outOfZone)} glow={p.isMe} frame={p.frame} />
+        </View>
       </Beak>
-      <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }]}>
+      <View style={[styles.tag, p.isMe && { backgroundColor: hunter ? colors.pink : colors.lime }, p.faro && { backgroundColor: FARO }]}>
         <Text
           style={{
             fontSize: p.isMe ? 10 : 9,
             fontFamily: fonts.bodyStrong,
-            color: p.isMe ? (hunter ? colors.pinkInk : colors.limeInk) : colors.paper,
+            color: p.isMe ? (hunter ? colors.pinkInk : colors.limeInk) : p.faro ? colors.ink : colors.paper,
           }}>
           {personTag(p, now)}
         </Text>
       </View>
+    </View>
+  );
+}
+
+// Faro: o corredor farejado pulsa em laranja enquanto dura.
+export const FARO = colors.pink;
+export function FaroRing({ size }: { size: number }) {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.timing(t, { toValue: 1, duration: 1100, easing: Easing.out(Easing.quad), useNativeDriver: Platform.OS !== 'web' }));
+    loop.start();
+    return () => loop.stop();
+  }, [t]);
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+      <View style={{ position: 'absolute', width: size + 8, height: size + 8, borderRadius: size, borderWidth: 3, borderColor: FARO }} />
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: size + 8,
+          height: size + 8,
+          borderRadius: size,
+          borderWidth: 3,
+          borderColor: FARO,
+          opacity: t.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0] }),
+          transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [1, 2.2] }) }],
+        }}
+      />
     </View>
   );
 }

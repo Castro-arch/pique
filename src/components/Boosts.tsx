@@ -8,17 +8,22 @@ import { Bar, mmss } from '@/components/Game';
 import { Text } from '@/components/Text';
 import { colors, fonts, radius } from '@/theme/tokens';
 
-export type BoostKind = 'despiste' | 'sombra' | 'escudo';
+export type BoostKind = 'despiste' | 'sombra' | 'escudo' | 'radar' | 'faro' | 'holofote';
+export const isHunterKind = (k: BoostKind) => k === 'radar' || k === 'faro' || k === 'holofote';
 
-// Os 3 boosts. Quanto mais forte, mais tempo quem pega fica visível.
+// Os boosts. Corredor: quanto mais forte, mais tempo quem pega fica visível.
+// Caçador (radar, faro, holofote): pegar é de graça, o custo vem ao usar.
 export const BOOSTS: Record<BoostKind, { name: string; color: string; tint: string; sticker: StickerKind; reveal: number; effect: string }> = {
   despiste: { name: 'Despiste', color: colors.lime, tint: colors.limeTint, sticker: 'shuffle', reveal: 2, effect: 'Seu próximo ping sai a 60 m do lugar certo.' },
   sombra: { name: 'Sombra', color: '#B57CFF', tint: '#2A1F3D', sticker: 'ghost', reveal: 5, effect: 'Você some do próximo ping.' },
   escudo: { name: 'Escudo', color: '#5AC8FA', tint: '#12303D', sticker: 'shield', reveal: 8, effect: 'Por 2 min, nenhum caçador consegue te marcar.' },
+  radar: { name: 'Radar', color: '#FF9F0A', tint: '#3D2A0C', sticker: 'radar', reveal: 0, effect: 'Solta um ping agora. Os corredores ficam sabendo e o próximo ping atrasa 1 min.' },
+  faro: { name: 'Faro', color: colors.pink, tint: colors.pinkTint, sticker: 'nose', reveal: 0, effect: 'Mostra o corredor mais perto de você ao vivo por 10 s. Ele recebe um aviso.' },
+  holofote: { name: 'Holofote', color: '#FFE14A', tint: '#3D3512', sticker: 'spot', reveal: 0, effect: 'Por 10 s você vê ao vivo quem estiver a até 80 m. Todos os corredores te veem nesse tempo.' },
 };
 
 // A figurinha do boost, levemente girada como as do Início.
-const TILT: Record<BoostKind, number> = { despiste: -8, sombra: 8, escudo: -6 };
+const TILT: Record<BoostKind, number> = { despiste: -8, sombra: 8, escudo: -6, radar: 6, faro: -6, holofote: 8 };
 export function BoostSticker({ kind, size = 44, edge }: { kind: BoostKind; size?: number; edge?: boolean }) {
   return <Sticker kind={BOOSTS[kind].sticker} color={BOOSTS[kind].color} size={size} tilt={TILT[kind]} edge={edge ? colors.paper : undefined} />;
 }
@@ -34,7 +39,7 @@ export function BoostPin({ kind }: { kind: BoostKind }) {
       <View style={styles.pinTag}>
         <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong }}>
           {b.name}
-          <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: b.color }}> · {b.reveal} s</Text>
+          {b.reveal ? <Text style={{ fontSize: 11, fontFamily: fonts.bodyStrong, color: b.color }}> · {b.reveal} s</Text> : null}
         </Text>
       </View>
     </View>
@@ -62,11 +67,11 @@ export function useFreshBoost(boosts: { id: string }[]) {
   return fresh;
 }
 
-export function BoostSlots({ boosts, onPress }: { boosts: { id: string; kind: BoostKind }[]; onPress: (b: { id: string; kind: BoostKind }) => void }) {
+export function BoostSlots({ boosts, onPress, slots = 2 }: { boosts: { id: string; kind: BoostKind }[]; onPress: (b: { id: string; kind: BoostKind }) => void; slots?: number }) {
   const fresh = useFreshBoost(boosts);
   return (
-    <View style={styles.slots} accessibilityLabel={`Seus boosts: ${boosts.length} de 2`}>
-      {[0, 1].map((i) => {
+    <View style={styles.slots} accessibilityLabel={`Seus boosts: ${boosts.length} de ${slots}`}>
+      {Array.from({ length: slots }, (_, i) => i).map((i) => {
         const b = boosts[i];
         if (!b) return <EmptySlot key={`vazio-${i}`} />;
         return <BoostSlot key={b.id} boost={b} pop={b.id === fresh} onPress={() => onPress(b)} />;

@@ -25,8 +25,16 @@ function ring(c: Zone, radius: number) {
 
 // A zona e, quando ela vai encolher, a zona nova. As cores vão nas
 // propriedades para um par de camadas desenhar as duas.
-export function zoneShapes(zone: Zone | null, nextRadius: number | null) {
+// spot: o círculo do Holofote do caçador, em amarelo.
+export function zoneShapes(zone: Zone | null, nextRadius: number | null, spot?: Zone | null) {
   const features = [];
+  if (spot) {
+    features.push({
+      type: 'Feature' as const,
+      properties: { fill: SPOT, fillOpacity: 0.18, line: SPOT, lineOpacity: 0.95 },
+      geometry: ring(spot, spot.radius),
+    });
+  }
   if (zone) {
     features.push({
       type: 'Feature' as const,
@@ -100,13 +108,15 @@ const label = (id: string, sourceLayer: string, color: string, size: unknown, ex
   paint: { 'text-color': color, 'text-halo-color': M.ground, 'text-halo-width': 1.2 },
 });
 
-export function streetStyle(zone: Zone | null, nextRadius: number | null): StyleSpecification {
+export const SPOT = '#FFE14A';
+
+export function streetStyle(zone: Zone | null, nextRadius: number | null, spot?: Zone | null): StyleSpecification {
   return {
     version: 8,
     glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
-      zone: { type: 'geojson', data: zoneShapes(zone, nextRadius) },
+      zone: { type: 'geojson', data: zoneShapes(zone, nextRadius, spot) },
     },
     layers: [
       { id: 'ground', type: 'background', paint: { 'background-color': M.ground } },
