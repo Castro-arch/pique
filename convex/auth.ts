@@ -14,9 +14,18 @@ export const loginProviders = {
   apple: !!(process.env.AUTH_APPLE_ID && process.env.AUTH_APPLE_SECRET),
 };
 
-// Para onde o login do Google/Apple pode voltar: o app instalado (pique://),
-// o build de desenvolvimento (exp://) e a versão web.
-const ALLOWED_REDIRECTS = [/^pique:\/\//, /^exp(\+pique)?:\/\//, /^https?:\/\/localhost(:\d+)?\//, /^https?:\/\/127\.0\.0\.1(:\d+)?\//];
+// Para onde o login do Google/Apple pode voltar: o app instalado (pique://) e
+// a mesma origem do site (SITE_URL). O build de desenvolvimento (exp://) e o
+// localhost só com ALLOW_DEV_REDIRECTS=1, nunca em produção: comparar por
+// prefixo aceitava "https://pique.app.evil.com" e exp:// de qualquer host.
+const DEV_REDIRECTS = [/^exp(\+pique)?:\/\//, /^https?:\/\/localhost(:\d+)?\//, /^https?:\/\/127\.0\.0\.1(:\d+)?\//];
+const sameOrigin = (a: string, b: string) => {
+  try {
+    return new URL(a).origin === new URL(b).origin;
+  } catch {
+    return false;
+  }
+};
 
 export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   providers: [
@@ -31,8 +40,9 @@ export const { auth, signIn, signOut, store, isAuthenticated } = convexAuth({
   callbacks: {
     async redirect({ redirectTo }) {
       const site = process.env.SITE_URL;
-      if (site && redirectTo.startsWith(site)) return redirectTo;
-      if (ALLOWED_REDIRECTS.some((re) => re.test(redirectTo))) return redirectTo;
+      if (site && sameOrigin(redirectTo, site)) return redirectTo;
+      if (redirectTo.startsWith('pique://')) return redirectTo;
+      if (process.env.ALLOW_DEV_REDIRECTS === '1' && DEV_REDIRECTS.some((re) => re.test(redirectTo))) return redirectTo;
       throw new Error(`Endereço de retorno não permitido: ${redirectTo}`);
     },
   },

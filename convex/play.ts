@@ -36,6 +36,8 @@ const MAX_CAPTURE_DISTANCE_M = 50;
 
 const SHOUT_COOLDOWN_MS = 20_000;
 const REMARK_AFTER_DISPUTE_MS = 30_000;
+const HUNTER_POSITION_MS = 2 * 60_000;
+const MARK_COOLDOWN_MS = 15_000;
 
 const playing = (g: Doc<'games'>) => g.status === 'headstart' || g.status === 'hunt';
 
@@ -433,29 +435,35 @@ export const markCapture = mutation({
       throw new ConvexError(`${runner.name} está com Escudo. Tente de novo em ${Math.ceil((runner.shieldUntil - Date.now()) / 1000)} s.`);
     }
     const open = await ctx.db.query('captures').withIndex('by_runner', (q) => q.eq('runnerId', runnerId).eq('status', 'pending')).first();
-    if (open) return open._id;
+    if (open) return { id: open._id };
+    // Intervalo entre tentativas: sem ele, marcar e errar sem parar vira um radar
+    // de "está ou não a 50 m". A tentativa longe demais volta como resposta (e não
+    // como erro) para o intervalo ficar gravado: um erro desfaria a gravação.
+    const wait = (me.lastMarkAt ?? 0) + MARK_COOLDOWN_MS - Date.now();
+    if (wait > 0) throw new ConvexError(`Espere ${Math.ceil(wait / 1000)} s para marcar de novo.`);
 
-    // Depois que o corredor contesta, o mesmo caçador espera antes de marcar de novo.
-    const lastDisputed = await ctx.db
-      .query('captures')
-      .withIndex('by_runner', (q) => q.eq('runnerId', runnerId).eq('status', 'disputed'))
-      .order('desc')
-      .first();
-    if (lastDisputed && lastDisputed.hunterId === me._id && Date.now() - lastDisputed.createdAt < REMARK_AFTER_DISPUTE_MS) {
+    // Depois que o corredor contesta, nenhum caçador marca de novo por 30 s
+    // (contado da contestação, guardado no corredor: cancelar a pega não zera).
+    if (runner.disputedAt && Date.now() - runner.disputedAt < REMARK_AFTER_DISPUTE_MS) {
       throw new ConvexError(`${runner.name} contestou agora há pouco. Chegue bem perto e tente de novo daqui a pouco.`);
     }
     // O servidor confere a distância. O caçador precisa de posição recente; a
     // distância nunca volta na resposta (com ela dava para achar o corredor sem ping).
     const [a, b] = [await lastPosition(ctx, me._id), await lastPosition(ctx, runnerId)];
-    if (!a || Date.now() - a.at > FRESH_POSITION_MS) throw new ConvexError('Esperando o GPS achar você.');
+    // caçador: um pouco mais de folga (sob árvores o GPS demora a dar uma leitura boa)
+    if (!a || Date.now() - a.at > HUNTER_POSITION_MS) throw new ConvexError('Esperando o GPS achar você.');
+    const runnerFresh = !!b && Date.now() - b.at <= FRESH_POSITION_MS;
     const dist = b ? Math.round(distanceM(a, b)) : undefined;
-    if (dist !== undefined && !(dist <= MAX_CAPTURE_DISTANCE_M)) throw new ConvexError('Longe demais para marcar. Chegue mais perto.');
+    await ctx.db.patch(me._id, { lastMarkAt: Date.now() });
+    if (runnerFresh && !(dist! <= MAX_CAPTURE_DISTANCE_M)) return { tooFar: true as const };
+    // corredor sem posição recente: a marcação vale só se ele confirmar (não vira "pego" sozinha)
+    const verified = runnerFresh;
 
     const now = Date.now();
-    const id = await ctx.db.insert('captures', { gameId, hunterId: me._id, runnerId, status: 'pending', distanceM: dist, createdAt: now, expiresAt: now + CAPTURE_CONFIRM_MS });
+    const id = await ctx.db.insert('captures', { gameId, hunterId: me._id, runnerId, status: 'pending', distanceM: runnerFresh ? dist : undefined, verified, createdAt: now, expiresAt: now + CAPTURE_CONFIRM_MS });
     await notify(ctx, [runner], 'capture', `${me.name} disse que te pegou`, 'Confirme no Pique em até 60 s.');
     await ctx.scheduler.runAfter(CAPTURE_CONFIRM_MS, internal.play.expireCapture, { captureId: id });
-    return id;
+    return { id };
   },
 });
 
@@ -468,7 +476,10 @@ export const answerCapture = mutation({
     const { me } = await requireMember(ctx, capture.gameId);
     if (capture.runnerId !== me._id) throw new ConvexError('Essa pega não é sua.');
     if (yes) await confirmCapture(ctx, capture);
-    else await ctx.db.patch(captureId, { status: 'disputed' });
+    else {
+      await ctx.db.patch(captureId, { status: 'disputed' });
+      await ctx.db.patch(me._id, { disputedAt: Date.now() });
+    }
   },
 });
 
@@ -488,7 +499,10 @@ export const expireCapture = internalMutation({
   args: { captureId: v.id('captures') },
   handler: async (ctx, { captureId }) => {
     const capture = await ctx.db.get(captureId);
-    if (capture?.status === 'pending') await confirmCapture(ctx, capture);
+    if (capture?.status !== 'pending') return;
+    // sem posição do corredor para conferir, o silêncio não prova nada: a pega cai
+    if (capture.verified === false) await ctx.db.patch(captureId, { status: 'cancelled' });
+    else await confirmCapture(ctx, capture);
   },
 });
 

@@ -5,3 +5,5 @@ type Save = (sub: { endpoint: string; p256dh: string; auth: string }) => Promise
 export async function enablePush(_save: Save) {
   return false;
 }
+
+export async function disablePush(_remove: (args: { endpoint: string }) => Promise<unknown>) {}

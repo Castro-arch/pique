@@ -171,7 +171,8 @@ export function LiveGame({ id }: { id: string }) {
   const markRunner = async (runnerId: Id<'players'>) => {
     setError(null);
     try {
-      await mark({ gameId: id as GameId, runnerId });
+      const r = await mark({ gameId: id as GameId, runnerId });
+      if ('tooFar' in r) return setError('Longe demais para marcar. Chegue mais perto.');
       setPicking(false);
       router.push({ pathname: '/confirmando', params: { id } });
     } catch (e) {

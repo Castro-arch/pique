@@ -109,6 +109,7 @@ export const PRIVACY: LegalSection[] = [
       '• Partida (posições, mensagens, avisos, quem pegou quem): apagada 7 dias depois de criada. Fica só um resumo sem nomes (quantas pessoas, duração e quem venceu).',
       '• Conta, perfil, estatísticas e amigos: enquanto você tiver a conta. Ao excluir a conta, apagamos esses dados.',
       '• Uso do app (analytics): até 1 ano. Depois que você exclui a conta, o número ao qual esses dados estão ligados não aponta mais para ninguém.',
+      '• Denúncias: até 6 meses, para a moderação. As que você fez saem quando você exclui a conta; as feitas sobre você ficam até o fim desse prazo, para quem foi denunciado não apagar o histórico excluindo a conta.',
       '• Registros de acesso: pelo tempo que a lei exige (até 6 meses), quando for o caso.',
     ],
   },

@@ -37,12 +37,14 @@ export const mine = query({
 
 // ── Push do site ───────────────────────────────────────────────────────
 
-const PUSH_HOSTS = [/^fcm.googleapis.com$/, /^android.googleapis.com$/, /^updates.push.services.mozilla.com$/, /.notify.windows.com$/, /^web.push.apple.com$/];
+// Comparação exata do host (sem regex: um ponto sem escape deixava passar "fcm-googleapis.com").
+const PUSH_HOSTS = ['fcm.googleapis.com', 'android.googleapis.com', 'updates.push.services.mozilla.com', 'web.push.apple.com'];
+const PUSH_SUFFIXES = ['.notify.windows.com'];
 function isPushEndpoint(endpoint: string) {
   if (endpoint.length > 1000) return false;
   try {
     const u = new URL(endpoint);
-    return u.protocol === 'https:' && PUSH_HOSTS.some((h) => h.test(u.hostname));
+    return u.protocol === 'https:' && (PUSH_HOSTS.includes(u.hostname) || PUSH_SUFFIXES.some((s) => u.hostname.endsWith(s)));
   } catch {
     return false;
   }
@@ -58,6 +60,16 @@ export const saveSubscription = mutation({
     const old = await ctx.db.query('push_subscriptions').withIndex('by_endpoint', (q) => q.eq('endpoint', sub.endpoint)).unique();
     if (old) await ctx.db.patch(old._id, { userId, p256dh: sub.p256dh, auth: sub.auth, at: Date.now() });
     else await ctx.db.insert('push_subscriptions', { userId, ...sub, at: Date.now() });
+  },
+});
+
+// Ao sair da conta: tira a inscrição deste navegador (só a da própria pessoa).
+export const removeSubscription = mutation({
+  args: { endpoint: v.string() },
+  handler: async (ctx, { endpoint }) => {
+    const userId = await requireUser(ctx);
+    const sub = await ctx.db.query('push_subscriptions').withIndex('by_endpoint', (q) => q.eq('endpoint', endpoint)).unique();
+    if (sub && sub.userId === userId) await ctx.db.delete(sub._id);
   },
 });
 

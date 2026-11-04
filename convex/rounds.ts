@@ -170,6 +170,10 @@ async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<
       distanceM: 0,
       shoutsLeft: role === 'hunter' ? SHOUTS_PER_ROUND : undefined,
       shoutedAt: undefined,
+      lastShoutAt: undefined,
+      disputedAt: undefined,
+      lastMarkAt: undefined,
+      uploads: undefined,
       revealed: undefined,
       revealUntil: undefined,
       nextPing: undefined,
@@ -416,6 +420,7 @@ export const end = internalMutation({
     await recordRound(ctx, game, players, winner, now);
     // a rodada acabou: a última posição de cada um não serve mais (e a revanche começa do zero)
     for (const pos of await ctx.db.query('positions').withIndex('by_game', (q) => q.eq('gameId', gameId)).collect()) await ctx.db.delete(pos._id);
+    for (const p of players) if (p.ping || p.jail || p.heading !== undefined) await ctx.db.patch(p._id, { ping: undefined, jail: undefined, heading: undefined });
     const played = players.filter((p) => p.state !== 'left' && p.role);
     await track(
       ctx,

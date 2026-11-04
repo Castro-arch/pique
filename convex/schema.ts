@@ -113,6 +113,9 @@ export default defineSchema({
     shoutsLeft: v.optional(v.number()), // caçador: gritos que ainda tem na rodada
     shoutedAt: v.optional(v.number()), // corredor: quando o celular dele gritou
     lastShoutAt: v.optional(v.number()), // caçador: último grito (intervalo entre gritos)
+    disputedAt: v.optional(v.number()), // corredor: quando contestou uma pega (ninguém marca de novo por 30 s)
+    lastMarkAt: v.optional(v.number()), // caçador: última tentativa de marcar (intervalo, senão vira radar)
+    uploads: v.optional(v.number()), // áudios do rádio pedidos nesta rodada (cota)
     // Boosts: o preço de pegar (visível ao vivo por alguns segundos) e os efeitos ativos.
     revealed: v.optional(v.boolean()),
     revealUntil: v.optional(v.number()),
@@ -148,6 +151,9 @@ export default defineSchema({
     runnerId: v.id('players'),
     status: v.union(v.literal('pending'), v.literal('confirmed'), v.literal('disputed'), v.literal('cancelled')),
     distanceM: v.optional(v.number()),
+    // o servidor conferiu a distância com a posição recente do corredor; sem isso,
+    // a falta de resposta não conta como pego
+    verified: v.optional(v.boolean()),
     createdAt: v.number(),
     expiresAt: v.number(),
   })
@@ -179,7 +185,9 @@ export default defineSchema({
     audioId: v.optional(v.id('_storage')),
     seconds: v.optional(v.number()),
     at: v.number(),
-  }).index('by_game', ['gameId', 'at']),
+  })
+    .index('by_game', ['gameId', 'at'])
+    .index('by_audio', ['audioId']),
 
   // Avisos da partida para cada jogador (ping, coração acelerado, grito...).
   // O app Android mostra como notificação quando está em segundo plano; o
@@ -243,6 +251,27 @@ export default defineSchema({
   }).index('by_user', ['userId']),
 
   // Métricas de cada rodada (sem dados pessoais).
+  // Denúncias entre jogadores (reports.ts). Quem foi denunciado não sabe por quem.
+  reports: defineTable({
+    reporterId: v.id('users'),
+    targetId: v.id('users'),
+    gameId: v.id('games'),
+    reason: v.string(),
+    details: v.optional(v.string()),
+    context: v.array(v.string()), // últimas respostas do denunciado no rádio
+    at: v.number(),
+    status: v.union(v.literal('open'), v.literal('done')),
+  })
+    .index('by_reporter', ['reporterId', 'at'])
+    .index('by_target', ['targetId', 'at'])
+    .index('by_at', ['at']),
+
+  // Bloqueios: userId bloqueou blockedId.
+  blocks: defineTable({ userId: v.id('users'), blockedId: v.id('users'), at: v.number() })
+    .index('by_user', ['userId'])
+    .index('by_pair', ['userId', 'blockedId'])
+    .index('by_blocked', ['blockedId']),
+
   match_stats: defineTable({
     gameId: v.id('games'),
     round: v.number(),

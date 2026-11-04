@@ -80,13 +80,20 @@ export const deleteAccount = mutation({
     for (const p of await ctx.db.query('players').withIndex('by_user', (q) => q.eq('userId', userId)).collect()) {
       const game = await ctx.db.get(p.gameId);
       const live = game && game.status !== 'ended';
-      await ctx.db.patch(p._id, { name: 'Conta excluída', ...(live ? { state: 'left' as const } : {}) });
+      // a localização da pessoa sai junto: última posição, ping, onde foi presa e direção
+      await ctx.db.patch(p._id, { name: 'Conta excluída', ping: undefined, jail: undefined, heading: undefined, ...(live ? { state: 'left' as const } : {}) });
+      for (const pos of await ctx.db.query('positions').withIndex('by_player', (q) => q.eq('playerId', p._id)).collect()) await ctx.db.delete(pos._id);
     }
     const friends = [
       ...(await ctx.db.query('friendships').withIndex('by_pair', (q) => q.eq('a', userId)).collect()),
       ...(await ctx.db.query('friendships').withIndex('by_b', (q) => q.eq('b', userId)).collect()),
     ];
     for (const f of friends) await ctx.db.delete(f._id);
+    // bloqueios e denúncias da pessoa (feitas por ela ou sobre ela)
+    for (const b of [...(await ctx.db.query('blocks').withIndex('by_user', (q) => q.eq('userId', userId)).collect()), ...(await ctx.db.query('blocks').withIndex('by_blocked', (q) => q.eq('blockedId', userId)).collect())]) await ctx.db.delete(b._id);
+    // denúncias feitas pela pessoa somem; as recebidas ficam para a moderação (sem
+    // isso, quem é denunciado apagaria o histórico excluindo a conta e voltando)
+    for (const r of await ctx.db.query('reports').withIndex('by_reporter', (q) => q.eq('reporterId', userId)).collect()) await ctx.db.delete(r._id);
     for (const table of ['player_stats', 'push_subscriptions', 'cosmetics', 'entitlements'] as const) {
       for (const row of await ctx.db.query(table).withIndex('by_user', (q) => q.eq('userId', userId)).collect()) await ctx.db.delete(row._id);
     }

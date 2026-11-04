@@ -12,6 +12,7 @@ import { Screen } from '@/components/Screen';
 import { Text } from '@/components/Text';
 import { resetAnalytics, track } from '@/lib/analytics';
 import { clearTrails } from '@/lib/trail';
+import { disablePush } from '@/lib/webPush';
 import { BETA_SEM_LOGIN } from '@/lib/beta';
 import { setDemoMode, useDemoMode } from '@/lib/demoMode';
 import { CONTACT_EMAIL } from '@/lib/legal';
@@ -158,6 +159,7 @@ export default function Ajustes() {
   const [lockAlerts, setLockAlerts] = useState(true);
   const [news, setNews] = useState(false);
   const deleteAccount = useMutation(api.users.deleteAccount);
+  const removeSubscription = useMutation(api.alerts.removeSubscription);
   const [deleting, setDeleting] = useState<'ask' | 'busy' | null>(null);
 
   // Excluir a conta: pede confirmação; depois apaga tudo e sai.
@@ -166,6 +168,7 @@ export default function Ajustes() {
     if (deleting !== 'ask') return setDeleting('ask');
     setDeleting('busy');
     try {
+      await disablePush(removeSubscription);
       await deleteAccount({});
       // o que fica no aparelho também sai: trajetos e o id do analytics
       clearTrails();
@@ -179,6 +182,7 @@ export default function Ajustes() {
   async function leave() {
     if (demo) setDemoMode(false);
     else {
+      await disablePush(removeSubscription);
       clearTrails();
       resetAnalytics();
       await signOut();
@@ -250,7 +254,7 @@ export default function Ajustes() {
         {BETA_SEM_LOGIN ? null : (
           <ListRow title="Novidades e grandes atualizações" trailing={<Toggle label="Novidades por e-mail" value={news} onChange={setNews} />} />
         )}
-        <ListRow title="Jogadores bloqueados" subtitle="Para denunciar, segure a mensagem no Radio" chevron />
+        <ListRow title="Jogadores bloqueados" subtitle="Para denunciar, segure a mensagem no Rádio" chevron onPress={() => router.push('/bloqueados')} />
         <ListRow title="Sair da conta" danger onPress={leave} last />
       </ListGroup>
 

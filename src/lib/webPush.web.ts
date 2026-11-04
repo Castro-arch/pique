@@ -27,3 +27,16 @@ export async function enablePush(save: Save) {
     return false; // navegador sem push (ex.: iPhone fora da Tela de Início)
   }
 }
+
+// Ao sair da conta: o navegador para de receber avisos desta conta (senão o
+// próximo usuário do aparelho veria os avisos da partida, até o papel).
+export async function disablePush(remove: (args: { endpoint: string }) => Promise<unknown>) {
+  if (!('serviceWorker' in navigator)) return;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration('/sw.js');
+    const sub = await reg?.pushManager.getSubscription();
+    if (!sub) return;
+    await remove({ endpoint: sub.endpoint }).catch(() => {});
+    await sub.unsubscribe();
+  } catch {}
+}

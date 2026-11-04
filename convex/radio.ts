@@ -1,8 +1,9 @@
 import { ConvexError, v } from 'convex/values';
 
 import type { Doc } from './_generated/dataModel';
-import { mutation, query, type MutationCtx } from './_generated/server';
+import { internalMutation, mutation, query, type MutationCtx } from './_generated/server';
 import { memberOrNull, requireMember } from './lib';
+import { blockedBy } from './reports';
 
 // Sem texto livre: só estas respostas prontas e áudio curto.
 export const QUICK = [
@@ -46,10 +47,14 @@ export const sendQuick = mutation({
   },
 });
 
+// No máximo 40 áudios por pessoa por rodada (cada URL é um upload no armazenamento do projeto).
+const MAX_UPLOADS_PER_ROUND = 40;
 export const uploadUrl = mutation({
   args: { gameId: v.id('games') },
   handler: async (ctx, { gameId }) => {
-    await speaker(ctx, gameId);
+    const { me } = await speaker(ctx, gameId);
+    if ((me.uploads ?? 0) >= MAX_UPLOADS_PER_ROUND) throw new ConvexError('Chega de áudio por esta rodada. Use as respostas prontas.');
+    await ctx.db.patch(me._id, { uploads: (me.uploads ?? 0) + 1 });
     return ctx.storage.generateUploadUrl();
   },
 });
@@ -59,11 +64,8 @@ export const sendAudio = mutation({
   handler: async (ctx, { gameId, audioId, seconds }) => {
     const { me, team } = await speaker(ctx, gameId);
     // Um arquivo já usado por outra mensagem não pode ser reenviado (nem apagado) por outra pessoa.
-    const used = await ctx.db
-      .query('messages')
-      .withIndex('by_game', (q) => q.eq('gameId', gameId))
-      .filter((q) => q.eq(q.field('audioId'), audioId))
-      .first();
+    // em qualquer partida: um arquivo já ligado a uma mensagem não é reenviado nem apagado por ninguém
+    const used = await ctx.db.query('messages').withIndex('by_audio', (q) => q.eq('audioId', audioId)).first();
     if (used) throw new ConvexError('Áudio inválido.');
     // Só áudio de verdade e pequeno (o rádio grava poucos segundos).
     const file = await ctx.db.system.get(audioId);
@@ -90,10 +92,12 @@ export const list = query({
       .withIndex('by_game', (q) => q.eq('gameId', gameId).gte('at', since))
       .order('desc')
       .take(150);
+    const hidden = await blockedBy(ctx, me.userId); // quem eu bloqueei some do meu rádio
     const out = [];
     for (const m of rows.reverse()) {
       if (m.team !== 'all' && m.team !== team) continue;
       const from = m.playerId ? await ctx.db.get(m.playerId) : null;
+      if (from && hidden.has(from.userId)) continue;
       out.push({
         id: m._id,
         kind: m.kind,
@@ -105,5 +109,21 @@ export const list = query({
       });
     }
     return { team, quick: QUICK, messages: out };
+  },
+});
+
+// Faxina (crons.ts): arquivo enviado há mais de 1 h que nenhuma mensagem usa.
+// shortcut: o armazenamento só guarda áudio do rádio; se um dia guardar outra coisa (fotos), esta faxina precisa saber disso.
+export const pruneOrphans = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const old = await ctx.db.system
+      .query('_storage')
+      .filter((q) => q.lt(q.field('_creationTime'), Date.now() - 60 * 60 * 1000))
+      .take(200);
+    for (const f of old) {
+      const used = await ctx.db.query('messages').withIndex('by_audio', (q) => q.eq('audioId', f._id)).first();
+      if (!used) await ctx.storage.delete(f._id);
+    }
   },
 });

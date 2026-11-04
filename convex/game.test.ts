@@ -332,13 +332,15 @@ describe('rodada', () => {
     await s.priya.mutation(api.play.answerCapture, { captureId: pending.id, caught: true });
     expect((await viewOf(s.priya, gameId)).me.state).toBe('caught');
 
-    // Teo contesta.
+    // Teo contesta (o caçador espera o intervalo de 15 s entre marcações).
+    vi.advanceTimersByTime(16_000);
     await s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Teo });
     const teoCapture = (await viewOf(s.teo, gameId)).capture!;
     await s.teo.mutation(api.play.answerCapture, { captureId: teoCapture.id, caught: false });
     expect((await viewOf(s.leo, gameId)).disputed).not.toBeNull();
     expect((await viewOf(s.teo, gameId)).me.state).toBe('active');
-    // logo depois de contestar, o mesmo caçador não pode marcar de novo
+    // logo depois de contestar, ninguém marca o Teo de novo
+    vi.advanceTimersByTime(16_000);
     await expect(s.leo.mutation(api.play.markCapture, { gameId, runnerId: ids.Teo })).rejects.toThrow(/contestou/);
 
     // Castro não responde em 60 s: conta como pego.
@@ -362,9 +364,10 @@ describe('rodada', () => {
     await move(s.priya, s.gameId, north(150));
     const ids = Object.fromEntries((await lobbyOf(s.leo, s.gameId)).players.map((p) => [p.name, p.id]));
     // recusa sem dizer a distância (com ela dava para achar o corredor sem ping)
-    const err = await s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya }).catch((e) => String(e));
-    expect(err).toMatch(/Longe demais/);
-    expect(err).not.toMatch(/d+ ?m/);
+    const r = await s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya });
+    expect(r).toEqual({ tooFar: true });
+    // e a tentativa conta: logo em seguida, tentar de novo é barrado (senão vira radar de 50 m)
+    await expect(s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya })).rejects.toThrow(/Espere/);
   });
 
   test('coração acelera só para o corredor com caçador a menos de 30 m', async () => {
@@ -918,6 +921,35 @@ describe('segurança', () => {
       await expect(s.priya.mutation(api.play.sendPosition, { gameId: s.gameId, ...CENTER, accuracy: bad })).rejects.toThrow(/inválida/);
     }
     await expect(s.host.mutation(api.games.setZone, { gameId: s.gameId, lat: NaN, lng: 0, radius: 200 })).rejects.toThrow();
+  });
+
+  test('captura: corredor sem GPS não vira pego sozinho, e cancelar a contestada não libera remarcar', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    await advance(s.t, 3 * MIN);
+    await move(s.leo, s.gameId, CENTER);
+    await move(s.teo, s.gameId, north(10));
+    const ids = Object.fromEntries((await lobbyOf(s.leo, s.gameId)).players.map((p) => [p.name, p.id]));
+    // Priya nunca mandou GPS: a marcação existe, mas o silêncio não a pega
+    await s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Priya });
+    await advance(s.t, 61_000);
+    expect((await viewOf(s.priya, s.gameId)).me.state).toBe('active');
+    // Teo contesta; o caçador cancela a contestada e tenta de novo: continua barrado
+    await move(s.leo, s.gameId, CENTER);
+    await move(s.teo, s.gameId, north(10));
+    await s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Teo });
+    const c = (await viewOf(s.teo, s.gameId)).capture!;
+    await s.teo.mutation(api.play.answerCapture, { captureId: c.id, caught: false });
+    await s.leo.mutation(api.play.cancelCapture, { captureId: c.id });
+    vi.advanceTimersByTime(16_000);
+    await expect(s.leo.mutation(api.play.markCapture, { gameId: s.gameId, runnerId: ids.Teo })).rejects.toThrow(/contestou/);
+  });
+
+  test('rádio: no máximo 40 áudios por pessoa por rodada', async () => {
+    const s = await lobbyWith4();
+    await startWithLeoHunting(s);
+    for (let i = 0; i < 40; i++) await s.priya.mutation(api.radio.uploadUrl, { gameId: s.gameId });
+    await expect(s.priya.mutation(api.radio.uploadUrl, { gameId: s.gameId })).rejects.toThrow(/Chega de áudio/);
   });
 
   test('perfil de quem não é amigo não mostra a partida ao vivo, e nunca o papel', async () => {

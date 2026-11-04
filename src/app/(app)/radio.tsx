@@ -117,7 +117,7 @@ export function RadioPanel({ id, onMap }: { id?: string; onMap?: () => void }) {
         <Text variant="label" style={{ textAlign: 'center' }}>Segure uma mensagem para denunciar ou bloquear quem enviou.</Text>
         {msgs.map((m, i) => (
           <Appear key={i} delay={stagger(i, 30)}>
-            <Bubble m={m} />
+            <Bubble m={m} gameId={id} />
           </Appear>
         ))}
       </ScrollView>
@@ -148,7 +148,7 @@ export function RadioPanel({ id, onMap }: { id?: string; onMap?: () => void }) {
   );
 }
 
-function Bubble({ m }: { m: Msg }) {
+function Bubble({ m, gameId }: { m: Msg; gameId?: string }) {
   if (m.kind === 'system') {
     return (
       <View style={styles.system}>
@@ -182,7 +182,13 @@ function Bubble({ m }: { m: Msg }) {
       <Pressable
         accessibilityRole="text"
         delayLongPress={400}
-        onLongPress={() => !m.mine && !m.playerId && router.push({ pathname: '/denunciar', params: { id: 'leo' } })}
+        accessibilityHint={m.mine ? undefined : 'Segure para denunciar ou bloquear quem enviou'}
+        onLongPress={() => {
+          if (m.mine) return;
+          // mensagem de verdade: denuncia o jogador dela; na demonstração, a tela de exemplo
+          if (m.playerId && gameId) router.push({ pathname: '/denunciar', params: { gameId, playerId: m.playerId } });
+          else if (!m.playerId) router.push({ pathname: '/denunciar' });
+        }}
         style={[styles.bubble, m.mine ? styles.mine : styles.theirs]}>
         {!m.mine ? <Text style={{ fontSize: 12, color: colors.paperMuted, marginBottom: 2 }}>{m.name}</Text> : null}
         {body}

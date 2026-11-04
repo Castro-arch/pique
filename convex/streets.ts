@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 
 import { internal } from './_generated/api';
-import { internalAction, internalMutation } from './_generated/server';
+import { internalAction, internalMutation, internalQuery } from './_generated/server';
 import { distanceM } from './lib';
 
 // Boosts só nas ruas: quando o anfitrião marca a zona, buscamos as ruas e
@@ -78,6 +78,8 @@ async function ask(url: string, query: string): Promise<Overpass | null> {
 export const load = internalAction({
   args: { gameId: v.id('games'), lat: v.number(), lng: v.number(), radius: v.number(), tries: v.optional(v.number()) },
   handler: async (ctx, { tries = 0, ...zone }) => {
+    // a zona mudou de novo (ou essas ruas já estão salvas): esta busca não serve mais
+    if (!(await ctx.runQuery(internal.streets.needs, { gameId: zone.gameId, key: zoneKey(zone) }))) return;
     const query = `[out:json][timeout:30];way["highway"~"${WALKABLE}"](around:${Math.round(zone.radius)},${zone.lat},${zone.lng});(._;>;);out skel;`;
     let data: Overpass | null = null;
     for (const url of OVERPASS) {
@@ -96,6 +98,14 @@ export const load = internalAction({
       .map((e) => e.nodes!.map((id) => nodes.get(id)).filter((p): p is Pt => !!p));
     const points = samplePoints(ways, zone);
     await ctx.runMutation(internal.streets.save, { gameId: zone.gameId, key: zoneKey(zone), points });
+  },
+});
+
+export const needs = internalQuery({
+  args: { gameId: v.id('games'), key: v.string() },
+  handler: async (ctx, { gameId, key }) => {
+    const game = await ctx.db.get(gameId);
+    return !!game?.zone && zoneKey(game.zone) === key && game.streets?.key !== key;
   },
 });
 

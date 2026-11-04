@@ -3,6 +3,7 @@ import { ConvexError, v } from 'convex/values';
 import { internal } from './_generated/api';
 import { track } from './analytics';
 import { requirePlayable } from './beta';
+import { blockedBetween } from './reports';
 import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query, type MutationCtx } from './_generated/server';
 import {
@@ -129,6 +130,10 @@ export const join = mutation({
 
     const players = (await gamePlayers(ctx, game._id)).filter((p) => p.state !== 'left');
     if (players.length >= MAX_PLAYERS) throw new ConvexError({ code: 'FULL' });
+    // bloqueio: os dois não caem na mesma partida (a mensagem não diz quem bloqueou)
+    for (const p of players) {
+      if (await blockedBetween(ctx, userId, p.userId)) throw new ConvexError({ code: 'NOT_FOUND' });
+    }
 
     const name = await displayName(ctx, userId);
     await leaveOldGames(ctx, userId, game._id);
@@ -262,8 +267,9 @@ export const setZone = mutation({
     if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ConvexError('Posição inválida.');
     const zone = { lat, lng, radius: clamp(radius, LIMITS.zoneRadius) };
     await ctx.db.patch(gameId, { zone });
-    // Busca as ruas da zona para os boosts nascerem só nelas.
-    await ctx.scheduler.runAfter(0, internal.streets.load, { gameId, ...zone });
+    // Busca as ruas da zona para os boosts nascerem só nelas. Espera 4 s: se o
+    // anfitrião ainda está ajustando a zona, só a última posição busca (streets.needs).
+    await ctx.scheduler.runAfter(4000, internal.streets.load, { gameId, ...zone });
   },
 });
 

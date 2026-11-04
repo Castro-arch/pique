@@ -4,6 +4,7 @@ import type { Doc, Id } from './_generated/dataModel';
 import { mutation, query, type QueryCtx } from './_generated/server';
 import { requireUser } from './lib';
 import { levelOf, medalsOf, statsOf } from './profile';
+import { blockedBetween } from './reports';
 
 // Amigos (a "crew" de fora da partida): pedido, aceitar, recusar, desfazer.
 // Um par de pessoas tem no máximo uma linha em friendships, com a e b em
@@ -70,6 +71,8 @@ export const list = query({
       const otherId = l.a === userId ? l.b : l.a;
       const other = await ctx.db.get(otherId);
       if (!other) continue;
+      // com bloqueio: amizade e pedido recebido somem; o pedido que eu mandei continua 'enviado' (não revela)
+      if (l.status !== 'pending' || l.from !== userId) if (await blockedBetween(ctx, userId, otherId)) continue;
       if (l.status === 'accepted') friends.push({ ...card(other), live: await liveGameOf(ctx, otherId), since: l.at, together: await together(ctx, userId, otherId) });
       else if (l.from === userId) outgoing.push({ ...card(other), at: l.at });
       else incoming.push({ ...card(other), at: l.at });
@@ -103,13 +106,15 @@ export const request = mutation({
     const userId = await requireUser(ctx);
     if (other === userId) throw new ConvexError('Esse é você.');
     if (!(await ctx.db.get(other))) throw new ConvexError('Essa pessoa não existe mais.');
+    const blocked = await blockedBetween(ctx, userId, other); // o pedido é gravado, mas quem bloqueou nunca o vê
     const l = await link(ctx, userId, other);
     if (l?.status === 'accepted') return 'friend';
     // A outra pessoa já tinha pedido: os dois querem, vira amizade.
-    if (l && l.from !== userId) {
+    if (l && l.from !== userId && !blocked) {
       await ctx.db.patch(l._id, { status: 'accepted', at: Date.now() });
       return 'friend';
     }
+    if (l && blocked) return 'sent';
     if (l) return 'sent';
     await ctx.db.insert('friendships', { ...pair(userId, other), from: userId, status: 'pending', at: Date.now() });
     return 'sent';
@@ -122,6 +127,7 @@ export const respond = mutation({
     const userId = await requireUser(ctx);
     const l = await link(ctx, userId, other);
     if (!l || l.status !== 'pending' || l.from === userId) return;
+    if (accept && (await blockedBetween(ctx, userId, other))) return void (await ctx.db.delete(l._id));
     if (accept) await ctx.db.patch(l._id, { status: 'accepted', at: Date.now() });
     else await ctx.db.delete(l._id);
   },
@@ -164,7 +170,7 @@ export const profile = query({
       medals: medalsOf(stats),
       friends: friendCount,
       // só amigos (e a própria pessoa) sabem onde ela está jogando agora
-      live: isMe || l?.status === 'accepted' ? await liveGameOf(ctx, u._id) : null,
+      live: isMe || (l?.status === 'accepted' && !(await blockedBetween(ctx, me, u._id))) ? await liveGameOf(ctx, u._id) : null,
       status: isMe ? 'me' : l ? (l.status === 'accepted' ? 'friend' : l.from === me ? 'sent' : 'received') : 'none',
       together: isMe ? null : await together(ctx, me, u._id),
     };
