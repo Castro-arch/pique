@@ -1,8 +1,8 @@
 import { setAudioModeAsync, useAudioPlayer } from 'expo-audio';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Info, Volume2 } from '@/components/icons';
-import { useEffect, useRef } from 'react';
-import { Animated, Easing, Platform, ScrollView, StyleSheet, Vibration, View } from 'react-native';
+import { useEffect, useRef, useState } from 'react';
+import { Animated, BackHandler, Easing, Platform, ScrollView, StyleSheet, Vibration, View } from 'react-native';
 
 import { Button } from '@/components/Button';
 import { Text } from '@/components/Text';
@@ -15,6 +15,10 @@ import { colors, fonts, radius } from '@/theme/tokens';
 // 10.6 Um caçador gritou e meu celular está tocando. O som (e a vibração) fica
 // repetindo até o corredor tocar em Voltar ao mapa; toca mesmo no silencioso.
 // No site o som sai pelo <audio> destravado no primeiro toque (lib/shoutSound).
+// Nos primeiros 5 s o botão fica travado: o grito toca de verdade, não dá
+// para calar na hora.
+const LOCK_S = 5;
+
 export default function Grito() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const view = useView(id);
@@ -22,6 +26,15 @@ export default function Grito() {
   const insets = useScreenInsets();
   const player = useAudioPlayer(SHOUT_SOUND);
   const wave = useRef(new Animated.Value(0)).current;
+  const [openedAt] = useState(() => Date.now());
+  const lockLeft = Math.max(0, Math.ceil(LOCK_S - (now - openedAt) / 1000));
+  const locked = lockLeft > 0;
+  // Voltar do Android também espera os 5 s.
+  useEffect(() => {
+    if (!locked) return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => true);
+    return () => sub.remove();
+  }, [locked]);
 
   useEffect(() => {
     const web = playShout();
@@ -57,6 +70,7 @@ export default function Grito() {
   }, [player, wave]);
 
   const stop = () => {
+    if (locked) return;
     stopShout();
     try {
       player.loop = false;
@@ -107,7 +121,14 @@ export default function Grito() {
           </Text>
         </View>
       </ScrollView>
-      <Button variant="dark" size="lg" label="Voltar ao mapa" onPress={stop} style={{ marginTop: 16, backgroundColor: colors.pinkInk }} />
+      <Button
+        variant="dark"
+        size="lg"
+        label={locked ? `Voltar ao mapa em ${lockLeft} s` : 'Voltar ao mapa'}
+        disabled={locked}
+        onPress={stop}
+        style={{ marginTop: 16, backgroundColor: colors.pinkInk }}
+      />
     </View>
   );
 }
