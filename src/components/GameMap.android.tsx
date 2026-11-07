@@ -12,23 +12,26 @@ import type { GameMapProps } from './gameMapTypes';
 // Mapa da partida no Android: ruas do OpenFreeMap desenhadas pelo MapLibre
 // (sem Google, sem conta, sem cobrança). O iPhone usa o GameMap.native.tsx
 // (Apple Maps) e o site, o GameMap.tsx.
-export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [], spot = null, padding = MAP_PADDING }: GameMapProps) {
+export function GameMap({ zone, nextZoneRadius, people, now, hunter, outOfZone, dim = 0, boosts = [], spot = null, beams = [], draft = null, onPress, frame = null, padding = MAP_PADDING }: GameMapProps) {
   const camera = useRef<CameraRef>(null);
-  // O estilo leva a zona; muda só quando a zona muda.
+  const fitTo = zone ?? frame;
+  // O estilo leva a zona (e os feixes e o desenho); muda só quando eles mudam.
+  const beamKey = JSON.stringify(beams);
   const style = useMemo(
-    () => streetStyle(zone, nextZoneRadius, spot),
-    [zone?.lat, zone?.lng, zone?.radius, nextZoneRadius, spot?.lat, spot?.lng, spot?.radius], // eslint-disable-line react-hooks/exhaustive-deps
+    () => streetStyle(zone, nextZoneRadius, spot, beams, draft),
+    [zone?.lat, zone?.lng, zone?.radius, zone?.shape, nextZoneRadius, spot?.lat, spot?.lng, spot?.radius, beamKey, draft], // eslint-disable-line react-hooks/exhaustive-deps
   );
 
   // Enquadra a zona inteira, com folga para o placar em cima e o Radio embaixo.
   useEffect(() => {
-    if (zone) camera.current?.fitBounds(zoneBounds(zone), { padding, duration: 400 });
-  }, [zone?.lat, zone?.lng, zone?.radius]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (fitTo) camera.current?.fitBounds(zoneBounds(fitTo), { padding, duration: 400 });
+  }, [fitTo?.lat, fitTo?.lng, fitTo?.radius, fitTo?.shape]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={StyleSheet.absoluteFill}>
-      <Map style={StyleSheet.absoluteFill} mapStyle={style} attribution={false} logo={false} compass={false} scaleBar={false} touchRotate={false} touchPitch={false}>
-        <Camera ref={camera} initialViewState={zone ? { bounds: zoneBounds(zone), padding } : { center: [-46.63, -23.55], zoom: 15 }} />
+      <Map style={StyleSheet.absoluteFill} mapStyle={style} attribution={false} logo={false} compass={false} scaleBar={false} touchRotate={false} touchPitch={false}
+        onPress={onPress ? (e) => onPress({ lat: e.nativeEvent.lngLat[1], lng: e.nativeEvent.lngLat[0] }) : undefined}>
+        <Camera ref={camera} initialViewState={fitTo ? { bounds: zoneBounds(fitTo), padding } : { center: [-46.63, -23.55], zoom: 15 }} />
         {boosts.map((b) => (
           <Marker key={b.id} id={`boost-${b.id}`} lngLat={[b.lng, b.lat]} anchor="center">
             <View style={{ width: 110 }}>

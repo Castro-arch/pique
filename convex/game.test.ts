@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 
 import { api } from './_generated/api';
 import type { Id } from './_generated/dataModel';
-import { distanceM as distanceBetween } from './lib';
+import { distanceM as distanceBetween, inZone, zoneCorners } from './lib';
 import { assignRoles, planDraw } from './rounds';
 import { samplePoints } from './streets';
 import schema from './schema';
@@ -680,7 +680,7 @@ describe('regras de boosts e tensão', () => {
     const priya = await viewOf(s.priya, gameId);
     expect(priya.boosts).toHaveLength(0); // nenhuma onda
     expect(priya.me.heartbeat).toBe(false); // caçador a 10 m, mas desligado
-    expect(priya.game.features).toEqual({ boosts: false, heartbeat: false, shouts: false, rescue: false });
+    expect(priya.game.features).toEqual({ boosts: false, heartbeat: false, shouts: false, rescue: false, lanterna: false });
     expect((await viewOf(s.leo, gameId)).me.shoutsLeft).toBeNull();
     await expect(s.leo.mutation(api.play.shout, { gameId })).rejects.toThrow(/desligado/);
 
@@ -1039,5 +1039,121 @@ describe('segurança', () => {
     const meu = await s.leo.query(api.friends.profile, {});
     expect(meu!.live).not.toBeNull();
     expect(meu!.live).not.toHaveProperty('role');
+  });
+});
+
+// Um ponto N metros a leste do centro.
+const east = (m: number, from = CENTER) => ({ lat: from.lat, lng: from.lng + m / (111_320 * Math.cos((from.lat * Math.PI) / 180)) });
+
+describe('modo lanterna', () => {
+  async function startLanterna(s: Awaited<ReturnType<typeof lobbyWith4>>) {
+    await s.host.mutation(api.games.setRules, {
+      gameId: s.gameId,
+      rules: { durationMin: 30, headStartMin: 3, pingEveryMin: 2, hunters: 1, shrink: false, shrinkEveryMin: 5, spectatorsHelp: false, boosts: false, mode: 'lanterna' },
+    });
+    await s.leo.mutation(api.games.setSide, { gameId: s.gameId, side: 'hunter' });
+    for (const p of [s.host, s.priya, s.teo]) await p.mutation(api.games.setSide, { gameId: s.gameId, side: 'runner' });
+    await s.host.mutation(api.rounds.start, { gameId: s.gameId });
+  }
+
+  test('sem ping; quem está no feixe aparece ao vivo e fica a última posição vista', async () => {
+    const s = await lobbyWith4();
+    await startLanterna(s);
+    const { gameId, t } = s;
+    await move(s.leo, gameId, CENTER);
+    await move(s.priya, gameId, north(80));
+    await move(s.teo, gameId, north(200)); // longe demais para o feixe
+    await move(s.host, gameId, east(60)); // perto, mas fora do cone
+
+    // Na vantagem a lanterna não acende.
+    await s.leo.mutation(api.play.setHeading, { gameId, heading: 0 });
+    expect((await viewOf(s.leo, gameId)).people.map((p) => p.name)).toEqual(['Leo']);
+
+    await advance(t, 3 * MIN);
+    const view = await viewOf(s.leo, gameId);
+    expect(view.game.nextPingAt).toBeNull();
+    expect(view.game.beam).toEqual({ m: 120, deg: 25 });
+    await move(s.leo, gameId, CENTER); // o celular do caçador segue mandando a posição
+
+    // Apontou para o norte: a Priya acende, os outros não.
+    await s.leo.mutation(api.play.setHeading, { gameId, heading: 0 });
+    let seen = (await viewOf(s.leo, gameId)).people.filter((p) => !p.isMe);
+    expect(seen.map((p) => [p.name, p.kind])).toEqual([['Priya', 'live']]);
+    expect((await viewOf(s.priya, gameId)).me.lit).toBe(true);
+
+    // Ela anda dentro do feixe: o caçador acompanha.
+    vi.advanceTimersByTime(3000);
+    await move(s.priya, gameId, north(90));
+    expect((await viewOf(s.leo, gameId)).people.find((p) => p.name === 'Priya')!.lat).toBeCloseTo(north(90).lat, 6);
+
+    // Virou para o sul: a Priya apaga e fica onde foi vista por último.
+    await s.leo.mutation(api.play.setHeading, { gameId, heading: 180 });
+    const priya = (await viewOf(s.leo, gameId)).people.find((p) => p.name === 'Priya')!;
+    expect(priya.kind).toBe('ping');
+    expect(priya.lat).toBeCloseTo(north(90).lat, 6);
+    expect((await viewOf(s.priya, gameId)).me.lit).toBe(false);
+
+    // O Teo entra sozinho no feixe (agora para o sul) andando.
+    vi.advanceTimersByTime(60_000);
+    await move(s.leo, gameId, CENTER);
+    await s.leo.mutation(api.play.setHeading, { gameId, heading: 182 });
+    await move(s.teo, gameId, north(-100));
+    seen = (await viewOf(s.leo, gameId)).people.filter((p) => p.kind === 'live' && !p.isMe);
+    expect(seen.map((p) => p.name)).toEqual(['Teo']);
+
+    // Passa o tempo de vários pings e nenhum acontece.
+    await advance(t, 10 * MIN);
+    expect((await viewOf(s.leo, gameId)).people.find((p) => p.name === 'Castro')).toBeUndefined();
+  });
+
+  test('bússola velha não acende ninguém', async () => {
+    const s = await lobbyWith4();
+    await startLanterna(s);
+    await move(s.leo, s.gameId, CENTER);
+    await move(s.priya, s.gameId, north(80));
+    await advance(s.t, 3 * MIN);
+    await move(s.leo, s.gameId, CENTER);
+    await s.leo.mutation(api.play.setHeading, { gameId: s.gameId, heading: 0 });
+    expect((await viewOf(s.leo, s.gameId)).people.find((p) => p.name === 'Priya')?.kind).toBe('live');
+    vi.advanceTimersByTime(31_000);
+    await move(s.leo, s.gameId, CENTER);
+    await move(s.priya, s.gameId, north(85));
+    expect((await viewOf(s.leo, s.gameId)).people.find((p) => p.name === 'Priya')?.kind).toBe('ping');
+  });
+});
+
+describe('zona desenhada', () => {
+  // Um retângulo comprido: 100 m de largura e 600 m de altura.
+  const strip = [
+    { ...north(300), lng: east(-50).lng },
+    { ...north(300), lng: east(50).lng },
+    { ...north(-300), lng: east(50).lng },
+    { ...north(-300), lng: east(-50).lng },
+  ];
+
+  test('o desenho vale para estar dentro ou fora, e encolhe junto com o raio', () => {
+    const zone = { ...CENTER, radius: 304, shape: strip, shapeRadius: 304 };
+    expect(inZone(north(250), zone)).toBe(true);
+    expect(inZone(east(100), zone)).toBe(false); // dentro do círculo, fora do desenho
+    const half = { ...zone, radius: 152 };
+    expect(inZone(north(250), half)).toBe(false);
+    expect(inZone(north(100), half)).toBe(true);
+    expect(distanceBetween(CENTER, zoneCorners(half)![0])).toBeCloseTo(152, -1);
+  });
+
+  test('o anfitrião salva o desenho; sair dele conta como fora da zona', async () => {
+    const s = await lobbyWith4();
+    await s.host.mutation(api.games.setZone, { gameId: s.gameId, ...CENTER, radius: 210, shape: strip });
+    const zone = (await lobbyOf(s.host, s.gameId)).zone!;
+    expect(zone.shape).toHaveLength(4);
+    expect(zone.radius).toBeGreaterThan(300);
+    await expect(s.host.mutation(api.games.setZone, { gameId: s.gameId, ...CENTER, radius: 210, shape: strip.slice(0, 2) })).rejects.toThrow();
+
+    await startWithLeoHunting(s);
+    await move(s.priya, s.gameId, north(250));
+    expect((await viewOf(s.priya, s.gameId)).me.outOfZoneSince).toBeNull();
+    vi.advanceTimersByTime(60_000);
+    await move(s.priya, s.gameId, east(100, north(250)));
+    expect((await viewOf(s.priya, s.gameId)).me.outOfZoneSince).not.toBeNull();
   });
 });

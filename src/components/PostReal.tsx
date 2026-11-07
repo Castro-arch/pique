@@ -88,7 +88,7 @@ export function PostScreen({ view, trail }: { view: PostView; trail: TrailPoint[
         stats: [
           ['Distância', km(me.distanceM)],
           ['Ritmo', pace(myEnd - start, me.distanceM)],
-          ['Pings livres', String(pings)],
+          g.features.lanterna ? ['Modo', 'Lanterna'] : ['Pings livres', String(pings)],
         ],
         accent,
         trail,

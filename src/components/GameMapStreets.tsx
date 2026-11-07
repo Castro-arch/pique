@@ -30,8 +30,13 @@ export function StreetMap({
   dim = 0,
   boosts = [],
   spot = null,
+  beams = [],
+  draft = null,
+  onPress,
+  frame = null,
   padding = MAP_PADDING,
 }: GameMapProps & { onFail: () => void }) {
+  const fitTo = zone ?? frame;
   const el = useRef<HTMLDivElement>(null);
   const [map, setMap] = useState<maplibregl.Map | null>(null);
 
@@ -43,7 +48,7 @@ export function StreetMap({
         container: el.current,
         // Mesmo formato de estilo; só os tipos vêm de pacotes diferentes (nativo e web).
         style: streetStyle(zone, nextZoneRadius) as unknown as maplibregl.StyleSpecification,
-        center: zone ? [zone.lng, zone.lat] : [-46.63, -23.55],
+        center: fitTo ? [fitTo.lng, fitTo.lat] : [-46.63, -23.55],
         zoom: 16,
         attributionControl: false,
         dragRotate: false,
@@ -66,11 +71,22 @@ export function StreetMap({
   // Zona nova ou encolhendo: troca o desenho e reenquadra.
   useEffect(() => {
     if (!map) return;
-    (map.getSource('zone') as maplibregl.GeoJSONSource | undefined)?.setData(zoneShapes(zone, nextZoneRadius, spot));
-  }, [map, zone?.lat, zone?.lng, zone?.radius, nextZoneRadius, spot?.lat, spot?.lng, spot?.radius]); // eslint-disable-line react-hooks/exhaustive-deps
+    (map.getSource('zone') as maplibregl.GeoJSONSource | undefined)?.setData(zoneShapes(zone, nextZoneRadius, spot, beams, draft));
+  }, [map, zone?.lat, zone?.lng, zone?.radius, zone?.shape, nextZoneRadius, spot?.lat, spot?.lng, spot?.radius, JSON.stringify(beams), draft]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Toque no mapa (para desenhar a zona). O ref evita religar a cada render.
+  const press = useRef(onPress);
+  press.current = onPress;
   useEffect(() => {
-    if (map && zone) map.fitBounds(zoneBounds(zone), { padding, duration: 0 });
-  }, [map, zone?.lat, zone?.lng, zone?.radius]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (!map) return;
+    const click = (e: maplibregl.MapMouseEvent) => press.current?.({ lat: e.lngLat.lat, lng: e.lngLat.lng });
+    map.on('click', click);
+    return () => {
+      map.off('click', click);
+    };
+  }, [map]);
+  useEffect(() => {
+    if (map && fitTo) map.fitBounds(zoneBounds(fitTo), { padding, duration: 0 });
+  }, [map, fitTo?.lat, fitTo?.lng, fitTo?.radius, fitTo?.shape]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <View style={StyleSheet.absoluteFill}>

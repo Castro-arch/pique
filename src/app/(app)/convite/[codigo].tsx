@@ -65,7 +65,11 @@ export default function Convite() {
         <Text variant="small" style={{ marginTop: 6 }}>{count} {count === 1 ? 'pessoa' : 'pessoas'} no lobby · começa quando o {host.name} quiser</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
           <Rule label="Rodada" value={durationMin} unit="min" />
-          <Rule label="Ping a cada" value={pingEveryMin} unit="min" />
+          {rules && 'mode' in rules && rules.mode === 'lanterna' ? (
+            <Rule label="Modo" value="Lanterna" unit="" />
+          ) : (
+            <Rule label="Ping a cada" value={pingEveryMin} unit="min" />
+          )}
           <Rule label="Zona" value={zoneMeters} unit="m" />
         </View>
       </View>

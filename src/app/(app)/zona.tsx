@@ -17,8 +17,12 @@ import { api } from '../../../convex/_generated/api';
 const STEP = 30;
 const MIN = 150;
 const MAX = 900;
+const MAX_CORNERS = 16; // o mesmo limite do servidor
 
-// 5.7 Zona de jogo: o anfitrião ajusta o tamanho e arrasta o mapa.
+type Pt = { lat: number; lng: number };
+
+// 5.7 Zona de jogo: o anfitrião ajusta o tamanho do círculo, ou desenha a zona
+// tocando no mapa para marcar os cantos (segue as ruas, a praça, o parque).
 // No celular, este mapa vira o GameMap (satélite) na fase do jogo real.
 export default function Zona() {
   const insets = useSafeAreaInsets();
@@ -31,7 +35,10 @@ export default function Zona() {
   const [center, setCenter] = useState<{ lat: number; lng: number } | null>(lobby?.zone ?? null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [kind, setKind] = useState<'circulo' | 'desenho'>(lobby?.zone?.shape ? 'desenho' : 'circulo');
+  const [corners, setCorners] = useState<Pt[]>(lobby?.zone?.shape ?? []);
   const suggested = meters === suggestedMeters;
+  const drawing = kind === 'desenho';
 
   // A zona nasce em volta de onde o anfitrião está.
   const locate = async () => {
@@ -50,7 +57,11 @@ export default function Zona() {
   useEffect(() => {
     if (!lobby?.zone || center) return;
     setCenter({ lat: lobby.zone.lat, lng: lobby.zone.lng });
-    setMeters(lobby.zone.radius * 2);
+    setMeters(Math.min(MAX, Math.max(MIN, lobby.zone.radius * 2)));
+    if (lobby.zone.shape) {
+      setKind('desenho');
+      setCorners(lobby.zone.shape);
+    }
   }, [lobby?.zone]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Sem zona salva, abre já onde o anfitrião está. No navegador pede direto
@@ -64,9 +75,10 @@ export default function Zona() {
     if (!id) return router.back();
     setSaving(true);
     try {
+      if (drawing && corners.length < 3) return setError('Marque pelo menos 3 cantos no mapa.');
       const c = center ?? (await locate());
       if (!c) return;
-      await saveZone({ gameId: id as GameId, lat: c.lat, lng: c.lng, radius: meters / 2 });
+      await saveZone({ gameId: id as GameId, lat: c.lat, lng: c.lng, radius: meters / 2, ...(drawing ? { shape: corners } : {}) });
       router.back();
     } catch (e) {
       setError(errorInfo(e).message);
@@ -82,7 +94,11 @@ export default function Zona() {
       {center ? (
         // O mapa de ruas de verdade, com a zona desenhada em cima.
         <GameMap
-          zone={{ lat: center.lat, lng: center.lng, radius: meters / 2 }}
+          // desenhando, a zona é o desenho (draft) e o mapa só enquadra a área
+          zone={drawing ? null : { lat: center.lat, lng: center.lng, radius: meters / 2 }}
+          frame={{ lat: center.lat, lng: center.lng, radius: meters / 2 }}
+          draft={drawing ? corners : null}
+          onPress={drawing ? (at) => setCorners((c) => (c.length < MAX_CORNERS ? [...c, at] : c)) : undefined}
           nextZoneRadius={null}
           people={[{ id: 'eu', name: 'Você', role: 'runner', state: 'active', isMe: true, kind: 'live', lat: center.lat, lng: center.lng, at: Date.now() }]}
           now={Date.now()}
@@ -111,30 +127,77 @@ export default function Zona() {
       </Pressable>
 
       <View style={[styles.panel, { bottom: Math.max(insets.bottom, 34) }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4 }}>Tamanho da zona</Text>
-            <Text style={{ fontSize: 13, marginTop: 2, color: suggested ? colors.lime : colors.paperMuted, fontFamily: suggested ? fonts.bodyStrong : fonts.body }}>
-              {suggested ? `Sugerido para ${lobby?.players.length ?? 6} pessoas` : `Sugerido: ${suggestedMeters} m`}
+        <View accessibilityRole="tablist" style={styles.kinds}>
+          {(
+            [
+              ['circulo', 'Círculo'],
+              ['desenho', 'Desenhar'],
+            ] as const
+          ).map(([k, label]) => (
+            <Pressable
+              key={k}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: kind === k }}
+              onPress={() => {
+                setError(null);
+                setKind(k);
+              }}
+              style={[styles.kind, kind === k && { backgroundColor: colors.inkBorder }]}>
+              <Text style={{ fontSize: 14, fontFamily: fonts.bodyStrong, color: kind === k ? colors.paper : colors.paperMuted }}>{label}</Text>
+            </Pressable>
+          ))}
+        </View>
+        {drawing ? (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4 }}>Desenhe a zona</Text>
+                <Text style={{ fontSize: 13, marginTop: 2, color: corners.length >= 3 ? colors.lime : colors.paperMuted, fontFamily: fonts.bodyStrong }}>
+                  {corners.length >= 3 ? 'Pronto. Pode marcar mais cantos.' : 3 - corners.length === 1 ? 'Falta 1 canto' : `Faltam ${3 - corners.length} cantos`}
+                </Text>
+              </View>
+              <Text accessibilityLiveRegion="polite" style={{ fontFamily: fonts.display, fontSize: 30 }}>{corners.length}</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <Pressable accessibilityRole="button" disabled={!corners.length} onPress={() => setCorners((c) => c.slice(0, -1))} style={[styles.step, !corners.length && { opacity: 0.4 }]}>
+                <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong }}>Desfazer</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" disabled={!corners.length} onPress={() => setCorners([])} style={[styles.step, !corners.length && { opacity: 0.4 }]}>
+                <Text style={{ fontSize: 15, fontFamily: fonts.bodyStrong }}>Limpar</Text>
+              </Pressable>
+            </View>
+            <Text variant="small" style={{ marginTop: 12 }}>
+              Toque no mapa para marcar os cantos, seguindo as ruas. Os corredores precisam ficar dentro do desenho.
             </Text>
-          </View>
-          <Text accessibilityLiveRegion="polite" style={{ fontFamily: fonts.display, fontSize: 30 }}>{meters} m</Text>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Diminuir zona" onPress={() => setMeters((m) => Math.max(MIN, m - STEP))} style={styles.step}>
-            <Text style={{ fontSize: 24 }}>−</Text>
-          </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Aumentar zona" onPress={() => setMeters((m) => Math.min(MAX, m + STEP))} style={styles.step}>
-            <Text style={{ fontSize: 24 }}>+</Text>
-          </Pressable>
-        </View>
-        <Text variant="small" style={{ marginTop: 12 }}>
-          {id
-            ? center
-              ? 'A zona fica em volta de onde você está agora. Os corredores precisam ficar dentro dela.'
-              : 'Toque no alvo para centralizar a zona onde você está.'
-            : 'Arraste o mapa para mover a zona. Os corredores precisam ficar dentro dela.'}
-        </Text>
+          </>
+        ) : (
+          <>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 14 }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontFamily: fonts.display, fontSize: 20, letterSpacing: -0.4 }}>Tamanho da zona</Text>
+                <Text style={{ fontSize: 13, marginTop: 2, color: suggested ? colors.lime : colors.paperMuted, fontFamily: suggested ? fonts.bodyStrong : fonts.body }}>
+                  {suggested ? `Sugerido para ${lobby?.players.length ?? 6} pessoas` : `Sugerido: ${suggestedMeters} m`}
+                </Text>
+              </View>
+              <Text accessibilityLiveRegion="polite" style={{ fontFamily: fonts.display, fontSize: 30 }}>{meters} m</Text>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
+              <Pressable accessibilityRole="button" accessibilityLabel="Diminuir zona" onPress={() => setMeters((m) => Math.max(MIN, m - STEP))} style={styles.step}>
+                <Text style={{ fontSize: 24 }}>−</Text>
+              </Pressable>
+              <Pressable accessibilityRole="button" accessibilityLabel="Aumentar zona" onPress={() => setMeters((m) => Math.min(MAX, m + STEP))} style={styles.step}>
+                <Text style={{ fontSize: 24 }}>+</Text>
+              </Pressable>
+            </View>
+            <Text variant="small" style={{ marginTop: 12 }}>
+              {id
+                ? center
+                  ? 'A zona fica em volta de onde você está agora. Os corredores precisam ficar dentro dela.'
+                  : 'Toque no alvo para centralizar a zona onde você está.'
+                : 'Arraste o mapa para mover a zona. Os corredores precisam ficar dentro dela.'}
+            </Text>
+          </>
+        )}
         {error ? <Text variant="error" style={{ marginTop: 8 }}>{error}</Text> : null}
       </View>
     </View>
@@ -178,5 +241,7 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     padding: 18,
   },
+  kinds: { flexDirection: 'row', backgroundColor: colors.ink, borderRadius: 16, padding: 4, gap: 4 },
+  kind: { flex: 1, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
   step: { flex: 1, height: 48, borderRadius: 16, backgroundColor: colors.ink, borderWidth: 1, borderColor: colors.inkBorder, alignItems: 'center', justifyContent: 'center' },
 });

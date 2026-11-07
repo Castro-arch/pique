@@ -161,6 +161,17 @@ export function LiveGame({ id }: { id: string }) {
   const mine = view.people.find((p) => p.isMe);
   const spot = me.spotUntil && me.spotUntil > now && mine ? { lat: mine.lat, lng: mine.lng, radius: 80 } : null;
   const sniffed = !caught && !!me.sniffedUntil && me.sniffedUntil > now;
+  // Modo lanterna: o caçador vê o feixe dele e o do time; o corredor só sabe quando está num.
+  const lanterna = g.features.lanterna;
+  const lit = !caught && me.lit;
+  const beams =
+    hunter && g.beam && g.status === 'hunt'
+      ? view.people
+          .filter((p) => p.role === 'hunter' && p.state === 'active' && p.kind === 'live')
+          .map((p) => ({ lat: p.lat, lng: p.lng, heading: p.isMe ? (myHeading ?? p.heading) : p.heading, m: g.beam!.m, deg: g.beam!.deg }))
+          .filter((b): b is typeof b & { heading: number } => b.heading !== null && b.heading !== undefined)
+      : [];
+  const roundTotal = g.endsAt && g.headStartEndsAt ? (g.endsAt - g.headStartEndsAt) / 1000 : 1;
   // Algum aviso (fora da zona, preso, preço do boost, coração) ocupa o lugar do placar.
   const coveredHud = (outFor !== null && !caught) || (me.jailed && !justWatch) || (!!revealed && !caught) || beating;
   const confirmBoost = async () => {
@@ -198,6 +209,7 @@ export function LiveGame({ id }: { id: string }) {
         outOfZone={!!me.outOfZoneSince}
         dim={headstart && !hunter ? 0.18 : 0}
         boosts={view.boosts}
+        beams={beams}
       />
       {beating ? <HeartbeatVignette pulse={pulse} /> : null}
 
@@ -238,17 +250,23 @@ export function LiveGame({ id }: { id: string }) {
         <ArcHud
           timeLabel={headstart ? (hunter ? 'Vantagem deles' : 'Vantagem') : 'Tempo restante'}
           time={mmss(left)}
-          pingLabel={g.nextPingAt ? `${headstart ? '1º ping' : 'ping'} em ${mmss(ping)}` : 'sem mais pings'}
-          progress={headstart ? 0 : 1 - ping / pingTotal}
+          pingLabel={lanterna ? 'modo lanterna' : g.nextPingAt ? `${headstart ? '1º ping' : 'ping'} em ${mmss(ping)}` : 'sem mais pings'}
+          progress={headstart ? 0 : lanterna ? 1 - left / roundTotal : 1 - ping / pingTotal}
           free={view.runners.free}
           total={view.runners.total}
           zone={zone ? `${zone.radius * 2} m` : '–'}
           zoneNote={g.shrinkAt ? `encolhe em ${mmss(secondsUntil(g.shrinkAt, now))}` : 'diâmetro'}
           status={caught ? 'off' : hunter ? 'team' : 'hidden'}
-          statusLabel={caught ? 'Sua posição não é mais enviada' : hunter ? 'Só sua equipe te vê' : 'Ninguém te vê agora'}
+          statusLabel={caught ? 'Sua posição não é mais enviada' : hunter ? 'Só sua equipe te vê' : lit ? 'Um caçador te vê agora' : 'Ninguém te vê agora'}
           boosts={boostPlaying ? me.boosts : null}
           slots={slots}
-          tag={sniffed ? { text: 'Um caçador está te farejando', color: BOOSTS.faro.color } : null}
+          tag={
+            sniffed
+              ? { text: 'Um caçador está te farejando', color: BOOSTS.faro.color }
+              : lit
+                ? { text: 'Você está na lanterna! Saia do feixe', color: colors.pink }
+                : null
+          }
           onBoost={(b) => {
             setError(null);
             setUsing(b);
@@ -460,6 +478,19 @@ function useSendHeading(id: string, active: boolean) {
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
+  // Parado apontando para o mesmo lado, reenvia a cada 10 s: no servidor a
+  // bússola vale por 30 s, e a lanterna não pode apagar só porque a mão está firme.
+  const latest = useRef(heading);
+  latest.current = heading;
+  useEffect(() => {
+    if (!active) return;
+    const keep = setInterval(() => {
+      if (latest.current === null || Date.now() - last.current.at < 10_000) return;
+      last.current = { at: Date.now(), deg: latest.current };
+      send({ gameId: id as GameId, heading: latest.current }).catch(() => {});
+    }, 5_000);
+    return () => clearInterval(keep);
+  }, [active, id, send]);
   return heading;
 }
 

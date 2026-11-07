@@ -13,6 +13,7 @@ import { colors, fonts, radius } from '@/theme/tokens';
 import { api } from '../../../../convex/_generated/api';
 
 type Amount = 'few' | 'normal' | 'many';
+type Mode = 'ping' | 'lanterna';
 type Rules = {
   durationMin: number;
   headStartMin: number;
@@ -27,8 +28,13 @@ type Rules = {
   heartbeat: boolean;
   shouts: boolean;
   rescue: boolean;
+  mode: Mode;
 };
-const defaults: Rules = { ...match.rules, shrink: true, spectatorsHelp: false, boosts: true, boostAmount: 'normal', heartbeat: true, shouts: true, rescue: true };
+const defaults: Rules = { ...match.rules, shrink: true, spectatorsHelp: false, boosts: true, boostAmount: 'normal', heartbeat: true, shouts: true, rescue: true, mode: 'ping' };
+const MODES: [Mode, string][] = [
+  ['ping', 'Ping'],
+  ['lanterna', 'Lanterna'],
+];
 const AMOUNTS: [Amount, string][] = [
   ['few', 'Poucos'],
   ['normal', 'Normal'],
@@ -122,15 +128,31 @@ export default function Regras() {
           </View>
         ) : (
         <View style={{ marginTop: 6 }}>
+          <Row title="Modo" sub={r.mode === 'lanterna' ? 'Sem ping: caçador aponta o celular e vê quem está no feixe' : 'Os corredores aparecem no mapa de tempos em tempos'}>
+            <View style={styles.segment}>
+              {MODES.map(([k, label]) => (
+                <Pressable
+                  key={k}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: r.mode === k }}
+                  onPress={() => set({ mode: k })}
+                  style={[styles.seg, r.mode === k && { backgroundColor: colors.lime }]}>
+                  <Text style={{ fontSize: 13, fontFamily: fonts.bodyStrong, color: r.mode === k ? colors.limeInk : colors.paperMuted }}>{label}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </Row>
           <Row title="Duração da rodada" sub="Corredores vencem se alguém chegar ao fim">
             <Stepper label="duração" value={`${r.durationMin} min`} onMinus={() => set({ durationMin: clamp(r.durationMin - 5, 10, 60) })} onPlus={() => set({ durationMin: clamp(r.durationMin + 5, 10, 60) })} />
           </Row>
           <Row title="Vantagem" sub="Caçadores esperam parados">
             <Stepper label="vantagem" value={`${r.headStartMin} min`} onMinus={() => set({ headStartMin: clamp(r.headStartMin - 1, 1, 10) })} onPlus={() => set({ headStartMin: clamp(r.headStartMin + 1, 1, 10) })} />
           </Row>
-          <Row title="Ping a cada" sub="Menos tempo = mais difícil se esconder">
-            <Stepper label="ping" value={`${r.pingEveryMin} min`} onMinus={() => set({ pingEveryMin: clamp(r.pingEveryMin - 1, 1, 5) })} onPlus={() => set({ pingEveryMin: clamp(r.pingEveryMin + 1, 1, 5) })} />
-          </Row>
+          {r.mode === 'ping' ? (
+            <Row title="Ping a cada" sub="Menos tempo = mais difícil se esconder">
+              <Stepper label="ping" value={`${r.pingEveryMin} min`} onMinus={() => set({ pingEveryMin: clamp(r.pingEveryMin - 1, 1, 5) })} onPlus={() => set({ pingEveryMin: clamp(r.pingEveryMin + 1, 1, 5) })} />
+            </Row>
+          ) : null}
           <Row title="Caçadores" sub={`Os outros ${runners} começam correndo`}>
             <Stepper label="caçadores" value={String(r.hunters)} onMinus={() => set({ hunters: clamp(r.hunters - 1, 1, 3) })} onPlus={() => set({ hunters: clamp(r.hunters + 1, 1, 3) })} />
           </Row>
@@ -146,8 +168,10 @@ export default function Regras() {
         {tab === 'partida' ? (
         <View style={styles.tip}>
           <Text variant="small" style={{ lineHeight: 19 }}>
-            <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 13 }}>Na prática:</Text> {r.headStartMin} min para sumir, depois cada
-            corredor aparece umas {pings} vezes até o fim.
+            <Text style={{ color: colors.lime, fontFamily: fonts.bodyStrong, fontSize: 13 }}>Na prática:</Text> {r.headStartMin} min para sumir,{' '}
+            {r.mode === 'lanterna'
+              ? 'depois os caçadores varrem a rua com a lanterna do celular. Quem entra no feixe (até 120 m) aparece ao vivo.'
+              : `depois cada corredor aparece umas ${pings} vezes até o fim.`}
           </Text>
         </View>
         ) : null}

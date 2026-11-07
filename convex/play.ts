@@ -6,6 +6,8 @@ import { internal } from './_generated/api';
 import type { Doc, Id } from './_generated/dataModel';
 import { internalMutation, mutation, query, type MutationCtx, type QueryCtx } from './_generated/server';
 import {
+  BEAM_M,
+  BEAM_DEG,
   BOOST_NAME,
   BOOST_PICK_M,
   BOOST_REVEAL_S,
@@ -19,9 +21,12 @@ import {
   SPOT_MS,
   distanceM,
   features,
+  FRESH_HEADING_MS,
   FRESH_POSITION_MS,
   gamePlayers,
   HEARTBEAT_M,
+  inBeam,
+  inZone,
   lastPosition,
   memberOrNull,
   requireMember,
@@ -79,7 +84,7 @@ export const sendPosition = mutation({
 
     // Zona: só vale para corredor. Fora por 30 s, fica visível ao vivo.
     if (me.role === 'runner' && game.zone) {
-      const out = distanceM({ lat, lng }, game.zone) > game.zone.radius;
+      const out = !inZone({ lat, lng }, game.zone);
       if (out && !me.outOfZoneSince) await markOutOfZone(ctx, me, now);
       if (!out && me.outOfZoneSince) await ctx.db.patch(me._id, { outOfZoneSince: undefined, exposed: undefined });
     }
@@ -89,6 +94,10 @@ export const sendPosition = mutation({
     }
     if (me.role === 'hunter' && game.status === 'hunt' && features(game.rules).boosts) await pickUpBoost(ctx, game, me, { lat, lng });
     if (game.status === 'hunt' && features(game.rules).heartbeat) await heartbeatAlerts(ctx, me, { lat, lng }, now);
+    if (game.status === 'hunt' && features(game.rules).lanterna) {
+      if (me.role === 'runner') await lightRunners(ctx, game, [{ ...me, pos: { lat, lng } }]);
+      else await lightRunners(ctx, game);
+    }
     return { accepted: true as const };
   },
 });
@@ -144,8 +153,40 @@ export const setHeading = mutation({
     const { game, me } = await requireMember(ctx, gameId);
     if (!playing(game) || me.state !== 'active' || !Number.isFinite(heading)) return;
     await ctx.db.patch(me._id, { heading: ((Math.round(heading) % 360) + 360) % 360, headingAt: Date.now() });
+    // Lanterna: o caçador virou o celular, o feixe varreu outro pedaço.
+    if (me.role === 'hunter' && game.status === 'hunt' && features(game.rules).lanterna) await lightRunners(ctx, game);
   },
 });
+
+// ── Lanterna ───────────────────────────────────────────────────────────
+
+// Os feixes acesos agora: caçadores ativos com bússola e posição recentes.
+async function beams(ctx: MutationCtx, players: Doc<'players'>[], now: number) {
+  const out: { from: { lat: number; lng: number }; heading: number }[] = [];
+  for (const h of players) {
+    if (h.role !== 'hunter' || h.state !== 'active' || h.heading === undefined || now - (h.headingAt ?? 0) > FRESH_HEADING_MS) continue;
+    const from = await lastPosition(ctx, h._id);
+    if (from && now - from.at <= FRESH_POSITION_MS) out.push({ from, heading: h.heading });
+  }
+  return out;
+}
+
+// Acende quem está em algum feixe e apaga quem saiu. Aceso, o caçador vê ao
+// vivo; o ping guarda onde foi visto por último ("Priya · 12 s").
+// only: só esses corredores (o que acabou de se mexer, com a posição nova).
+async function lightRunners(ctx: MutationCtx, game: Doc<'games'>, only?: (Doc<'players'> & { pos: { lat: number; lng: number } })[]) {
+  const now = Date.now();
+  const players = await gamePlayers(ctx, game._id);
+  const lights = await beams(ctx, players, now);
+  const runners: (Doc<'players'> & { pos?: { lat: number; lng: number } })[] = only ?? players.filter((p) => p.role === 'runner' && p.state === 'active');
+  for (const r of runners) {
+    const pos = r.pos ?? (await lastPosition(ctx, r._id));
+    if (!pos) continue;
+    const lit = lights.some((b) => inBeam(b.from, b.heading, pos));
+    if (lit) await ctx.db.patch(r._id, { lit: true, ping: { lat: pos.lat, lng: pos.lng, at: now } });
+    else if (r.lit) await ctx.db.patch(r._id, { lit: undefined });
+  }
+}
 
 // Corredor usa um boost guardado.
 export const useBoost = mutation({
@@ -284,7 +325,9 @@ export const view = query({
       if (!isMe && !iHunt && role === 'hunter' && !((p.spotUntil ?? 0) > now)) continue;
       // Caçador vê corredor no último ping, a não ser que ele esteja exposto ou
       // sob o Faro / Holofote desse caçador.
-      if (!isMe && iHunt && role === 'runner' && p.state === 'active' && !(p.exposed || p.revealed)) {
+      // Lanterna: quem está no feixe aparece ao vivo, igual a quem está exposto.
+      const shown = p.exposed || p.revealed || p.lit;
+      if (!isMe && iHunt && role === 'runner' && p.state === 'active' && !shown) {
         const sniffed = faroOn && me.faroTargetId === p._id;
         const lit = spotFrom ? await lastPosition(ctx, p._id) : null;
         const spotted = !!lit && !!spotFrom && distanceM(lit, spotFrom) <= SPOT_M;
@@ -292,7 +335,7 @@ export const view = query({
           if (p.ping) seen.push({ ...base, kind: 'ping', ...p.ping });
           continue;
         }
-      } else if (!isMe && iHunt && role === 'runner' && !((p.exposed || p.revealed) && p.state === 'active')) {
+      } else if (!isMe && iHunt && role === 'runner' && !(shown && p.state === 'active')) {
         if (p.ping) seen.push({ ...base, kind: 'ping', ...p.ping });
         continue;
       }
@@ -353,6 +396,8 @@ export const view = query({
         headStartMin: game.rules.headStartMin,
         endedAt: game.endedAt ?? null,
         features: on,
+        // o feixe da lanterna, para o mapa desenhar o cone do tamanho certo
+        beam: on.lanterna ? { m: BEAM_M, deg: BEAM_DEG } : null,
       },
       me: {
         id: me._id,
@@ -369,6 +414,7 @@ export const view = query({
         shoutedAt: me.role === 'runner' ? (me.shoutedAt ?? null) : null,
         revealUntil: me.revealed ? (me.revealUntil ?? null) : null,
         shieldUntil: me.shieldUntil ?? null,
+        lit: me.role === 'runner' && !!me.lit, // corredor: está no feixe de uma lanterna agora
         nextPing: me.nextPing ?? null,
         faroUntil: faroOn ? me.faroUntil! : null,
         spotUntil: iHunt && (me.spotUntil ?? 0) > now ? me.spotUntil! : null,

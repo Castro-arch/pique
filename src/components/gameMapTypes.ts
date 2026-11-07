@@ -1,3 +1,5 @@
+import type { Beam } from '@/lib/mapStyle';
+
 // O que o mapa da partida precisa saber. Vem pronto da query play.view,
 // que já aplicou a regra de quem pode ver quem.
 export type MapPerson = {
@@ -15,7 +17,8 @@ export type MapPerson = {
   faro?: boolean; // sob o Faro do caçador: brilha laranja
 };
 
-export type MapZone = { lat: number; lng: number; radius: number };
+// Círculo, ou a zona desenhada (shape: os cantos, do tamanho shapeRadius).
+export type MapZone = { lat: number; lng: number; radius: number; shape?: { lat: number; lng: number }[]; shapeRadius?: number };
 
 export type MapBoost = { id: string; kind: 'despiste' | 'sombra' | 'escudo' | 'radar' | 'faro' | 'holofote'; lat: number; lng: number };
 
@@ -29,6 +32,10 @@ export type GameMapProps = {
   dim?: number;
   boosts?: MapBoost[]; // cada lado só recebe os boosts dele
   spot?: MapZone | null; // Holofote do caçador: círculo amarelo em volta dele
+  beams?: Beam[]; // modo lanterna: os feixes do time do caçador
+  draft?: { lat: number; lng: number }[] | null; // os cantos da zona que o anfitrião está desenhando
+  onPress?: (at: { lat: number; lng: number }) => void; // toque no mapa (desenhar a zona)
+  frame?: MapZone | null; // sem zona: a área que o mapa enquadra (enquanto desenha)
   padding?: { top: number; bottom: number; left: number; right: number }; // folga do enquadramento (mapas pequenos)
 };
 

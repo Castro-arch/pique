@@ -9,7 +9,10 @@ import { colors } from '@/theme/tokens';
 // fica só no fundo escuro e a partida segue normal.
 export const MAP_CREDIT = 'OpenFreeMap © OpenMapTiles Data from OpenStreetMap';
 
-type Zone = { lat: number; lng: number; radius: number };
+type Pt = { lat: number; lng: number };
+type Zone = Pt & { radius: number; shape?: Pt[]; shapeRadius?: number };
+// Feixe da lanterna: de onde sai, para onde aponta (graus, 0 = norte), alcance e abertura para cada lado.
+export type Beam = Pt & { heading: number; m: number; deg: number };
 
 // Ponto a `m` metros do centro na direção `angle`.
 function offset(c: { lat: number; lng: number }, m: number, angle: number): [number, number] {
@@ -18,16 +21,54 @@ function offset(c: { lat: number; lng: number }, m: number, angle: number): [num
   return [lng, lat];
 }
 
+// O contorno da zona com o raio `radius`: o círculo, ou os cantos do desenho
+// aproximados do centro na proporção do raio (a zona desenhada encolhe assim).
+export function zoneOutline(c: Zone, radius: number): [number, number][] {
+  if (c.shape?.length) {
+    const f = radius / (c.shapeRadius ?? c.radius);
+    const pts = c.shape.map((p) => [c.lng + (p.lng - c.lng) * f, c.lat + (p.lat - c.lat) * f] as [number, number]);
+    return [...pts, pts[0]];
+  }
+  return Array.from({ length: 73 }, (_, i) => offset(c, radius, (i / 72) * 2 * Math.PI));
+}
+
 function ring(c: Zone, radius: number) {
-  const pts = Array.from({ length: 73 }, (_, i) => offset(c, radius, (i / 72) * 2 * Math.PI));
-  return { type: 'Polygon' as const, coordinates: [pts] };
+  return { type: 'Polygon' as const, coordinates: [zoneOutline(c, radius)] };
+}
+
+// O cone do feixe. offset() conta o ângulo a partir do leste, anti-horário; a bússola, do norte, horário.
+export function beamOutline(b: Beam): [number, number][] {
+  const toAngle = (deg: number) => ((90 - deg) * Math.PI) / 180;
+  const arc = Array.from({ length: 13 }, (_, i) => offset(b, b.m, toAngle(b.heading - b.deg + (i / 12) * 2 * b.deg)));
+  const tip: [number, number] = [b.lng, b.lat];
+  return [tip, ...arc, tip];
 }
 
 // A zona e, quando ela vai encolher, a zona nova. As cores vão nas
 // propriedades para um par de camadas desenhar as duas.
 // spot: o círculo do Holofote do caçador, em amarelo.
-export function zoneShapes(zone: Zone | null, nextRadius: number | null, spot?: Zone | null) {
+// beams: os feixes das lanternas do time (modo lanterna).
+// draft: os cantos da zona que o anfitrião está desenhando.
+export function zoneShapes(zone: Zone | null, nextRadius: number | null, spot?: Zone | null, beams: Beam[] = [], draft: Pt[] | null = null) {
   const features = [];
+  for (const b of beams) {
+    features.push({
+      type: 'Feature' as const,
+      properties: { fill: BEAM, fillOpacity: 0.28, line: BEAM, lineOpacity: 0.7 },
+      geometry: { type: 'Polygon' as const, coordinates: [beamOutline(b)] },
+    });
+  }
+  if (draft?.length) {
+    const pts = draft.map((p) => [p.lng, p.lat] as [number, number]);
+    features.push({
+      type: 'Feature' as const,
+      properties: { fill: colors.lime, fillOpacity: 0.1, line: colors.lime, lineOpacity: 1 },
+      geometry: pts.length >= 3 ? { type: 'Polygon' as const, coordinates: [[...pts, pts[0]]] } : { type: 'LineString' as const, coordinates: pts },
+    });
+    for (const c of pts) {
+      features.push({ type: 'Feature' as const, properties: { corner: 1, fill: colors.lime, fillOpacity: 1, line: colors.lime, lineOpacity: 1 }, geometry: { type: 'Point' as const, coordinates: c } });
+    }
+  }
   if (spot) {
     features.push({
       type: 'Feature' as const,
@@ -59,6 +100,10 @@ export function zoneShapes(zone: Zone | null, nextRadius: number | null, spot?: 
 
 // Caixa que enquadra a zona inteira: [oeste, sul, leste, norte].
 export function zoneBounds(zone: Zone): [number, number, number, number] {
+  if (zone.shape?.length) {
+    const pts = zoneOutline(zone, zone.radius);
+    return [Math.min(...pts.map((p) => p[0])), Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[1]))];
+  }
   const [w] = offset(zone, zone.radius, Math.PI);
   const [e] = offset(zone, zone.radius, 0);
   const [, n] = offset(zone, zone.radius, Math.PI / 2);
@@ -109,14 +154,15 @@ const label = (id: string, sourceLayer: string, color: string, size: unknown, ex
 });
 
 export const SPOT = '#FFE14A';
+export const BEAM = colors.pink; // o feixe é da cor do caçador
 
-export function streetStyle(zone: Zone | null, nextRadius: number | null, spot?: Zone | null): StyleSpecification {
+export function streetStyle(zone: Zone | null, nextRadius: number | null, spot?: Zone | null, beams: Beam[] = [], draft: Pt[] | null = null): StyleSpecification {
   return {
     version: 8,
     glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',
     sources: {
       omt: { type: 'vector', url: 'https://tiles.openfreemap.org/planet' },
-      zone: { type: 'geojson', data: zoneShapes(zone, nextRadius, spot) },
+      zone: { type: 'geojson', data: zoneShapes(zone, nextRadius, spot, beams, draft) },
     },
     layers: [
       { id: 'ground', type: 'background', paint: { 'background-color': M.ground } },
@@ -142,12 +188,21 @@ export function streetStyle(zone: Zone | null, nextRadius: number | null, spot?:
       label('street-names', 'transportation_name', M.label, ['interpolate', ['linear'], ['zoom'], 14, 9, 18, 12], { 'symbol-placement': 'line' }),
       label('park-names', 'park', M.labelPark, 10),
       { ...label('places', 'place', M.labelPlace, 11, { 'text-letter-spacing': 0.1 }), minzoom: 12, filter: ['match', ['get', 'class'], ['suburb', 'neighbourhood', 'quarter'], true, false] },
-      { id: 'zone-fill', type: 'fill', source: 'zone', paint: { 'fill-color': ['get', 'fill'], 'fill-opacity': ['get', 'fillOpacity'] } },
+      { id: 'zone-fill', type: 'fill', source: 'zone', filter: ['==', ['geometry-type'], 'Polygon'], paint: { 'fill-color': ['get', 'fill'], 'fill-opacity': ['get', 'fillOpacity'] } },
       {
         id: 'zone-line',
         type: 'line',
         source: 'zone',
+        filter: ['!=', ['geometry-type'], 'Point'],
         paint: { 'line-color': ['get', 'line'], 'line-opacity': ['get', 'lineOpacity'], 'line-width': 2, 'line-dasharray': [4, 3] },
+      },
+      // os cantos da zona sendo desenhada
+      {
+        id: 'zone-corners',
+        type: 'circle',
+        source: 'zone',
+        filter: ['==', ['geometry-type'], 'Point'],
+        paint: { 'circle-radius': 7, 'circle-color': colors.lime, 'circle-stroke-color': colors.ink, 'circle-stroke-width': 2 },
       },
     ],
   } as StyleSpecification;

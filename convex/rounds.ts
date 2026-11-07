@@ -12,9 +12,9 @@ import {
   BOOSTS_PER_WAVE,
   HUNTER_BOOSTS_PER_WAVE,
   DESPISTE_M,
-  distanceM,
   features,
   gamePlayers,
+  inZone,
   lastPosition,
   MIN,
   MIN_ZONE_RADIUS,
@@ -178,6 +178,7 @@ async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<
       faroUntil: undefined,
       faroTargetId: undefined,
       spotUntil: undefined,
+      lit: undefined,
       revealed: undefined,
       revealUntil: undefined,
       nextPing: undefined,
@@ -192,7 +193,8 @@ async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<
   const r = game.rules;
   const headStartEndsAt = now + r.headStartMin * MIN;
   const endsAt = headStartEndsAt + r.durationMin * MIN;
-  const nextPingAt = headStartEndsAt + r.pingEveryMin * MIN;
+  // Modo lanterna não tem ping.
+  const nextPingAt = r.mode === 'lanterna' ? undefined : headStartEndsAt + r.pingEveryMin * MIN;
   await ctx.db.patch(gameId, {
     status: 'headstart',
     round,
@@ -209,7 +211,7 @@ async function beginRound(ctx: MutationCtx, game: Doc<'games'>, roles: { id: Id<
   });
 
   await ctx.scheduler.runAt(headStartEndsAt, internal.rounds.headStartOver, { gameId, round });
-  if (nextPingAt < endsAt) await ctx.scheduler.runAt(nextPingAt, internal.rounds.ping, { gameId, round });
+  if (nextPingAt && nextPingAt < endsAt) await ctx.scheduler.runAt(nextPingAt, internal.rounds.ping, { gameId, round });
   if (r.shrink) {
     const warnAt = headStartEndsAt + r.shrinkEveryMin * MIN - MIN;
     if (warnAt < endsAt) await ctx.scheduler.runAt(warnAt, internal.rounds.shrinkWarn, { gameId, round });
@@ -238,8 +240,9 @@ export const headStartOver = internalMutation({
     await ctx.db.patch(gameId, { status: 'hunt' });
     await systemMessage(ctx, gameId, 'Acabou a vantagem. Os caçadores foram liberados.');
     const who = await inRound(ctx, gameId);
-    await notify(ctx, who.hunters, 'hunt', 'Caçada liberada!', 'Acabou a vantagem. Vai atrás deles.');
-    await notify(ctx, who.runners, 'hunt', 'Os caçadores foram liberados', 'Fique escondido. O primeiro ping vem logo.');
+    const lanterna = features(game.rules).lanterna;
+    await notify(ctx, who.hunters, 'hunt', 'Caçada liberada!', lanterna ? 'Aponte o celular: quem entrar no feixe da lanterna aparece.' : 'Acabou a vantagem. Vai atrás deles.');
+    await notify(ctx, who.runners, 'hunt', 'Os caçadores foram liberados', lanterna ? 'Fuja do feixe das lanternas.' : 'Fique escondido. O primeiro ping vem logo.');
     if (features(game.rules).boosts) await ctx.scheduler.runAfter(MIN, internal.rounds.spawnBoosts, { gameId, round });
   },
 });
@@ -301,6 +304,14 @@ const HUNTER_KINDS = [
   ['faro', 0.35],
   ['holofote', 0.25],
 ] as const;
+// Um ponto qualquer dentro da zona (sem as ruas). sqrt espalha por igual na
+// área, e não amontoado no centro. Na zona desenhada, sorteia até cair dentro.
+function randomInZone(zone: NonNullable<Doc<'games'>['zone']>) {
+  let at = offsetM(zone, zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
+  for (let i = 0; i < 30 && !inZone(at, zone, 0.9); i++) at = offsetM(zone, zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
+  return at;
+}
+
 function pick<K extends string>(kinds: readonly (readonly [K, number])[]): K {
   let r = Math.random();
   for (const [kind, w] of kinds) if ((r -= w) < 0) return kind;
@@ -325,7 +336,7 @@ export const spawnBoosts = internalMutation({
     // As ruas ainda não chegaram (a busca está tentando de novo): espera um
     // pouco em vez de soltar boosts dentro de quarteirão. Depois de ~3 min, solta assim mesmo.
     if (!game.streets?.points.length && waited < 6) {
-      if (waited === 0) await ctx.scheduler.runAfter(0, internal.streets.load, { gameId, ...game.zone });
+      if (waited === 0) await ctx.scheduler.runAfter(0, internal.streets.load, { gameId, lat: game.zone.lat, lng: game.zone.lng, radius: game.zone.radius });
       await ctx.scheduler.runAfter(30_000, internal.rounds.spawnBoosts, { gameId, round, waited: waited + 1 });
       return;
     }
@@ -336,12 +347,16 @@ export const spawnBoosts = internalMutation({
     // Em cima das ruas (da busca no OpenStreetMap), dentro da zona de agora
     // (ela pode ter encolhido). Sem ruas, qualquer lugar da zona.
     const zone = game.zone;
-    const onStreet = shuffle((game.streets?.points ?? []).filter((p) => distanceM(p, zone) <= zone.radius * 0.9));
-    // primeiro os dos corredores, depois os do caçador (só ele vê esses)
-    const kinds = [...Array.from({ length: count }, randomKind), ...Array.from({ length: HUNTER_BOOSTS_PER_WAVE }, () => pick(HUNTER_KINDS))];
+    const onStreet = shuffle((game.streets?.points ?? []).filter((p) => inZone(p, zone, 0.9)));
+    // primeiro os dos corredores, depois os do caçador (só ele vê esses).
+    // Na lanterna não tem ping: ficam de fora os boosts que mexem nele.
+    const lanterna = features(game.rules).lanterna;
+    const kinds = [
+      ...Array.from({ length: count }, () => (lanterna ? 'escudo' : randomKind())),
+      ...Array.from({ length: HUNTER_BOOSTS_PER_WAVE }, () => pick(lanterna ? HUNTER_KINDS.filter(([k]) => k !== 'radar') : HUNTER_KINDS)),
+    ];
     for (let i = 0; i < kinds.length; i++) {
-      // sqrt espalha por igual na área, e não amontoado no centro.
-      const at = onStreet[i] ?? offsetM(zone, zone.radius * 0.85 * Math.sqrt(Math.random()), Math.random() * 2 * Math.PI);
+      const at = onStreet[i] ?? randomInZone(zone);
       await ctx.db.insert('boosts', { gameId, round, kind: kinds[i], ...at, state: 'map' });
     }
     await systemMessage(ctx, gameId, `${count} boosts apareceram. Você guarda até 2; quanto mais forte, mais tempo fica visível ao pegar.`, 'runner');
@@ -378,7 +393,7 @@ export const shrink = internalMutation({
     for (const p of await gamePlayers(ctx, gameId)) {
       if (p.role !== 'runner' || p.state !== 'active' || p.outOfZoneSince) continue;
       const pos = await lastPosition(ctx, p._id);
-      if (pos && distanceM(pos, zone) > zone.radius) await markOutOfZone(ctx, p, Date.now());
+      if (pos && !inZone(pos, zone)) await markOutOfZone(ctx, p, Date.now());
     }
 
     const warnAt = Date.now() + game.rules.shrinkEveryMin * MIN - MIN;
@@ -445,7 +460,7 @@ export const end = internalMutation({
     await recordRound(ctx, game, players, winner, now);
     // a rodada acabou: a última posição de cada um não serve mais (e a revanche começa do zero)
     for (const pos of await ctx.db.query('positions').withIndex('by_game', (q) => q.eq('gameId', gameId)).collect()) await ctx.db.delete(pos._id);
-    for (const p of players) if (p.ping || p.jail || p.heading !== undefined) await ctx.db.patch(p._id, { ping: undefined, jail: undefined, heading: undefined });
+    for (const p of players) if (p.ping || p.jail || p.heading !== undefined || p.lit) await ctx.db.patch(p._id, { ping: undefined, jail: undefined, heading: undefined, lit: undefined });
     const played = players.filter((p) => p.state !== 'left' && p.role);
     await track(
       ctx,

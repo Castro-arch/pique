@@ -33,6 +33,8 @@ export function features(rules: Doc<'games'>['rules']) {
     heartbeat: rules.heartbeat !== false,
     shouts: rules.shouts !== false,
     rescue: rules.rescue !== false,
+    // Modo lanterna: sem ping; os caçadores apontam o celular e veem quem está no feixe.
+    lanterna: rules.mode === 'lanterna',
   };
 }
 export const MAX_PLAYERS = 20;
@@ -68,6 +70,10 @@ export const RESCUE_M = 10; // chega a menos disso do preso
 export const RESCUE_HOLD_MS = 3_000; // e fica 3 s
 export const RESCUE_SHIELD_MS = 30_000; // quem foi solto não pode ser marcado logo em seguida
 export const FRESH_POSITION_MS = 60_000; // posição mais velha que isso não conta para coração e grito
+export const BEAM_M = 120; // lanterna: o feixe alcança 120 m
+export const BEAM_DEG = 25; // ... e abre 25° para cada lado de onde o celular aponta
+export const FRESH_HEADING_MS = 30_000; // bússola parada há mais que isso não conta
+export const ZONE_MAX_CORNERS = 16;
 
 // Sem letras que confundem (0/O, 1/I/L).
 const CODE_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -135,6 +141,46 @@ export function offsetM(p: { lat: number; lng: number }, m: number, angle: numbe
   const dLat = (m * Math.sin(angle)) / 111_320;
   const dLng = (m * Math.cos(angle)) / (111_320 * Math.cos((p.lat * Math.PI) / 180));
   return { lat: p.lat + dLat, lng: p.lng + dLng };
+}
+
+// Rumo de `a` para `b` em graus (0 = norte, 90 = leste), como a bússola.
+export function bearingDeg(a: { lat: number; lng: number }, b: { lat: number; lng: number }) {
+  const dy = b.lat - a.lat;
+  const dx = (b.lng - a.lng) * Math.cos((a.lat * Math.PI) / 180);
+  return ((Math.atan2(dx, dy) * 180) / Math.PI + 360) % 360;
+}
+
+// `p` está no feixe da lanterna de quem está em `from` apontando para `heading`?
+export function inBeam(from: { lat: number; lng: number }, heading: number, p: { lat: number; lng: number }) {
+  const d = distanceM(from, p);
+  if (d > BEAM_M) return false;
+  if (d < 5) return true; // colado no caçador conta, a direção nessa distância não diz nada
+  return Math.abs(((bearingDeg(from, p) - heading + 540) % 360) - 180) <= BEAM_DEG;
+}
+
+// Zona: um círculo ou um desenho (polígono). O desenho é guardado do tamanho
+// em que foi feito (shapeRadius); quando a zona encolhe, só o raio muda e os
+// cantos se aproximam do centro na mesma proporção.
+type Pt = { lat: number; lng: number };
+type Zone = Pt & { radius: number; shape?: Pt[]; shapeRadius?: number };
+
+export function zoneCorners(zone: Zone, scale = 1) {
+  if (!zone.shape?.length) return null;
+  const f = (zone.radius / (zone.shapeRadius ?? zone.radius)) * scale;
+  return zone.shape.map((c) => ({ lat: zone.lat + (c.lat - zone.lat) * f, lng: zone.lng + (c.lng - zone.lng) * f }));
+}
+
+// Dentro da zona? scale < 1 pede uma folga da borda.
+export function inZone(p: Pt, zone: Zone, scale = 1) {
+  const corners = zoneCorners(zone, scale);
+  if (!corners) return distanceM(p, zone) <= zone.radius * scale;
+  let inside = false;
+  for (let i = 0, j = corners.length - 1; i < corners.length; j = i++) {
+    const a = corners[i];
+    const b = corners[j];
+    if (a.lat > p.lat !== b.lat > p.lat && p.lng < ((b.lng - a.lng) * (p.lat - a.lat)) / (b.lat - a.lat) + a.lng) inside = !inside;
+  }
+  return inside;
 }
 
 export async function gamePlayers(ctx: Ctx, gameId: Id<'games'>) {

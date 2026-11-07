@@ -41,6 +41,7 @@ export default function Papel() {
   const bg = hunter ? colors.pink : colors.lime;
   const ink = hunter ? colors.pinkInk : colors.limeInk;
   const { durationMin, headStartMin, pingEveryMin } = lobby?.rules ?? match.rules;
+  const lanterna = lobby?.rules.mode === 'lanterna';
   const code = lobby?.code ?? match.code;
   const round = lobby?.round ?? match.round;
 
@@ -81,7 +82,7 @@ export default function Papel() {
           ? runnersCount === 1
             ? `Encontre e pegue o corredor em ${durationMin} min. Ele tem ${headStartMin} min de vantagem.`
             : `Encontre e pegue os ${runnersCount} corredores em ${durationMin} min. Eles têm ${headStartMin} min de vantagem.`
-          : `Fique escondido por ${durationMin} min. Você tem ${headStartMin} min de vantagem. Depois, os caçadores recebem um ping a cada ${pingEveryMin} min.`}
+          : `Fique escondido por ${durationMin} min. Você tem ${headStartMin} min de vantagem. ${lanterna ? 'Depois, fuja do feixe das lanternas dos caçadores.' : `Depois, os caçadores recebem um ping a cada ${pingEveryMin} min.`}`}
       </Text>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18 }}>

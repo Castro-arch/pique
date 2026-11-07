@@ -9,6 +9,7 @@ import { mutation, query, type MutationCtx } from './_generated/server';
 import {
   clamp,
   DEFAULT_RULES,
+  distanceM,
   BETA_FREE_UNLOCK,
   FREE_HOSTED_GAMES,
   gamePlayers,
@@ -22,6 +23,7 @@ import {
   requireUser,
   RULES_VERSION,
   systemMessage,
+  ZONE_MAX_CORNERS,
 } from './lib';
 import { side } from './schema';
 
@@ -232,6 +234,7 @@ export const setRules = mutation({
       heartbeat: v.optional(v.boolean()),
       shouts: v.optional(v.boolean()),
       rescue: v.optional(v.boolean()),
+      mode: v.optional(v.union(v.literal('ping'), v.literal('lanterna'))),
     }),
   },
   handler: async (ctx, { gameId, rules }) => {
@@ -253,23 +256,33 @@ export const setRules = mutation({
         heartbeat: rules.heartbeat ?? game.rules.heartbeat,
         shouts: rules.shouts ?? game.rules.shouts,
         rescue: rules.rescue ?? game.rules.rescue,
+        mode: rules.mode ?? game.rules.mode,
       },
     });
   },
 });
 
 export const setZone = mutation({
-  args: { gameId: v.id('games'), lat: v.number(), lng: v.number(), radius: v.number() },
-  handler: async (ctx, { gameId, lat, lng, radius }) => {
+  // shape: os cantos da zona desenhada. Com ela, o centro e o raio saem dos cantos.
+  args: { gameId: v.id('games'), lat: v.number(), lng: v.number(), radius: v.number(), shape: v.optional(v.array(v.object({ lat: v.number(), lng: v.number() }))) },
+  handler: async (ctx, { gameId, lat, lng, radius, shape }) => {
     const { userId, game } = await requireMember(ctx, gameId);
     requireHost(game, userId);
     if (game.status === 'headstart' || game.status === 'hunt') throw new ConvexError('A rodada já começou.');
-    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new ConvexError('Posição inválida.');
-    const zone = { lat, lng, radius: clamp(radius, LIMITS.zoneRadius) };
+    const valid = (p: { lat: number; lng: number }) => Number.isFinite(p.lat) && Number.isFinite(p.lng) && Math.abs(p.lat) <= 90 && Math.abs(p.lng) <= 180;
+    if (!valid({ lat, lng })) throw new ConvexError('Posição inválida.');
+    let zone: NonNullable<Doc<'games'>['zone']> = { lat, lng, radius: clamp(radius, LIMITS.zoneRadius) };
+    if (shape) {
+      if (shape.length < 3 || shape.length > ZONE_MAX_CORNERS || !shape.every(valid)) throw new ConvexError(`A zona desenhada precisa de 3 a ${ZONE_MAX_CORNERS} cantos.`);
+      const c = { lat: shape.reduce((a, p) => a + p.lat, 0) / shape.length, lng: shape.reduce((a, p) => a + p.lng, 0) / shape.length };
+      const far = Math.round(Math.max(...shape.map((p) => distanceM(c, p))));
+      if (far < LIMITS.zoneRadius[0] || far > LIMITS.zoneRadius[1]) throw new ConvexError('A zona desenhada está pequena ou grande demais.');
+      zone = { ...c, radius: far, shape, shapeRadius: far };
+    }
     await ctx.db.patch(gameId, { zone });
     // Busca as ruas da zona para os boosts nascerem só nelas. Espera 4 s: se o
     // anfitrião ainda está ajustando a zona, só a última posição busca (streets.needs).
-    await ctx.scheduler.runAfter(4000, internal.streets.load, { gameId, ...zone });
+    await ctx.scheduler.runAfter(4000, internal.streets.load, { gameId, lat: zone.lat, lng: zone.lng, radius: zone.radius });
   },
 });
 

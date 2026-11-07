@@ -20,11 +20,20 @@ export const rules = v.object({
   heartbeat: v.optional(v.boolean()),
   shouts: v.optional(v.boolean()),
   rescue: v.optional(v.boolean()),
+  // Sem valor = ping (o jeito de sempre). Lanterna: sem ping, os caçadores varrem com o celular.
+  mode: v.optional(v.union(v.literal('ping'), v.literal('lanterna'))),
 });
 
 export const boostKind = v.union(v.literal('despiste'), v.literal('sombra'), v.literal('escudo'), v.literal('radar'), v.literal('faro'), v.literal('holofote'));
 
-export const zone = v.object({ lat: v.number(), lng: v.number(), radius: v.number() });
+// Círculo, ou o desenho do anfitrião (shape) do tamanho em que foi feito (shapeRadius).
+export const zone = v.object({
+  lat: v.number(),
+  lng: v.number(),
+  radius: v.number(),
+  shape: v.optional(v.array(v.object({ lat: v.number(), lng: v.number() }))),
+  shapeRadius: v.optional(v.number()),
+});
 
 export default defineSchema({
   ...authTables,
@@ -130,6 +139,7 @@ export default defineSchema({
     heartbeatAlertAt: v.optional(v.number()), // último aviso de coração acelerado (não repete a cada passo)
     heading: v.optional(v.number()), // para onde está virado (graus, 0 = norte), da bússola do celular
     headingAt: v.optional(v.number()),
+    lit: v.optional(v.boolean()), // corredor: está no feixe de alguma lanterna agora
   })
     .index('by_game', ['gameId'])
     .index('by_game_user', ['gameId', 'userId'])
